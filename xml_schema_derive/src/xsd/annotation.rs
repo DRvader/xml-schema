@@ -28,7 +28,15 @@ impl Implementation for Annotation {
     &self,
     _namespace_definition: &TokenStream,
     _prefix: &Option<String>,
-    _context: &XsdContext,
+    _context: &mut XsdContext,
+  ) {
+  }
+
+  fn get_field(
+    &self,
+    namespace_definition: &TokenStream,
+    prefix: &Option<String>,
+    context: &XsdContext,
   ) -> TokenStream {
     info!("Generate annotation");
 

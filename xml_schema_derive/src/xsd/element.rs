@@ -35,6 +35,22 @@ impl Implementation for Element {
     &self,
     namespace_definition: &TokenStream,
     prefix: &Option<String>,
+    context: &mut XsdContext,
+  ) {
+    if self.kind.is_none() {
+      self
+        .complex_type
+        .map(|ref v| v.implement(namespace_definition, prefix, context));
+      self
+        .simple_type
+        .map(|ref v| v.implement(namespace_definition, prefix, context));
+    }
+  }
+
+  fn get_field(
+    &self,
+    namespace_definition: &TokenStream,
+    prefix: &Option<String>,
     context: &XsdContext,
   ) -> TokenStream {
     let struct_name = Ident::new(
@@ -42,7 +58,7 @@ impl Implementation for Element {
       Span::call_site(),
     );
 
-    let (fields, extra_structs) = if let Some(kind) = &self.kind {
+    let fields = if let Some(kind) = &self.kind {
       let subtype_mode = if RustTypesMapping::is_xs_string(context, kind) {
         quote!(text)
       } else {
@@ -51,39 +67,39 @@ impl Implementation for Element {
 
       let extern_type = RustTypesMapping::get(context, kind);
 
-      (
-        quote!(
-          #[yaserde(#subtype_mode)]
-          pub content: #extern_type,
-        ),
-        quote!(),
+      quote!(
+        #[yaserde(#subtype_mode)]
+        pub content: #extern_type,
       )
     } else {
       let fields_definition = self
         .complex_type
-        .iter()
+        .as_ref()
         .map(|complex_type| complex_type.get_field_implementation(context, prefix))
-        .collect();
+        .unwrap_or_default();
 
-      (fields_definition, quote!())
+      info!("fields for {} {:?}", self.name, fields_definition);
+
+      fields_definition
     };
 
     let docs = self
       .annotation
       .as_ref()
-      .map(|annotation| annotation.implement(&namespace_definition, prefix, context))
-      .unwrap_or_else(TokenStream::new);
+      .map(|annotation| annotation.get_field(&namespace_definition, prefix, context))
+      .unwrap_or_default();
 
-    quote! {
-      #docs
-      #[derive(Clone, Debug, Default, PartialEq, YaDeserialize, YaSerialize)]
-      #namespace_definition
-      pub struct #struct_name {
-        #fields
-      }
-
-      #extra_structs
-    }
+    context.structs.insert(
+      (None, self.name),
+      quote! {
+        #docs
+        #[derive(Clone, Debug, Default, PartialEq, YaDeserialize, YaSerialize)]
+        #namespace_definition
+        pub struct #struct_name {
+          #fields
+        }
+      },
+    );
   }
 }
 
@@ -125,6 +141,7 @@ impl Element {
     let yaserde_rename = &self.name;
 
     let rust_type = if let Some(complex_type) = &self.complex_type {
+      info!("getting integrated implementation for {}", self.name);
       complex_type.get_integrated_implementation(&self.name)
     } else if let Some(simple_type) = &self.simple_type {
       simple_type.get_type_implementation(context, &Some(self.name.to_owned()))

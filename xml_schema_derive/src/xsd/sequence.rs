@@ -4,11 +4,15 @@ use proc_macro2::TokenStream;
 use std::io::prelude::*;
 use yaserde::YaDeserialize;
 
+use super::group::Group;
+
 #[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
 #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Sequence {
   #[yaserde(rename = "element")]
   pub elements: Vec<Element>,
+  #[yaserde(rename = "group")]
+  pub groups: Vec<Group>,
 }
 
 impl Implementation for Sequence {
@@ -23,6 +27,12 @@ impl Implementation for Sequence {
       .elements
       .iter()
       .map(|element| element.get_field_implementation(context, prefix, false))
+      .chain(
+        self
+          .groups
+          .iter()
+          .map(|element| element.get_field_implementation(context, prefix, false)),
+      )
       .collect()
   }
 }
@@ -51,6 +61,12 @@ impl Sequence {
       .elements
       .iter()
       .map(|element| element.get_field_implementation(context, prefix, true))
+      .chain(
+        self
+          .groups
+          .iter()
+          .map(|element| element.get_field_implementation(context, prefix, false)),
+      )
       .collect()
   }
 }

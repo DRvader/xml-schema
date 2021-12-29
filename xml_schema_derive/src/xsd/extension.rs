@@ -7,6 +7,8 @@ use proc_macro2::TokenStream;
 use std::io::prelude::*;
 use yaserde::YaDeserialize;
 
+use super::group::Group;
+
 #[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
 #[yaserde(
   root = "extension",
@@ -20,6 +22,8 @@ pub struct Extension {
   pub attributes: Vec<Attribute>,
   #[yaserde(rename = "sequence")]
   pub sequences: Vec<Sequence>,
+  #[yaserde(rename = "group")]
+  pub groups: Vec<Group>,
 }
 
 impl Implementation for Extension {
@@ -72,6 +76,7 @@ mod tests {
       base: "xs:string".to_string(),
       attributes: vec![],
       sequences: vec![],
+      groups: vec![],
     };
 
     let context =
@@ -107,6 +112,7 @@ mod tests {
         },
       ],
       sequences: vec![],
+      groups: vec![],
     };
 
     let context =

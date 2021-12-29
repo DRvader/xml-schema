@@ -5,6 +5,7 @@ mod complex_content;
 mod complex_type;
 mod element;
 mod extension;
+mod group;
 mod import;
 mod list;
 mod max_occurences;
@@ -28,21 +29,18 @@ use yaserde::de::from_str;
 trait Implementation {
   fn implement(
     &self,
-    _namespace_definition: &TokenStream,
-    _prefix: &Option<String>,
-    _context: &XsdContext,
-  ) -> TokenStream {
-    unimplemented!()
-  }
+    namespace_definition: &TokenStream,
+    prefix: &Option<String>,
+    context: &mut XsdContext,
+  );
 
-  fn implement_childs(
+  fn get_field(
     &self,
-    _namespace_definition: &TokenStream,
-    _prefix: &Option<String>,
-    _context: &XsdContext,
-    _struct_name: &Ident,
+    namespace_definition: &TokenStream,
+    prefix: &Option<String>,
+    context: &XsdContext,
   ) -> TokenStream {
-    unimplemented!()
+    unimplemented!();
   }
 }
 

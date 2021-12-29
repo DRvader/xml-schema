@@ -59,6 +59,7 @@ impl RustTypesMapping {
       "string" => quote!(String),
       "normalizedString" => quote!(String),
       "anyURI" => quote!(String),
+      "NMTOKEN" => quote!(String),
       "token" => quote!(String),
       "language" => quote!(String),
       "hexBinary" => quote!(String),

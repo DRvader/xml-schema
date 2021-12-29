@@ -50,6 +50,14 @@ impl Implementation for Attribute {
     &self,
     _namespace_definition: &TokenStream,
     prefix: &Option<String>,
+    context: &mut XsdContext,
+  ) {
+  }
+
+  fn get_field(
+    &self,
+    namespace_definition: &TokenStream,
+    prefix: &Option<String>,
     context: &XsdContext,
   ) -> TokenStream {
     if self.name.is_none() {
@@ -63,6 +71,8 @@ impl Implementation for Attribute {
     } else {
       name
     };
+
+    let name = format!("att_{}", name);
 
     let field_name = Ident::new(&name, Span::call_site());
 
@@ -121,7 +131,7 @@ mod tests {
 
     let implementation = format!(
       "{}",
-      attribute.implement(&TokenStream::new(), &None, &context)
+      attribute.get_field(&TokenStream::new(), &None, &context)
     );
     assert_eq!(
       implementation,
@@ -145,7 +155,7 @@ mod tests {
 
     let implementation = format!(
       "{}",
-      attribute.implement(&TokenStream::new(), &None, &context)
+      attribute.get_field(&TokenStream::new(), &None, &context)
     );
     assert_eq!(
       implementation,
@@ -169,7 +179,7 @@ mod tests {
 
     let implementation = format!(
       "{}",
-      attribute.implement(&TokenStream::new(), &None, &context)
+      attribute.get_field(&TokenStream::new(), &None, &context)
     );
     assert_eq!(
       implementation,
@@ -193,7 +203,7 @@ mod tests {
 
     let implementation = format!(
       "{}",
-      attribute.implement(&TokenStream::new(), &None, &context)
+      attribute.get_field(&TokenStream::new(), &None, &context)
     );
     assert_eq!(
       implementation,
@@ -216,7 +226,7 @@ mod tests {
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
         .unwrap();
 
-    attribute.implement(&TokenStream::new(), &None, &context);
+    attribute.get_field(&TokenStream::new(), &None, &context);
   }
 
   #[test]
@@ -235,7 +245,7 @@ mod tests {
 
     let implementation = format!(
       "{}",
-      attribute.implement(&TokenStream::new(), &None, &context)
+      attribute.get_field(&TokenStream::new(), &None, &context)
     );
     assert_eq!(implementation, "".to_string());
   }

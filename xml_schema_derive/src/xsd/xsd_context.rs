@@ -1,3 +1,4 @@
+use proc_macro2::TokenStream;
 use std::collections::BTreeMap;
 use std::io::Cursor;
 use xml::namespace::Namespace;
@@ -8,6 +9,8 @@ pub struct XsdContext {
   module_namespace_mappings: BTreeMap<String, String>,
   pub namespace: Namespace,
   xml_schema_prefix: Option<String>,
+  pub groups: BTreeMap<(Option<String>, String), TokenStream>,
+  pub structs: BTreeMap<(Option<String>, String), TokenStream>,
 }
 
 impl XsdContext {
@@ -30,6 +33,8 @@ impl XsdContext {
               module_namespace_mappings,
               namespace,
               xml_schema_prefix,
+              groups: BTreeMap::new(),
+              structs: BTreeMap::new(),
             });
           }
         }

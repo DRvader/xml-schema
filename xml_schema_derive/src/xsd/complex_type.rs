@@ -9,6 +9,8 @@ use std::io::prelude::*;
 use syn::Ident;
 use yaserde::YaDeserialize;
 
+use super::group::Group;
+
 #[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
 #[yaserde(
   rename = "complexType"
@@ -20,6 +22,7 @@ pub struct ComplexType {
   pub name: String,
   #[yaserde(rename = "attribute")]
   pub attributes: Vec<Attribute>,
+  pub group: Option<Group>,
   pub sequence: Option<Sequence>,
   #[yaserde(rename = "simpleContent")]
   pub simple_content: Option<SimpleContent>,
@@ -34,25 +37,33 @@ impl Implementation for ComplexType {
     &self,
     namespace_definition: &TokenStream,
     prefix: &Option<String>,
-    context: &XsdContext,
-  ) -> TokenStream {
+    context: &mut XsdContext,
+  ) {
     let struct_name = Ident::new(
       &self.name.replace(".", "_").to_camel_case(),
       Span::call_site(),
     );
+
+    info!("Generate group");
+    let group = self
+      .group
+      .as_ref()
+      .map(|sequence| sequence.get_field(namespace_definition, prefix, context))
+      .unwrap_or_default();
+
     info!("Generate sequence");
     let sequence = self
       .sequence
       .as_ref()
-      .map(|sequence| sequence.implement(namespace_definition, prefix, context))
-      .unwrap_or_else(TokenStream::new);
+      .map(|sequence| sequence.get_field(namespace_definition, prefix, context))
+      .unwrap_or_default();
 
     info!("Generate simple content");
     let simple_content = self
       .simple_content
       .as_ref()
-      .map(|simple_content| simple_content.implement(namespace_definition, prefix, context))
-      .unwrap_or_else(TokenStream::new);
+      .map(|simple_content| simple_content.get_field(namespace_definition, prefix, context))
+      .unwrap_or_default();
 
     let complex_content = self
       .complex_content
@@ -69,35 +80,37 @@ impl Implementation for ComplexType {
     let attributes: TokenStream = self
       .attributes
       .iter()
-      .map(|attribute| attribute.implement(&namespace_definition, prefix, context))
+      .map(|attribute| attribute.get_field(&namespace_definition, prefix, context))
       .collect();
 
     let sub_types_implementation = self
       .sequence
       .as_ref()
       .map(|sequence| sequence.get_sub_types_implementation(context, &namespace_definition, prefix))
-      .unwrap_or_else(TokenStream::new);
+      .unwrap_or_default();
 
     let docs = self
       .annotation
       .as_ref()
-      .map(|annotation| annotation.implement(&namespace_definition, prefix, context))
-      .unwrap_or_else(TokenStream::new);
+      .map(|annotation| annotation.get_field(&namespace_definition, prefix, context))
+      .unwrap_or_default();
 
-    quote! {
-      #docs
+    context.structs.insert(
+      (None, self.name),
+      quote! {
+        #docs
 
-      #[derive(Clone, Debug, Default, PartialEq, YaDeserialize, YaSerialize)]
-      #namespace_definition
-      pub struct #struct_name {
-        #sequence
-        #simple_content
-        #complex_content
-        #attributes
-      }
-
-      #sub_types_implementation
-    }
+        #[derive(Clone, Debug, Default, PartialEq, YaDeserialize, YaSerialize)]
+        #namespace_definition
+        pub struct #struct_name {
+          #group
+          #sequence
+          #simple_content
+          #complex_content
+          #attributes
+        }
+      },
+    );
   }
 }
 
@@ -133,5 +146,9 @@ impl ComplexType {
     }
 
     quote!(String)
+  }
+
+  pub fn needs_define(&self) -> bool {
+    self.sequence.is_some() || self.complex_content.is_some() || self.simple_content.is_some()
   }
 }

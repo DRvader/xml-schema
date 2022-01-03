@@ -1,10 +1,12 @@
-use crate::xsd::{list::List, restriction::Restriction, union::Union, Implementation, XsdContext};
-use heck::CamelCase;
+use crate::xsd::{
+  list::List, restriction::Restriction, union::Union, xsd_context::XsdName, XsdContext,
+};
+
 use log::debug;
-use proc_macro2::{Span, TokenStream};
 use std::io::prelude::*;
-use syn::Ident;
 use yaserde::YaDeserialize;
+
+use super::{restriction::RestrictionParentType, xsd_context::XsdImpl};
 
 #[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
 #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
@@ -16,40 +18,20 @@ pub struct SimpleType {
   pub union: Option<Union>,
 }
 
-impl Implementation for SimpleType {
-  fn implement(
-    &self,
-    namespace_definition: &TokenStream,
-    prefix: &Option<String>,
-    context: &XsdContext,
-  ) -> TokenStream {
-    let struct_name = Ident::new(&self.name.to_camel_case(), Span::call_site());
-
-    if let Some(list) = &self.list {
-      return list.implement_childs(namespace_definition, prefix, context, &struct_name);
-    }
-
-    quote!(
-      #[derive(Clone, Debug, Default, PartialEq, YaDeserialize, YaSerialize)]
-      #namespace_definition
-      pub struct #struct_name {
-        #[yaserde(text)]
-        pub content: std::string::String,
-      }
-    )
-  }
-}
-
 impl SimpleType {
-  pub fn get_type_implementation(
-    &self,
-    context: &XsdContext,
-    prefix: &Option<String>,
-  ) -> TokenStream {
-    if let Some(restriction) = &self.restriction {
-      restriction.get_type_implementation(context, prefix)
-    } else {
-      panic!("No restriction for this simple type {:?}", self);
+  pub fn get_implementation(&self, context: &mut XsdContext) -> XsdImpl {
+    let name = XsdName {
+      namespace: None,
+      local_name: self.name.clone(),
+    };
+
+    match (&self.list, &self.union, &self.restriction) {
+      (None, None, Some(restriction)) => {
+        restriction.get_implementation(name, RestrictionParentType::SimpleType, context)
+      }
+      (None, Some(union), None) => union.get_implementation(name, context),
+      (Some(list), None, None) => list.get_implementation(name, context),
+      _ => unreachable!("Invalid Xsd!"),
     }
   }
 }
@@ -70,11 +52,12 @@ mod tests {
       union: None,
     };
 
-    let context =
+    let mut context =
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
         .unwrap();
 
-    let ts = st.implement(&quote!(), &None, &context).to_string();
+    let value = st.get_implementation(&mut context).to_string().unwrap();
+    let ts = quote!(#value).to_string();
 
     assert_eq!(
       format!(

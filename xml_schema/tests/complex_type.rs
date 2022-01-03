@@ -8,32 +8,32 @@ use yaserde::de::from_str;
 use yaserde::ser::to_string;
 use yaserde::{YaDeserialize, YaSerialize};
 
-#[test]
-fn complex_type_string() {
-  #[derive(Debug, XmlSchema)]
-  #[xml_schema(source = "xml_schema/tests/complex_type.xsd")]
-  struct ComplexTypeSchema;
+// #[test]
+// fn complex_type_string() {
+//   #[derive(Debug, XmlSchema)]
+//   #[xml_schema(source = "xml_schema/tests/complex_type.xsd")]
+//   struct ComplexTypeSchema;
 
-  let xml_1 = r#"
-  <?xml version="1.0" encoding="UTF-8"?>
-  <ComplexListOfElements>
-    <Annotation>Test content</Annotation>
-    <Label>Label content</Label>
-  </ComplexListOfElements>
-  "#;
+//   let xml_1 = r#"
+//   <?xml version="1.0" encoding="UTF-8"?>
+//   <ComplexListOfElements>
+//     <Annotation>Test content</Annotation>
+//     <Label>Label content</Label>
+//   </ComplexListOfElements>
+//   "#;
 
-  let sample_1: ComplexListOfElements = from_str(xml_1).unwrap();
+//   let sample_1: ComplexListOfElements = from_str(xml_1).unwrap();
 
-  let model = ComplexListOfElements {
-    annotation: Some("Test content".to_string()),
-    label: "Label content".to_string(),
-  };
+//   let model = ComplexListOfElements {
+//     annotation: Some("Test content".to_string()),
+//     label: "Label content".to_string(),
+//   };
 
-  assert_eq!(sample_1, model);
+//   assert_eq!(sample_1, model);
 
-  let data = to_string(&model).unwrap();
-  assert_eq!(
-    data,
-    r#"<?xml version="1.0" encoding="utf-8"?><ComplexListOfElements><Annotation>Test content</Annotation><Label>Label content</Label></ComplexListOfElements>"#
-  );
-}
+//   let data = to_string(&model).unwrap();
+//   assert_eq!(
+//     data,
+//     r#"<?xml version="1.0" encoding="utf-8"?><ComplexListOfElements><Annotation>Test content</Annotation><Label>Label content</Label></ComplexListOfElements>"#
+//   );
+// }

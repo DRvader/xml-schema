@@ -1,8 +1,8 @@
 use crate::xsd::{
   attribute, attribute_group, complex_type, element, group, import, qualification, simple_type,
-  Implementation, XsdContext,
+  XsdContext,
 };
-use log::{debug, info};
+use log::debug;
 use proc_macro2::TokenStream;
 use std::io::prelude::*;
 use yaserde::YaDeserialize;
@@ -36,49 +36,52 @@ pub struct Schema {
   pub groups: Vec<group::Group>,
 }
 
-impl Implementation for Schema {
-  fn implement(
-    &self,
-    _namespace_definition: &TokenStream,
-    target_prefix: &Option<String>,
-    context: &XsdContext,
-  ) -> TokenStream {
-    let namespace_definition = generate_namespace_definition(target_prefix, &self.target_namespace);
+impl Schema {
+  pub fn generate(&self, context: &mut XsdContext) -> String {
+    // let namespace_definition = generate_namespace_definition(target_prefix, &self.target_namespace);
 
-    info!("Generate groups");
-    let groups: TokenStream = self
-      .groups
-      .iter()
-      .map(|group| group.implement(&namespace_definition, target_prefix, context))
-      .collect();
+    let mut top_level_names = vec![];
 
-    info!("Generate elements");
-    let elements: TokenStream = self
-      .elements
-      .iter()
-      .map(|element| element.implement(&namespace_definition, target_prefix, context))
-      .collect();
+    dbg!("Generating GROUPS");
+    for group in &self.groups {
+      let temp = group.get_implementation(None, context);
+      top_level_names.push(temp.name.clone().unwrap());
+      context.structs.insert(temp.name.clone().unwrap(), temp);
+    }
 
-    info!("Generate simple types");
-    let simple_types: TokenStream = self
-      .simple_type
-      .iter()
-      .map(|simple_type| simple_type.implement(&namespace_definition, target_prefix, context))
-      .collect();
+    dbg!("Generating ELEMENTS");
+    for element in &self.elements {
+      let temp = element.get_implementation(context);
+      top_level_names.push(temp.name.clone().unwrap());
+      context.structs.insert(temp.name.clone().unwrap(), temp);
+    }
 
-    info!("Generate complex types");
-    let complex_types: TokenStream = self
-      .complex_type
-      .iter()
-      .map(|complex_type| complex_type.implement(&namespace_definition, target_prefix, context))
-      .collect();
+    dbg!("Generating SIMPLE TYPE");
+    for simple_type in &self.simple_type {
+      let temp = simple_type.get_implementation(context);
+      top_level_names.push(temp.name.clone().unwrap());
+      context.structs.insert(temp.name.clone().unwrap(), temp);
+    }
 
-    quote!(
-      #groups
-      #simple_types
-      #complex_types
-      #elements
-    )
+    dbg!("Generating COMPLEX TYPE");
+    for complex_type in &self.complex_type {
+      let temp = complex_type.get_implementation(context);
+      top_level_names.push(temp.name.clone().unwrap());
+      context.structs.insert(temp.name.clone().unwrap(), temp);
+    }
+
+    let mut dst = String::new();
+    let mut formatter = crate::codegen::Formatter::new(&mut dst);
+    for name in top_level_names {
+      context
+        .structs
+        .get(&name)
+        .unwrap()
+        .fmt(&mut formatter)
+        .unwrap();
+    }
+
+    dst
   }
 }
 
@@ -109,11 +112,11 @@ mod tests {
   fn default_schema_implementation() {
     let schema = Schema::default();
 
-    let context =
+    let mut context =
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
         .unwrap();
 
-    let implementation = format!("{}", schema.implement(&TokenStream::new(), &None, &context));
+    let implementation = format!("{}", schema.generate(&mut context));
     assert_eq!(implementation, "");
   }
 
@@ -123,11 +126,11 @@ mod tests {
     let mut schema = Schema::default();
     schema.target_namespace = Some("http://example.com".to_string());
 
-    let context =
+    let mut context =
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
         .unwrap();
 
-    schema.implement(&TokenStream::new(), &None, &context);
+    schema.generate(&mut context);
   }
 
   #[test]
@@ -135,11 +138,11 @@ mod tests {
   fn missing_target_namespace() {
     let schema = Schema::default();
 
-    let context =
+    let mut context =
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
         .unwrap();
 
-    schema.implement(&TokenStream::new(), &Some("ex".to_string()), &context);
+    schema.generate(&mut context);
   }
 
   #[test]

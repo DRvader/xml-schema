@@ -1,0 +1,20 @@
+[package]
+name = "xml-schema-parser"
+version = "0.0.7"
+description = "Structure generator from XSD source file"
+edition = "2018"
+
+[lib]
+name = "xml_schema_parser"
+
+[dependencies]
+heck = "0.3.1"
+log = "0.4"
+proc-macro2 = "1.0"
+quote = "1.0"
+reqwest = { version = "0.10", features = ["blocking"] }
+simple_logger = "1.6"
+syn = { version = "1.0", features = ["visit", "extra-traits"] }
+xml-rs = "0.8"
+yaserde_derive = { version = "0.7.1" }
+yaserde = { version = "0.7.1" }

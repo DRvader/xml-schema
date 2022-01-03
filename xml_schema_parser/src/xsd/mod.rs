@@ -1,9 +1,11 @@
 mod annotation;
 mod attribute;
 mod attribute_group;
+mod choice;
 mod complex_content;
 mod complex_type;
 mod element;
+mod enumeration;
 mod extension;
 mod group;
 mod import;
@@ -20,29 +22,10 @@ mod union;
 mod xsd_context;
 
 use log::info;
-use proc_macro2::{Ident, TokenStream};
 use std::collections::BTreeMap;
 use std::fs;
 use xsd_context::XsdContext;
 use yaserde::de::from_str;
-
-trait Implementation {
-  fn implement(
-    &self,
-    namespace_definition: &TokenStream,
-    prefix: &Option<String>,
-    context: &mut XsdContext,
-  );
-
-  fn get_field(
-    &self,
-    namespace_definition: &TokenStream,
-    prefix: &Option<String>,
-    context: &XsdContext,
-  ) -> TokenStream {
-    unimplemented!();
-  }
-}
 
 #[derive(Clone, Debug)]
 pub struct Xsd {
@@ -56,8 +39,11 @@ impl Xsd {
     module_namespace_mappings: &BTreeMap<String, String>,
   ) -> Result<Self, String> {
     let context = XsdContext::new(content)?;
+    dbg!("MADE CONTEXT");
     let context = context.with_module_namespace_mappings(module_namespace_mappings);
+    dbg!("MODE");
     let schema: schema::Schema = from_str(content)?;
+    dbg!("PARSED SCHEMA");
 
     Ok(Xsd { context, schema })
   }
@@ -66,6 +52,7 @@ impl Xsd {
     source: &str,
     module_namespace_mappings: &BTreeMap<String, String>,
   ) -> Result<Self, String> {
+    dbg!("STARTING");
     let content = if source.starts_with("http://") || source.starts_with("https://") {
       info!("Load HTTP schema {}", source);
       reqwest::blocking::get(source)
@@ -79,6 +66,8 @@ impl Xsd {
       fs::read_to_string(source).map_err(|e| e.to_string())?
     };
 
+    dbg!("HAVE FILE");
+
     // skip BOM header, can be present on some files
     let content = if content.as_bytes()[0..3] == [0xef, 0xbb, 0xbf] {
       content[3..].to_owned()
@@ -86,12 +75,31 @@ impl Xsd {
       content
     };
 
+    dbg!("SKIP BOM");
+
     Xsd::new(&content, module_namespace_mappings)
   }
 
-  pub fn implement(&self, target_prefix: &Option<String>) -> TokenStream {
-    self
-      .schema
-      .implement(&TokenStream::new(), target_prefix, &self.context)
+  pub fn generate(&mut self, target_prefix: &Option<String>) -> String {
+    self.schema.generate(&mut self.context)
   }
 }
+
+// #[cfg(test)]
+// mod test {
+//   use std::collections::BTreeMap;
+
+//   use super::Xsd;
+
+//   #[test]
+//   fn musicxml() {
+//     let mut xsd = Xsd::new_from_file(
+//       "C:/Users/micro/Code/musicxml-rs/assets/musicxml.xsd",
+//       &BTreeMap::new(),
+//     )
+//     .unwrap();
+//     let output = xsd.generate(&None);
+
+//     dbg!(output);
+//   }
+// }

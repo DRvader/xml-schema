@@ -1,12 +1,12 @@
-use crate::xsd::{
-  rust_types_mapping::RustTypesMapping, simple_type::SimpleType, Implementation, XsdContext,
+use crate::{
+  codegen::{Field, Struct, Type},
+  xsd::{simple_type::SimpleType, XsdContext},
 };
-use heck::SnakeCase;
 use log::debug;
-use proc_macro2::{Span, TokenStream};
 use std::io::prelude::*;
-use syn::Ident;
 use yaserde::YaDeserialize;
+
+use super::xsd_context::{XsdElement, XsdImpl, XsdName};
 
 #[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
 #[yaserde(
@@ -45,64 +45,67 @@ impl Default for Required {
   }
 }
 
-impl Implementation for Attribute {
-  fn implement(
-    &self,
-    _namespace_definition: &TokenStream,
-    prefix: &Option<String>,
-    context: &mut XsdContext,
-  ) {
-  }
-
-  fn get_field(
-    &self,
-    namespace_definition: &TokenStream,
-    prefix: &Option<String>,
-    context: &XsdContext,
-  ) -> TokenStream {
+impl Attribute {
+  pub fn get_implementation(&self, context: &mut XsdContext) -> Option<XsdImpl> {
     if self.name.is_none() {
-      return quote!();
+      return None;
     }
-    let raw_name = self.name.clone().unwrap();
-    let name = raw_name.to_snake_case();
-
-    let name = if name == "type" {
-      "kind".to_string()
-    } else {
-      name
-    };
-
-    let name = format!("att_{}", name);
-
-    let field_name = Ident::new(&name, Span::call_site());
 
     let rust_type = match (
       self.reference.as_ref(),
       self.kind.as_ref(),
       self.simple_type.as_ref(),
     ) {
-      (None, Some(kind), None) => RustTypesMapping::get(context, &kind),
-      (Some(reference), None, None) => RustTypesMapping::get(context, &reference),
-      (None, None, Some(simple_type)) => simple_type.get_type_implementation(context, prefix),
+      (None, Some(kind), None) => context
+        .structs
+        .get(&XsdName {
+          namespace: None,
+          local_name: kind.clone(),
+        })
+        .unwrap()
+        .clone(),
+      (Some(reference), None, None) => context
+        .structs
+        .get(&XsdName {
+          namespace: None,
+          local_name: reference.clone(),
+        })
+        .unwrap()
+        .clone(),
+      (None, None, Some(simple_type)) => simple_type.get_implementation(context),
       (_, _, _) => panic!("Not implemented Rust type for: {:?}", self),
     };
 
     let rust_type = if self.required == Required::Optional {
-      quote!(Option<#rust_type>)
+      Type::new(&format!("Option<{}>", rust_type.element.get_type().name))
     } else {
-      quote!(#rust_type)
+      rust_type.element.get_type()
     };
 
-    let attributes = if name == raw_name {
-      quote!(attribute)
-    } else {
-      quote!(attribute, rename=#raw_name)
+    let generated_impl = XsdImpl {
+      element: XsdElement::Struct(
+        Struct::new("attribute")
+          .push_field(
+            Field::new(
+              &XsdName {
+                namespace: None,
+                local_name: self.name.clone().unwrap(),
+              }
+              .to_field_name(),
+              rust_type,
+            )
+            .annotation(vec![&format!(
+              "yaserde(attribute, rename={})",
+              self.name.clone().unwrap()
+            )])
+            .to_owned(),
+          )
+          .to_owned(),
+      ),
+      ..Default::default()
     };
 
-    quote!(
-      #[yaserde(#attributes)]
-      pub #field_name: #rust_type,
-    )
+    Some(generated_impl)
   }
 }
 
@@ -125,14 +128,16 @@ mod tests {
       simple_type: None,
     };
 
-    let context =
+    let mut context =
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
         .unwrap();
 
-    let implementation = format!(
-      "{}",
-      attribute.get_field(&TokenStream::new(), &None, &context)
-    );
+    let value = attribute
+      .get_implementation(&mut context)
+      .unwrap()
+      .to_string()
+      .unwrap();
+    let implementation = quote!(#value).to_string();
     assert_eq!(
       implementation,
       r#"# [ yaserde ( attribute ) ] pub language : String ,"#
@@ -149,14 +154,16 @@ mod tests {
       simple_type: None,
     };
 
-    let context =
+    let mut context =
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
         .unwrap();
 
-    let implementation = format!(
-      "{}",
-      attribute.get_field(&TokenStream::new(), &None, &context)
-    );
+    let value = attribute
+      .get_implementation(&mut context)
+      .unwrap()
+      .to_string()
+      .unwrap();
+    let implementation = quote!(#value).to_string();
     assert_eq!(
       implementation,
       r#"# [ yaserde ( attribute ) ] pub language : Option < String > ,"#
@@ -173,14 +180,16 @@ mod tests {
       simple_type: None,
     };
 
-    let context =
+    let mut context =
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
         .unwrap();
 
-    let implementation = format!(
-      "{}",
-      attribute.get_field(&TokenStream::new(), &None, &context)
-    );
+    let value = attribute
+      .get_implementation(&mut context)
+      .unwrap()
+      .to_string()
+      .unwrap();
+    let implementation = quote!(#value).to_string();
     assert_eq!(
       implementation,
       r#"# [ yaserde ( attribute , rename = "type" ) ] pub kind : Option < String > ,"#
@@ -197,14 +206,16 @@ mod tests {
       simple_type: None,
     };
 
-    let context =
+    let mut context =
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
         .unwrap();
 
-    let implementation = format!(
-      "{}",
-      attribute.get_field(&TokenStream::new(), &None, &context)
-    );
+    let value = attribute
+      .get_implementation(&mut context)
+      .unwrap()
+      .to_string()
+      .unwrap();
+    let implementation = quote!(#value).to_string();
     assert_eq!(
       implementation,
       r#"# [ yaserde ( attribute , rename = "type" ) ] pub kind : Option < MyType > ,"#
@@ -222,11 +233,11 @@ mod tests {
       simple_type: None,
     };
 
-    let context =
+    let mut context =
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
         .unwrap();
 
-    attribute.get_field(&TokenStream::new(), &None, &context);
+    attribute.get_implementation(&mut context);
   }
 
   #[test]
@@ -239,14 +250,16 @@ mod tests {
       simple_type: None,
     };
 
-    let context =
+    let mut context =
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
         .unwrap();
 
-    let implementation = format!(
-      "{}",
-      attribute.get_field(&TokenStream::new(), &None, &context)
-    );
+    let value = attribute
+      .get_implementation(&mut context)
+      .unwrap()
+      .to_string()
+      .unwrap();
+    let implementation = quote!(#value).to_string();
     assert_eq!(implementation, "".to_string());
   }
 }

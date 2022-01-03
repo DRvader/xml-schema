@@ -9,6 +9,8 @@ use xml::reader::{EventReader, XmlEvent};
 
 use crate::codegen::{Field, Impl};
 
+use super::XsdError;
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct XsdName {
   pub namespace: Option<String>,
@@ -367,7 +369,7 @@ pub struct XsdContext {
 }
 
 impl XsdContext {
-  pub fn new(content: &str) -> Result<Self, String> {
+  pub fn new(content: &str) -> Result<Self, XsdError> {
     let cursor = Cursor::new(content);
     let parser = EventReader::new(cursor);
 
@@ -848,7 +850,9 @@ impl XsdContext {
       }
     }
 
-    Err("Bad XML Schema, unable to found schema element.".to_string())
+    Err(XsdError::XsdParseError(
+      "Bad XML Schema, unable to found schema element.".to_string(),
+    ))
   }
 
   pub fn with_module_namespace_mappings(

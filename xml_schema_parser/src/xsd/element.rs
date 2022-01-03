@@ -6,73 +6,76 @@ use crate::{
     max_occurences::MaxOccurences,
     simple_type::SimpleType,
     xsd_context::{XsdElement, XsdImpl, XsdName},
-    XsdContext,
+    XsdContext, XsdError,
   },
 };
-use heck::{CamelCase, SnakeCase};
-use log::{debug, info};
-use proc_macro2::Span;
-use std::io::prelude::*;
-use syn::Ident;
-use yaserde::YaDeserialize;
+use heck::CamelCase;
 
-#[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
-#[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
+use super::XMLElementWrapper;
+
+#[derive(Clone, Default, Debug, PartialEq)]
+// #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Element {
-  #[yaserde(attribute)]
   pub name: String,
-  #[yaserde(rename = "type", attribute)]
   pub kind: Option<String>,
-  #[yaserde(rename = "ref", attribute)]
   pub refers: Option<String>,
-  #[yaserde(rename = "minOccurs", attribute)]
-  pub min_occurences: Option<u64>,
-  #[yaserde(rename = "maxOccurs", attribute)]
-  pub max_occurences: Option<MaxOccurences>,
-  #[yaserde(rename = "complexType")]
+  pub min_occurences: u64,
+  pub max_occurences: MaxOccurences,
   pub complex_type: Option<ComplexType>,
-  #[yaserde(rename = "simpleType")]
   pub simple_type: Option<SimpleType>,
-  #[yaserde(rename = "annotation")]
   pub annotation: Option<Annotation>,
-  #[yaserde(rename = "unique")]
-  pub uniques: Vec<String>,
-  #[yaserde(rename = "key")]
-  pub keys: Vec<String>,
-  #[yaserde(rename = "keyref")]
-  pub keyrefs: Vec<String>,
+  // #[yaserde(rename = "unique")]
+  // pub uniques: Vec<String>,
+  // #[yaserde(rename = "key")]
+  // pub keys: Vec<String>,
+  // #[yaserde(rename = "keyref")]
+  // pub keyrefs: Vec<String>,
 }
 
 impl Element {
+  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+    element.check_name("xs:element");
+
+    let complex_type =
+      element.try_get_child_with("xs:complexType", |child| ComplexType::parse(child))?;
+    let simple_type =
+      element.try_get_child_with("xs:simpleType", |child| SimpleType::parse(child))?;
+    let annotation =
+      element.try_get_child_with("xs:annotation", |child| Annotation::parse(child))?;
+
+    let output = Ok(Self {
+      name: element.get_attribute("name")?,
+      kind: element.try_get_attribute("type")?,
+      refers: element.try_get_attribute("ref")?,
+      min_occurences: element.try_get_attribute("minOccurs")?.unwrap_or(1),
+      max_occurences: element
+        .try_get_attribute("maxOccurs")?
+        .unwrap_or(MaxOccurences::Number { value: 1 }),
+      complex_type,
+      simple_type,
+      annotation,
+    });
+
+    element.finalize(false, false)?;
+
+    output
+  }
+
   fn is_multiple(&self) -> bool {
-    self
-      .max_occurences
-      .as_ref()
-      .map(|v| match v {
-        MaxOccurences::Unbounded => true,
-        MaxOccurences::Number { value } => *value > 0,
-      })
-      .unwrap_or(false)
-      || self.min_occurences.unwrap_or(1) > 0
+    (match &self.max_occurences {
+      MaxOccurences::Unbounded => true,
+      MaxOccurences::Number { value } => *value > 0,
+    }) || self.min_occurences > 0
   }
 
   fn could_be_none(&self) -> bool {
-    self
-      .max_occurences
-      .as_ref()
-      .map(|v| match v {
-        MaxOccurences::Unbounded => false,
-        MaxOccurences::Number { value } => *value == 1,
-      })
-      .unwrap_or(true)
-      && self.min_occurences.unwrap_or(1) == 0
+    (match &self.max_occurences {
+      MaxOccurences::Unbounded => false,
+      MaxOccurences::Number { value } => *value == 1,
+    }) && self.min_occurences == 0
   }
 
   pub fn get_implementation(&self, context: &mut XsdContext) -> XsdImpl {
-    assert!(self.uniques.is_empty(), "Unique content is not supported.");
-    assert!(self.keys.is_empty(), "Key content is not supported.");
-    assert!(self.keyrefs.is_empty(), "Keyref content is not supported.");
-
     let type_name = self.name.replace(".", "_").to_camel_case();
 
     let generated_impl = if self.is_multiple() || self.could_be_none() {
@@ -108,10 +111,6 @@ impl Element {
   }
 
   pub fn get_field(&self, context: &mut XsdContext) -> Field {
-    assert!(self.uniques.is_empty(), "Unique content is not supported.");
-    assert!(self.keys.is_empty(), "Key content is not supported.");
-    assert!(self.keyrefs.is_empty(), "Keyref content is not supported.");
-
     let mut field_type = match (&self.simple_type, &self.complex_type) {
       (None, Some(complex_type)) => complex_type.get_implementation(context).element.get_type(),
       (Some(simple_type), None) => simple_type.get_implementation(context).element.get_type(),
@@ -171,13 +170,12 @@ mod tests {
       name: "volume".to_string(),
       kind: Some("books:volume-type".to_string()),
       refers: None,
-      min_occurences: None,
-      max_occurences: None,
+      min_occurences: 1,
+      max_occurences: MaxOccurences::Number { value: 1 },
       complex_type: None,
       simple_type: None,
       annotation: Some(Annotation {
         id: None,
-        attributes: vec![],
         documentation: vec!["Loudness measured in Decibels".to_string()],
       }),
       ..Default::default()
@@ -208,13 +206,12 @@ mod tests {
       name: "volume".to_string(),
       kind: Some("xs:string".to_string()),
       refers: None,
-      min_occurences: None,
-      max_occurences: None,
+      min_occurences: 1,
+      max_occurences: MaxOccurences::Number { value: 1 },
       complex_type: None,
       simple_type: None,
       annotation: Some(Annotation {
         id: None,
-        attributes: vec![],
         documentation: vec!["Loudness measured in Decibels".to_string()],
       }),
       ..Default::default()

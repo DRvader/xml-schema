@@ -1,31 +1,75 @@
 use crate::xsd::{attribute::Attribute, sequence::Sequence, XsdContext};
-use log::debug;
-use std::io::prelude::*;
-use yaserde::YaDeserialize;
 
 use super::{
+  annotation::Annotation,
+  attribute_group::AttributeGroup,
   choice::Choice,
   group::Group,
   xsd_context::{MergeSettings, XsdImpl, XsdName},
+  XMLElementWrapper, XsdError,
 };
 
-#[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
-#[yaserde(
-  root = "extension",
-  prefix = "xs",
-  namespace = "xs: http://www.w3.org/2001/XMLSchema"
-)]
+#[derive(Clone, Default, Debug, PartialEq)]
+// #[yaserde(
+//   root = "extension",
+//   prefix = "xs",
+//   namespace = "xs: http://www.w3.org/2001/XMLSchema"
+// )]
 pub struct Extension {
-  #[yaserde(attribute)]
   pub base: String,
-  #[yaserde(rename = "attribute")]
   pub attributes: Vec<Attribute>,
+  pub attribute_groups: Vec<AttributeGroup>,
   pub sequence: Option<Sequence>,
   pub group: Option<Group>,
   pub choice: Option<Choice>,
+  pub annotation: Option<Annotation>,
 }
 
 impl Extension {
+  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+    element.check_name("xs:extension")?;
+
+    let attributes = element.get_children_with("xs:attribute", |child| Attribute::parse(child))?;
+
+    let attribute_groups =
+      element.get_children_with("xs:attributeGroup", |child| AttributeGroup::parse(child))?;
+
+    // group|all|choice|sequence
+    let group = element.try_get_child_with("xs:group", |child| Group::parse(child))?;
+    let choice = element.try_get_child_with("xs:choice", |child| Choice::parse(child))?;
+    let sequence = element.try_get_child_with("xs:sequence", |child| Sequence::parse(child))?;
+
+    if (!attributes.is_empty() || !attribute_groups.is_empty())
+      && (group.is_some() || choice.is_some() || sequence.is_some())
+    {
+      return Err(XsdError::XsdParseError(format!(
+        "(group | choice | sequence) and (attribute | attributeGroup) cannot both present in {}",
+        element.name()
+      )));
+    }
+
+    if group.is_some() as u8 + choice.is_some() as u8 + sequence.is_some() as u8 > 1 {
+      return Err(XsdError::XsdParseError(format!(
+        "group | choice | sequence cannot all be present in {}",
+        element.name()
+      )));
+    }
+
+    let output = Self {
+      base: element.get_attribute("base")?,
+      sequence: element.try_get_child_with("xs:sequence", |child| Sequence::parse(child))?,
+      group,
+      choice,
+      attributes,
+      attribute_groups,
+      annotation: element.try_get_child_with("xs:annotation", |child| Annotation::parse(child))?,
+    };
+
+    element.finalize(false, false)?;
+
+    Ok(output)
+  }
+
   pub fn get_implementation(&self, parent_name: XsdName, context: &mut XsdContext) -> XsdImpl {
     let mut generated_impl = match (&self.group, &self.sequence, &self.choice) {
       (None, None, Some(choice)) => choice.get_implementation(parent_name, context),

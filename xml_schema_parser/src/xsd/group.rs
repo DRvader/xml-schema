@@ -1,31 +1,67 @@
-use std::io::prelude::*;
-use yaserde::YaDeserialize;
-
 use super::{
+  annotation::Annotation,
   choice::Choice,
   max_occurences::MaxOccurences,
   sequence::Sequence,
-  xsd_context::{XsdContext, XsdElement, XsdImpl, XsdName},
+  xsd_context::{XsdContext, XsdImpl, XsdName},
+  XMLElementWrapper, XsdError,
 };
 
-#[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
-#[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
+#[derive(Clone, Default, Debug, PartialEq)]
+// #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Group {
-  #[yaserde(attribute)]
   pub id: Option<String>,
-  #[yaserde(attribute)]
   pub name: Option<String>,
-  #[yaserde(rename = "ref", attribute)]
   pub refers: Option<String>,
-  #[yaserde(rename = "minOccurs", attribute)]
-  pub min_occurences: Option<u64>,
-  #[yaserde(rename = "maxOccurs", attribute)]
-  pub max_occurences: Option<MaxOccurences>,
+  pub min_occurences: u64,
+  pub max_occurences: MaxOccurences,
+  pub annotation: Option<Annotation>,
   pub sequence: Option<Sequence>,
   pub choice: Option<Choice>,
 }
 
 impl Group {
+  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+    element.check_name("xs:group")?;
+
+    let name = element.try_get_attribute("name")?;
+    let refers = element.try_get_attribute("ref")?;
+
+    let sequence = element.try_get_child_with("xs:sequence", |child| Sequence::parse(child))?;
+    let choice = element.try_get_child_with("xs:choice", |child| Choice::parse(child))?;
+
+    if name.is_some() && refers.is_some() {
+      return Err(XsdError::XsdParseError(format!(
+        "name and ref cannot both present in {}",
+        element.name()
+      )));
+    }
+
+    if sequence.is_some() && choice.is_some() {
+      return Err(XsdError::XsdParseError(format!(
+        "sequence and choice cannot both present in {}",
+        element.name()
+      )));
+    }
+
+    let output = Self {
+      id: element.try_get_attribute("id")?,
+      name,
+      refers,
+      min_occurences: element.try_get_attribute("minOccurs")?.unwrap_or(1),
+      max_occurences: element
+        .try_get_attribute("maxOccurs")?
+        .unwrap_or(MaxOccurences::Number { value: 1 }),
+      annotation: element.try_get_child_with("xs:annotation", |child| Annotation::parse(child))?,
+      sequence,
+      choice,
+    };
+
+    element.finalize(false, false)?;
+
+    Ok(output)
+  }
+
   pub fn get_implementation(
     &self,
     parent_name: Option<XsdName>,

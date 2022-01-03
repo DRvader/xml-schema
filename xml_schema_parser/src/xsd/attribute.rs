@@ -1,42 +1,51 @@
+use std::str::FromStr;
+
+use super::{
+  xsd_context::{XsdElement, XsdImpl, XsdName},
+  XMLElementWrapper, XsdError,
+};
 use crate::{
   codegen::{Field, Struct, Type},
   xsd::{simple_type::SimpleType, XsdContext},
 };
-use log::debug;
-use std::io::prelude::*;
-use yaserde::YaDeserialize;
 
-use super::xsd_context::{XsdElement, XsdImpl, XsdName};
-
-#[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
-#[yaserde(
-  rename = "attribute",
-  prefix = "xs",
-  namespace = "xs: http://www.w3.org/2001/XMLSchema"
-)]
+#[derive(Clone, Default, Debug, PartialEq)]
+// #[yaserde(
+//   rename = "attribute",
+//   prefix = "xs",
+//   namespace = "xs: http://www.w3.org/2001/XMLSchema"
+// )]
 pub struct Attribute {
-  #[yaserde(prefix = "xs", attribute)]
   pub name: Option<String>,
-  #[yaserde(rename = "type", attribute)]
   pub kind: Option<String>,
   // #[yaserde(attribute)]
   // pub default: Option<String>,
   // #[yaserde(attribute)]
   // pub fixed: Option<String>,
-  #[yaserde(rename = "use", attribute)]
   pub required: Required,
-  #[yaserde(rename = "ref", attribute)]
   pub reference: Option<String>,
-  #[yaserde(rename = "simpleType")]
   pub simple_type: Option<SimpleType>,
 }
 
 #[derive(Clone, Debug, PartialEq, YaDeserialize)]
 pub enum Required {
-  #[yaserde(rename = "optional")]
   Optional,
-  #[yaserde(rename = "required")]
   Required,
+}
+
+impl FromStr for Required {
+  type Err = String;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s {
+      "optional" => Ok(Required::Optional),
+      "required" => Ok(Required::Optional),
+      err => Err(format!(
+        "{} is not a valid value for optional|required",
+        err
+      )),
+    }
+  }
 }
 
 impl Default for Required {
@@ -46,6 +55,53 @@ impl Default for Required {
 }
 
 impl Attribute {
+  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+    element.check_name("xs:attribute");
+
+    let name = element.try_get_attribute("name")?;
+    let reference = element.try_get_attribute("ref")?;
+
+    if name.is_some() && reference.is_some() {
+      return Err(XsdError::XsdParseError(format!(
+        "name and ref cannot both present in {}",
+        element.name()
+      )));
+    }
+
+    let kind = element.try_get_attribute("type")?;
+
+    let simple_type =
+      element.try_get_child_with("xs:simpleType", |child| SimpleType::parse(child))?;
+
+    let required = element.get_attribute_default("use")?;
+
+    if reference.is_some() && (simple_type.is_some() || kind.is_some()) {
+      return Err(XsdError::XsdParseError(format!(
+        "Error in {} type | simpleType cannot be present when ref is present",
+        element.name()
+      )));
+    }
+
+    if simple_type.is_some() && kind.is_some() {
+      return Err(XsdError::XsdParseError(format!(
+        "simpleType and type cannot both present in {}",
+        element.name()
+      )));
+    }
+
+    let output = Self {
+      name,
+      reference,
+      kind,
+      required,
+      simple_type,
+    };
+
+    element.finalize(false, false)?;
+
+    Ok(output)
+  }
+
   pub fn get_implementation(&self, context: &mut XsdContext) -> Option<XsdImpl> {
     if self.name.is_none() {
       return None;

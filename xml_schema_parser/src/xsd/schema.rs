@@ -2,45 +2,83 @@ use crate::xsd::{
   attribute, attribute_group, complex_type, element, group, import, qualification, simple_type,
   XsdContext,
 };
-use log::debug;
 use proc_macro2::TokenStream;
-use std::io::prelude::*;
-use yaserde::YaDeserialize;
 
-#[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
-#[yaserde(
-  root="schema"
-  prefix="xs",
-  namespace="xs: http://www.w3.org/2001/XMLSchema",
-)]
+use super::{annotation, XMLElementWrapper, XsdError};
+
+#[derive(Clone, Default, Debug, PartialEq)]
+// #[yaserde(
+//   root="schema"
+//   prefix="xs",
+//   namespace="xs: http://www.w3.org/2001/XMLSchema",
+// )]
 pub struct Schema {
-  #[yaserde(rename = "targetNamespace", attribute)]
   pub target_namespace: Option<String>,
-  #[yaserde(rename = "elementFormDefault", attribute)]
   pub element_form_default: qualification::Qualification,
-  #[yaserde(rename = "attributeFormDefault", attribute)]
   pub attribute_form_default: qualification::Qualification,
-  #[yaserde(rename = "import")]
   pub imports: Vec<import::Import>,
-  #[yaserde(rename = "element")]
+  pub annotation: Option<annotation::Annotation>,
   pub elements: Vec<element::Element>,
-  #[yaserde(rename = "simpleType")]
   pub simple_type: Vec<simple_type::SimpleType>,
-  #[yaserde(rename = "complexType")]
   pub complex_type: Vec<complex_type::ComplexType>,
-  #[yaserde(rename = "attribute")]
   pub attributes: Vec<attribute::Attribute>,
-  #[yaserde(rename = "attributeGroup")]
   pub attribute_group: Vec<attribute_group::AttributeGroup>,
-  #[yaserde(rename = "group")]
   pub groups: Vec<group::Group>,
 }
 
 impl Schema {
+  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+    element.check_name("xs:schema")?;
+
+    let annotation = element.try_get_child_with("xs:annotation", |child| {
+      annotation::Annotation::parse(child)
+    })?;
+    let imports = element.get_children_with("xs:import", |child| import::Import::parse(child))?;
+    let elements =
+      element.get_children_with("xs:element", |child| element::Element::parse(child))?;
+    let simple_type = element.get_children_with("xs:simpleType", |child| {
+      simple_type::SimpleType::parse(child)
+    })?;
+    let complex_type = element.get_children_with("xs:complexType", |child| {
+      complex_type::ComplexType::parse(child)
+    })?;
+    let attributes =
+      element.get_children_with("xs:attribute", |child| attribute::Attribute::parse(child))?;
+    let attribute_group = element.get_children_with("xs:attributeGroup", |child| {
+      attribute_group::AttributeGroup::parse(child)
+    })?;
+    let groups = element.get_children_with("xs:group", |child| group::Group::parse(child))?;
+
+    let output = Self {
+      target_namespace: element.try_get_attribute("targetNamespace")?,
+      element_form_default: element.get_attribute_default("elementFormDefault")?,
+      attribute_form_default: element.get_attribute_default("attributeFormDefault")?,
+      annotation,
+      imports,
+      elements,
+      simple_type,
+      complex_type,
+      attributes,
+      attribute_group,
+      groups,
+    };
+
+    element.finalize(false, false);
+
+    Ok(output)
+  }
+
   pub fn generate(&self, context: &mut XsdContext) -> String {
     // let namespace_definition = generate_namespace_definition(target_prefix, &self.target_namespace);
 
     let mut top_level_names = vec![];
+
+    dbg!("Generating ATTR GROUPS");
+    for attr_group in &self.attribute_group {
+      let temp = attr_group.get_implementation(None, context);
+      top_level_names.push(temp.name.clone().unwrap());
+      context.structs.insert(temp.name.clone().unwrap(), temp);
+    }
 
     dbg!("Generating GROUPS");
     for group in &self.groups {

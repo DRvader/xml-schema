@@ -1,18 +1,29 @@
-use log::debug;
-use std::io::prelude::*;
-use yaserde::YaDeserialize;
+use std::str::FromStr;
 
-#[derive(Clone, Debug, PartialEq, YaDeserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Qualification {
-  #[yaserde(rename = "qualified")]
   Qualidified,
-  #[yaserde(rename = "unqualified")]
   Unqualified,
 }
 
 impl Default for Qualification {
   fn default() -> Self {
     Qualification::Unqualified
+  }
+}
+
+impl FromStr for Qualification {
+  type Err = String;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s {
+      "qualified" => Ok(Qualification::Qualidified),
+      "unqualified" => Ok(Qualification::Unqualified),
+      err => Err(format!(
+        "{} is not a valid value for qualified|unqualified",
+        err
+      )),
+    }
   }
 }
 

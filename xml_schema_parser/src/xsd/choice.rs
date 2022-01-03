@@ -1,6 +1,3 @@
-use std::io::prelude::*;
-use yaserde::YaDeserialize;
-
 use crate::codegen::{Enum, Field, Struct, Type};
 
 use super::{
@@ -9,28 +6,40 @@ use super::{
   max_occurences::MaxOccurences,
   sequence::Sequence,
   xsd_context::{XsdContext, XsdElement, XsdImpl, XsdName},
+  XMLElementWrapper, XsdError,
 };
 
-#[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
-#[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
+#[derive(Clone, Default, Debug, PartialEq)]
+// #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Choice {
-  #[yaserde(attribute)]
   pub id: Option<String>,
-  #[yaserde(rename = "minOccurs", attribute)]
-  pub min_occurences: Option<u64>,
-  #[yaserde(rename = "maxOccurs", attribute)]
-  pub max_occurences: Option<MaxOccurences>,
-  #[yaserde(rename = "element")]
+  pub min_occurences: u64,
+  pub max_occurences: MaxOccurences,
   pub elements: Vec<Element>,
-  #[yaserde(rename = "group")]
   pub groups: Vec<Group>,
-  #[yaserde(rename = "choice")]
   pub choices: Vec<Choice>,
-  #[yaserde(rename = "sequence")]
   pub sequences: Vec<Sequence>,
 }
 
 impl Choice {
+  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+    element.check_name("xs:choice")?;
+
+    let output = Self {
+      id: element.try_get_attribute("id")?,
+      min_occurences: element.try_get_attribute("minOccurs")?.unwrap_or(1),
+      max_occurences: element.get_attribute_default("maxOccurs")?,
+      elements: element.get_children_with("xs:element", |child| Element::parse(child))?,
+      groups: element.get_children_with("xs:group", |child| Group::parse(child))?,
+      choices: element.get_children_with("xs:choice", |child| Choice::parse(child))?,
+      sequences: element.get_children_with("xs:sequence", |child| Sequence::parse(child))?,
+    };
+
+    element.finalize(false, false);
+
+    Ok(output)
+  }
+
   pub fn get_implementation(&self, parent_name: XsdName, context: &mut XsdContext) -> XsdImpl {
     let mut outer_enum = XsdImpl {
       name: Some(parent_name.clone()),
@@ -75,19 +84,14 @@ impl Choice {
       outer_enum.merge_into_enum(element.get_implementation(context), true);
     }
 
-    let min_occurances = self.min_occurences.unwrap_or(1);
-    let max_occurances = self
-      .max_occurences
-      .as_ref()
-      .unwrap_or(&MaxOccurences::Number { value: 1 });
-    let multiple = match max_occurances {
+    let multiple = match &self.max_occurences {
       MaxOccurences::Unbounded => true,
       MaxOccurences::Number { value } => *value > 1,
     };
 
-    let option = match max_occurances {
+    let option = match &self.max_occurences {
       MaxOccurences::Unbounded => false,
-      MaxOccurences::Number { value } => *value == 1 && min_occurances == 0,
+      MaxOccurences::Number { value } => *value == 1 && self.min_occurences == 0,
     };
 
     if multiple {

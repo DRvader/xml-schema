@@ -1,3 +1,6 @@
+use super::{
+  attribute_group::AttributeGroup, choice::Choice, group::Group, XMLElementWrapper, XsdError,
+};
 use crate::{
   codegen::Struct,
   xsd::{
@@ -11,38 +14,103 @@ use crate::{
   },
 };
 use heck::CamelCase;
-use log::debug;
-use std::io::prelude::*;
-use yaserde::YaDeserialize;
 
-use super::group::Group;
-
-#[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
-#[yaserde(
-  rename = "complexType"
-  prefix = "xs",
-  namespace = "xs: http://www.w3.org/2001/XMLSchema"
-)]
+#[derive(Clone, Default, Debug, PartialEq)]
+// #[yaserde(
+//   rename = "complexType"
+//   prefix = "xs",
+//   namespace = "xs: http://www.w3.org/2001/XMLSchema"
+// )]
 pub struct ComplexType {
-  #[yaserde(attribute)]
-  pub name: String,
-  #[yaserde(rename = "attribute")]
+  pub name: Option<String>,
   pub attributes: Vec<Attribute>,
+  pub attribute_groups: Vec<AttributeGroup>,
+  pub choice: Option<Choice>,
   pub group: Option<Group>,
   pub sequence: Option<Sequence>,
-  #[yaserde(rename = "simpleContent")]
   pub simple_content: Option<SimpleContent>,
-  #[yaserde(rename = "complexContent")]
   pub complex_content: Option<ComplexContent>,
-  #[yaserde(rename = "annotation")]
   pub annotation: Option<Annotation>,
 }
 
 impl ComplexType {
+  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+    element.check_name("xs:complexType")?;
+
+    // (annotation?,(simpleContent|complexContent|((group|all|choice|sequence)?,((attribute|attributeGroup)*,anyAttribute?))))
+    let simple_content =
+      element.try_get_child_with("xs:simpleContent", |child| SimpleContent::parse(child))?;
+    let complex_content =
+      element.try_get_child_with("xs:complexContent", |child| ComplexContent::parse(child))?;
+
+    let choice = element.try_get_child_with("xs:choice", |child| Choice::parse(child))?;
+    let group = element.try_get_child_with("xs:group", |child| Group::parse(child))?;
+    let sequence = element.try_get_child_with("xs:sequence", |child| Sequence::parse(child))?;
+
+    let attributes = element.get_children_with("xs:attribute", |child| Attribute::parse(child))?;
+
+    let attribute_groups =
+      element.get_children_with("xs:attributeGroup", |child| AttributeGroup::parse(child))?;
+
+    if simple_content.is_some() && complex_content.is_some() {
+      return Err(XsdError::XsdParseError(format!(
+        "simpleContent | complexContent cannot both present in {}",
+        element.name()
+      )));
+    }
+
+    if (simple_content.is_some() || complex_content.is_some())
+      && (!attributes.is_empty()
+        || attribute_groups.is_empty()
+        || group.is_some()
+        || choice.is_some()
+        || sequence.is_some())
+    {
+      return Err(XsdError::XsdParseError(format!(
+        "(simpleContent | complexContent) and (group | choice | sequence | attribute | attributeGroup) cannot both present in {}",
+        element.name()
+      )));
+    }
+
+    if (!attributes.is_empty() || !attribute_groups.is_empty())
+      && (group.is_some() || choice.is_some() || sequence.is_some())
+    {
+      return Err(XsdError::XsdParseError(format!(
+        "(group | choice | sequence) and (attribute | attributeGroup) cannot both present in {}",
+        element.name()
+      )));
+    }
+
+    if group.is_some() as u8 + choice.is_some() as u8 + sequence.is_some() as u8 > 1 {
+      return Err(XsdError::XsdParseError(format!(
+        "group | choice | sequence cannot all be present in {}",
+        element.name()
+      )));
+    }
+
+    let output = Self {
+      name: element.try_get_attribute("name")?,
+      choice,
+      group,
+      sequence,
+      simple_content,
+      complex_content,
+      attribute_groups,
+      attributes,
+      annotation: element.try_get_child_with("xs:annotation", |child| Annotation::parse(child))?,
+    };
+
+    element.finalize(false, false);
+
+    Ok(output)
+  }
+
   pub fn get_implementation(&self, context: &mut XsdContext) -> XsdImpl {
+    let name = self.name.clone().unwrap_or("temp".to_string());
+
     let struct_id = XsdName {
       namespace: None,
-      local_name: self.name.clone(),
+      local_name: name.clone(),
     };
 
     assert!(
@@ -51,7 +119,7 @@ impl ComplexType {
       &struct_id
     );
 
-    let struct_name = self.name.replace(".", "_").to_camel_case();
+    let struct_name = name.replace(".", "_").to_camel_case();
 
     let fields = match (
       &self.complex_content,
@@ -62,28 +130,28 @@ impl ComplexType {
       (Some(complex_content), None, None, None) => complex_content.get_implementation(
         XsdName {
           namespace: None,
-          local_name: self.name.clone(),
+          local_name: name,
         },
         context,
       ),
       (None, Some(simple_content), None, None) => simple_content.get_implementation(
         XsdName {
           namespace: None,
-          local_name: self.name.clone(),
+          local_name: name,
         },
         context,
       ),
       (None, None, Some(group), None) => group.get_implementation(
         Some(XsdName {
           namespace: None,
-          local_name: self.name.clone(),
+          local_name: name,
         }),
         context,
       ),
       (None, None, None, Some(sequence)) => sequence.get_implementation(
         XsdName {
           namespace: None,
-          local_name: self.name.clone(),
+          local_name: name,
         },
         context,
       ),

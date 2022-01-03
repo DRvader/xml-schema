@@ -10,6 +10,7 @@ use yaserde::YaDeserialize;
 use super::{
   enumeration::Enumeration,
   xsd_context::{XsdElement, XsdImpl, XsdName},
+  XMLElementWrapper, XsdError,
 };
 
 #[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
@@ -28,6 +29,19 @@ pub enum RestrictionParentType {
 }
 
 impl Restriction {
+  pub fn parse(element: XMLElementWrapper) -> Result<Self, XsdError> {
+    element.check_name("xs:restriction")?;
+
+    let output = Self {
+      base: todo!(),
+      enumerations: todo!(),
+    };
+
+    element.finalize(false, false)?;
+
+    Ok(output)
+  }
+
   pub fn get_implementation(
     &self,
     parent_name: XsdName,

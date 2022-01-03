@@ -1,23 +1,45 @@
-use log::debug;
-use std::io::prelude::*;
-use yaserde::YaDeserialize;
-
 use crate::codegen::Enum;
 
-use super::xsd_context::{XsdContext, XsdElement, XsdImpl, XsdName};
+use super::{
+  simple_type::SimpleType,
+  xsd_context::{XsdContext, XsdElement, XsdImpl, XsdName},
+  XMLElementWrapper, XsdError,
+};
 
-#[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
-#[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
+#[derive(Clone, Default, Debug, PartialEq)]
+// #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Union {
-  #[yaserde(rename = "memberTypes", attribute)]
-  pub member_types: String,
+  pub member_types: Vec<String>,
+  pub simple_types: Vec<SimpleType>,
 }
 
 impl Union {
+  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+    element.check_name("xs:union")?;
+
+    let member_types: Option<String> = element.try_get_attribute("memberTypes")?;
+    let mut members = vec![];
+
+    if let Some(member_types) = member_types {
+      for member in member_types.split_whitespace() {
+        members.push(member.to_string());
+      }
+    }
+
+    let output = Self {
+      member_types: members,
+      simple_types: element.get_children_with("xs:simpleType", |child| SimpleType::parse(child))?,
+    };
+
+    element.finalize(false, false)?;
+
+    Ok(output)
+  }
+
   pub fn get_implementation(&self, parent_name: XsdName, context: &mut XsdContext) -> XsdImpl {
     let mut generated_enum = Enum::new(&parent_name.local_name);
 
-    for member in self.member_types.split_whitespace() {
+    for member in &self.member_types {
       let str = context
         .structs
         .get(&XsdName {

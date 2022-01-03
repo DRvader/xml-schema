@@ -2,21 +2,31 @@ use crate::{
   codegen::{Body, Field, Function, Impl, Struct},
   xsd::{rust_types_mapping::RustTypesMapping, XsdContext},
 };
-use log::debug;
 
-use std::io::prelude::*;
-use yaserde::YaDeserialize;
+use super::{
+  xsd_context::{XsdElement, XsdImpl, XsdName},
+  XMLElementWrapper, XsdError,
+};
 
-use super::xsd_context::{XsdElement, XsdImpl, XsdName};
-
-#[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
-#[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
+#[derive(Clone, Default, Debug, PartialEq)]
+// #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct List {
-  #[yaserde(rename = "itemType", attribute)]
   pub item_type: String,
 }
 
 impl List {
+  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+    element.check_name("xs:list")?;
+
+    let output = Self {
+      item_type: element.get_attribute("itemType")?,
+    };
+
+    element.finalize(false, false)?;
+
+    Ok(output)
+  }
+
   pub fn get_implementation(&self, name: XsdName, context: &mut XsdContext) -> XsdImpl {
     let list_type = RustTypesMapping::get(context, &self.item_type);
 

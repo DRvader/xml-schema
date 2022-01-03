@@ -2,16 +2,13 @@ use crate::xsd::{
   list::List, restriction::Restriction, union::Union, xsd_context::XsdName, XsdContext,
 };
 
-use log::debug;
-use std::io::prelude::*;
-use yaserde::YaDeserialize;
+use super::{
+  restriction::RestrictionParentType, xsd_context::XsdImpl, XMLElementWrapper, XsdError,
+};
 
-use super::{restriction::RestrictionParentType, xsd_context::XsdImpl};
-
-#[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
-#[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
+#[derive(Clone, Default, Debug, PartialEq)]
+// #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct SimpleType {
-  #[yaserde(attribute)]
   pub name: String,
   pub restriction: Option<Restriction>,
   pub list: Option<List>,
@@ -19,6 +16,33 @@ pub struct SimpleType {
 }
 
 impl SimpleType {
+  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+    element.check_name("xs:simpleType")?;
+
+    let restriction =
+      element.try_get_child_with("xs:restriction", |child| Restriction::parse(child))?;
+    let list = element.try_get_child_with("xs:list", |child| List::parse(child))?;
+    let union = element.try_get_child_with("xs:union", |child| Union::parse(child))?;
+
+    if restriction.is_some() as u8 + list.is_some() as u8 + union.is_some() as u8 > 1 {
+      return Err(XsdError::XsdParseError(format!(
+        "Two of (extension | restriction | union) cannot be present in {}",
+        element.name()
+      )));
+    }
+
+    let output = Self {
+      name: element.get_attribute("name")?,
+      restriction,
+      list,
+      union,
+    };
+
+    element.finalize(false, false)?;
+
+    Ok(output)
+  }
+
   pub fn get_implementation(&self, context: &mut XsdContext) -> XsdImpl {
     let name = XsdName {
       namespace: None,

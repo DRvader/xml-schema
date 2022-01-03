@@ -1,4 +1,4 @@
-use std::io::prelude::*;
+use std::{io::prelude::*, str::FromStr};
 use xml::reader::XmlEvent;
 use yaserde::YaDeserialize;
 
@@ -10,7 +10,20 @@ pub enum MaxOccurences {
 
 impl Default for MaxOccurences {
   fn default() -> Self {
-    MaxOccurences::Unbounded
+    MaxOccurences::Number { value: 1 }
+  }
+}
+
+impl FromStr for MaxOccurences {
+  type Err = String;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    if s == "unbounded" {
+      Ok(MaxOccurences::Unbounded)
+    } else {
+      let number = s.parse::<u32>().map_err(|e| e.to_string())?;
+      Ok(MaxOccurences::Number { value: number })
+    }
   }
 }
 

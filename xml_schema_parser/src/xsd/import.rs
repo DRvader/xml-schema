@@ -1,18 +1,18 @@
-use log::debug;
-use std::io::prelude::*;
-use yaserde::YaDeserialize;
+use super::{XMLElementWrapper, XsdError};
 
-#[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
-#[yaserde(
-  root="schema"
-  prefix="xs",
-  namespace="xs: http://www.w3.org/2001/XMLSchema",
-)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub struct Import {
-  #[yaserde(attribute)]
   pub id: Option<String>,
-  #[yaserde(attribute)]
   pub namespace: Option<String>,
-  #[yaserde(rename = "schemaLocation", attribute)]
   pub schema_location: Option<String>,
+}
+
+impl Import {
+  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+    Ok(Self {
+      id: element.try_get_attribute("id")?,
+      namespace: element.try_get_attribute("namespace")?,
+      schema_location: element.try_get_attribute("schemaLocation")?,
+    })
+  }
 }

@@ -1,27 +1,26 @@
+use super::{
+  annotation::Annotation,
+  choice::Choice,
+  group::Group,
+  max_occurences::MaxOccurences,
+  xsd_context::{MergeSettings, XsdElement, XsdImpl, XsdName},
+  XMLElementWrapper, XsdError,
+};
 use crate::{
   codegen::Struct,
   xsd::{element::Element, XsdContext},
 };
-use log::debug;
-use std::io::prelude::*;
-use yaserde::YaDeserialize;
 
-use super::{
-  choice::Choice,
-  group::Group,
-  xsd_context::{MergeSettings, XsdElement, XsdImpl, XsdName},
-};
-
-#[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
-#[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
+#[derive(Clone, Default, Debug, PartialEq)]
+// #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Sequence {
-  #[yaserde(rename = "element")]
+  pub id: Option<String>,
+  pub min_occurences: u64,
+  pub max_occurences: MaxOccurences,
+  pub annotation: Option<Annotation>,
   pub elements: Vec<Element>,
-  #[yaserde(rename = "group")]
   pub groups: Vec<Group>,
-  #[yaserde(rename = "choice")]
   pub choices: Vec<Choice>,
-  #[yaserde(rename = "sequence")]
   pub sequences: Vec<Sequence>,
 }
 
@@ -34,6 +33,27 @@ enum PureType {
 }
 
 impl Sequence {
+  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+    element.check_name("xs:sequence")?;
+
+    let output = Self {
+      id: element.try_get_attribute("id")?,
+      min_occurences: element.try_get_attribute("minOccurs")?.unwrap_or(1),
+      max_occurences: element
+        .try_get_attribute("maxOccurs")?
+        .unwrap_or(MaxOccurences::Number { value: 1 }),
+      annotation: element.try_get_child_with("xs:annotation", |child| Annotation::parse(child))?,
+      elements: element.get_children_with("xs:element", |child| Element::parse(child))?,
+      groups: element.get_children_with("xs:group", |child| Group::parse(child))?,
+      choices: element.get_children_with("xs:choice", |child| Choice::parse(child))?,
+      sequences: element.get_children_with("xs:sequence", |child| Sequence::parse(child))?,
+    };
+
+    element.finalize(false, false);
+
+    Ok(output)
+  }
+
   fn pure_type(&self) -> PureType {
     let has_elements = !self.elements.is_empty();
     let has_choices = !self.choices.is_empty();

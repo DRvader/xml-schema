@@ -339,7 +339,7 @@ mod test {
   #[test]
   fn musicxml() -> Result<(), XsdError> {
     let mut xsd = Xsd::new_from_file(
-      "C:/Users/micro/Code/musicxml-rs/assets/musicxml.xsd",
+      "../musicxml.xsd",
       &BTreeMap::new(),
     )?;
     let output = xsd.generate(&None);

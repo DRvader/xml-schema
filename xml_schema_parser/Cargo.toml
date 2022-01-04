@@ -20,3 +20,4 @@ yaserde_derive = { version = "0.7.1" }
 yaserde = { version = "0.7.1" }
 xmltree = "0.10.3"
 thiserror = "1.0.30"
+chrono = "0.4"

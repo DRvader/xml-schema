@@ -71,6 +71,13 @@ impl Schema {
 
     let mut top_level_names = vec![];
 
+    dbg!("Generating SIMPLE TYPE");
+    for simple_type in &self.simple_type {
+      let temp = simple_type.get_implementation(context);
+      top_level_names.push(temp.name.clone().unwrap());
+      context.structs.insert(temp.name.clone().unwrap(), temp);
+    }
+
     dbg!("Generating ATTR GROUPS");
     for attr_group in &self.attribute_group {
       let temp = attr_group.get_implementation(None, context);
@@ -88,13 +95,6 @@ impl Schema {
     dbg!("Generating ELEMENTS");
     for element in &self.elements {
       let temp = element.get_implementation(context);
-      top_level_names.push(temp.name.clone().unwrap());
-      context.structs.insert(temp.name.clone().unwrap(), temp);
-    }
-
-    dbg!("Generating SIMPLE TYPE");
-    for simple_type in &self.simple_type {
-      let temp = simple_type.get_implementation(context);
       top_level_names.push(temp.name.clone().unwrap());
       context.structs.insert(temp.name.clone().unwrap(), temp);
     }

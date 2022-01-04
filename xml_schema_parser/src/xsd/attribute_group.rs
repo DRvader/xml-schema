@@ -61,7 +61,8 @@ impl AttributeGroup {
         &self
           .name
           .as_ref()
-          .unwrap_or(&parent_name.as_ref().unwrap().to_struct_name()),
+          .and_then(|v| Some(v.to_string()))
+          .unwrap_or_else(|| parent_name.as_ref().unwrap().to_struct_name()),
       )),
       ..Default::default()
     };

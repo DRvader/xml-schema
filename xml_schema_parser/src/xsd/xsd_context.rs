@@ -845,6 +845,21 @@ impl XsdContext {
                     ..Default::default()
                   },
                 ),
+                (
+                  XsdName {
+                    namespace: None,
+                    local_name: format!(
+                      "{}{}date",
+                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      if xml_schema_prefix.is_some() { ":" } else { "" }
+                    )
+                    .to_string(),
+                  },
+                  XsdImpl {
+                    element: XsdElement::Type(Type::new("chrono::Date")),
+                    ..Default::default()
+                  },
+                )
               ]),
             });
           }

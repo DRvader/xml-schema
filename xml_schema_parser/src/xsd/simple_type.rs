@@ -3,26 +3,29 @@ use crate::xsd::{
 };
 
 use super::{
-  restriction::RestrictionParentType, xsd_context::XsdImpl, XMLElementWrapper, XsdError,
+  annotation::Annotation, restriction::RestrictionParentType, xsd_context::XsdImpl,
+  XMLElementWrapper, XsdError,
 };
 
 #[derive(Clone, Default, Debug, PartialEq)]
 // #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct SimpleType {
-  pub name: String,
+  pub name: Option<String>,
+  pub annotation: Option<Annotation>,
   pub restriction: Option<Restriction>,
   pub list: Option<List>,
   pub union: Option<Union>,
 }
 
 impl SimpleType {
-  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
-    element.check_name("xs:simpleType")?;
+  pub fn parse(mut element: XMLElementWrapper, parent_is_schema: bool) -> Result<Self, XsdError> {
+    element.check_name("simpleType")?;
 
-    let restriction =
-      element.try_get_child_with("xs:restriction", |child| Restriction::parse(child))?;
-    let list = element.try_get_child_with("xs:list", |child| List::parse(child))?;
-    let union = element.try_get_child_with("xs:union", |child| Union::parse(child))?;
+    let restriction = element.try_get_child_with("restriction", |child| {
+      Restriction::parse(RestrictionParentType::SimpleType, child)
+    })?;
+    let list = element.try_get_child_with("list", |child| List::parse(child))?;
+    let union = element.try_get_child_with("union", |child| Union::parse(child))?;
 
     if restriction.is_some() as u8 + list.is_some() as u8 + union.is_some() as u8 > 1 {
       return Err(XsdError::XsdParseError(format!(
@@ -31,8 +34,23 @@ impl SimpleType {
       )));
     }
 
+    let name = element.try_get_attribute("name")?;
+
+    if parent_is_schema && name.is_none() {
+      return Err(XsdError::XsdParseError(format!(
+        "The name attribute is required if the parent of {} is a schema.",
+        element.name()
+      )));
+    } else if !parent_is_schema && name.is_some() {
+      return Err(XsdError::XsdParseError(format!(
+        "The name attribute is not allowed if the parent of {} is not a schema.",
+        element.name()
+      )));
+    }
+
     let output = Self {
-      name: element.get_attribute("name")?,
+      name,
+      annotation: element.try_get_child_with("annotation", |child| Annotation::parse(child))?,
       restriction,
       list,
       union,
@@ -46,7 +64,7 @@ impl SimpleType {
   pub fn get_implementation(&self, context: &mut XsdContext) -> XsdImpl {
     let name = XsdName {
       namespace: None,
-      local_name: self.name.clone(),
+      local_name: self.name.clone().unwrap_or("temp".to_string()),
     };
 
     match (&self.list, &self.union, &self.restriction) {
@@ -70,7 +88,8 @@ mod tests {
   #[test]
   fn simple_type() {
     let st = SimpleType {
-      name: "test".to_string(),
+      name: Some("test".to_string()),
+      annotation: None,
       restriction: None,
       list: None,
       union: None,

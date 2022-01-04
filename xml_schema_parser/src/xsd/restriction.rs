@@ -1,25 +1,24 @@
-use crate::{
-  codegen::{Block, Enum, Function, Impl, Struct, Type},
-  xsd::XsdContext,
-};
-use heck::CamelCase;
-use log::debug;
-use std::io::prelude::*;
-use yaserde::YaDeserialize;
-
 use super::{
   enumeration::Enumeration,
   xsd_context::{XsdElement, XsdImpl, XsdName},
   XMLElementWrapper, XsdError,
 };
+use crate::{
+  codegen::{Block, Enum, Function, Impl, Struct, Type},
+  xsd::XsdContext,
+};
+use heck::CamelCase;
 
-#[derive(Clone, Default, Debug, PartialEq, YaDeserialize)]
-#[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
+#[derive(Clone, Default, Debug, PartialEq)]
+// #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Restriction {
-  #[yaserde(attribute)]
   pub base: String,
-  #[yaserde(rename = "enumeration")]
-  pub enumerations: Vec<Enumeration>,
+  pub min_inclusive: Option<i64>,
+  pub max_inclusive: Option<i64>,
+  pub min_exclusive: Option<i64>,
+  pub enumerations: Vec<String>,
+  pub pattern: Option<String>,
+  pub min_length: Option<i64>,
 }
 
 pub enum RestrictionParentType {
@@ -29,12 +28,25 @@ pub enum RestrictionParentType {
 }
 
 impl Restriction {
-  pub fn parse(element: XMLElementWrapper) -> Result<Self, XsdError> {
-    element.check_name("xs:restriction")?;
+  pub fn parse(
+    parent_type: RestrictionParentType,
+    mut element: XMLElementWrapper,
+  ) -> Result<Self, XsdError> {
+    element.check_name("restriction")?;
 
     let output = Self {
-      base: todo!(),
-      enumerations: todo!(),
+      base: element.get_attribute("base")?,
+      min_inclusive: element
+        .try_get_child_with("minInclusive", |mut child| child.get_attribute("value"))?,
+      max_inclusive: element
+        .try_get_child_with("maxInclusive", |mut child| child.get_attribute("value"))?,
+      min_exclusive: element
+        .try_get_child_with("minExclusive", |mut child| child.get_attribute("value"))?,
+      enumerations: element
+        .get_children_with("enumeration", |mut child| child.get_attribute("value"))?,
+      pattern: element.try_get_child_with("pattern", |mut child| child.get_attribute("value"))?,
+      min_length: element
+        .try_get_child_with("minLength", |mut child| child.get_attribute("value"))?,
     };
 
     element.finalize(false, false)?;
@@ -69,12 +81,12 @@ impl Restriction {
 
       let mut value_block = Block::new("match self");
       for enumeration in &self.enumerations {
-        let enum_name = enumeration.value.to_camel_case();
+        let enum_name = enumeration.to_camel_case();
         generated_enum.new_variant(&enum_name);
 
         value_block.line(format!(
           "{}::{} => {}.parse(),",
-          type_name, enum_name, enumeration.value
+          type_name, enum_name, enumeration
         ));
       }
 

@@ -35,22 +35,22 @@ pub struct ComplexType {
 
 impl ComplexType {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
-    element.check_name("xs:complexType")?;
+    element.check_name("complexType")?;
 
     // (annotation?,(simpleContent|complexContent|((group|all|choice|sequence)?,((attribute|attributeGroup)*,anyAttribute?))))
     let simple_content =
-      element.try_get_child_with("xs:simpleContent", |child| SimpleContent::parse(child))?;
+      element.try_get_child_with("simpleContent", |child| SimpleContent::parse(child))?;
     let complex_content =
-      element.try_get_child_with("xs:complexContent", |child| ComplexContent::parse(child))?;
+      element.try_get_child_with("complexContent", |child| ComplexContent::parse(child))?;
 
-    let choice = element.try_get_child_with("xs:choice", |child| Choice::parse(child))?;
-    let group = element.try_get_child_with("xs:group", |child| Group::parse(child))?;
-    let sequence = element.try_get_child_with("xs:sequence", |child| Sequence::parse(child))?;
+    let choice = element.try_get_child_with("choice", |child| Choice::parse(child))?;
+    let group = element.try_get_child_with("group", |child| Group::parse(child))?;
+    let sequence = element.try_get_child_with("sequence", |child| Sequence::parse(child))?;
 
-    let attributes = element.get_children_with("xs:attribute", |child| Attribute::parse(child))?;
+    let attributes = element.get_children_with("attribute", |child| Attribute::parse(child))?;
 
     let attribute_groups =
-      element.get_children_with("xs:attributeGroup", |child| AttributeGroup::parse(child))?;
+      element.get_children_with("attributeGroup", |child| AttributeGroup::parse(child))?;
 
     if simple_content.is_some() && complex_content.is_some() {
       return Err(XsdError::XsdParseError(format!(
@@ -72,15 +72,6 @@ impl ComplexType {
       )));
     }
 
-    if (!attributes.is_empty() || !attribute_groups.is_empty())
-      && (group.is_some() || choice.is_some() || sequence.is_some())
-    {
-      return Err(XsdError::XsdParseError(format!(
-        "(group | choice | sequence) and (attribute | attributeGroup) cannot both present in {}",
-        element.name()
-      )));
-    }
-
     if group.is_some() as u8 + choice.is_some() as u8 + sequence.is_some() as u8 > 1 {
       return Err(XsdError::XsdParseError(format!(
         "group | choice | sequence cannot all be present in {}",
@@ -97,10 +88,10 @@ impl ComplexType {
       complex_content,
       attribute_groups,
       attributes,
-      annotation: element.try_get_child_with("xs:annotation", |child| Annotation::parse(child))?,
+      annotation: element.try_get_child_with("annotation", |child| Annotation::parse(child))?,
     };
 
-    element.finalize(false, false);
+    element.finalize(false, false)?;
 
     Ok(output)
   }

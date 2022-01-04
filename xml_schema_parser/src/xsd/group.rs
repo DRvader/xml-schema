@@ -22,13 +22,13 @@ pub struct Group {
 
 impl Group {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
-    element.check_name("xs:group")?;
+    element.check_name("group")?;
 
     let name = element.try_get_attribute("name")?;
     let refers = element.try_get_attribute("ref")?;
 
-    let sequence = element.try_get_child_with("xs:sequence", |child| Sequence::parse(child))?;
-    let choice = element.try_get_child_with("xs:choice", |child| Choice::parse(child))?;
+    let sequence = element.try_get_child_with("xsequence", |child| Sequence::parse(child))?;
+    let choice = element.try_get_child_with("choice", |child| Choice::parse(child))?;
 
     if name.is_some() && refers.is_some() {
       return Err(XsdError::XsdParseError(format!(
@@ -52,7 +52,7 @@ impl Group {
       max_occurences: element
         .try_get_attribute("maxOccurs")?
         .unwrap_or(MaxOccurences::Number { value: 1 }),
-      annotation: element.try_get_child_with("xs:annotation", |child| Annotation::parse(child))?,
+      annotation: element.try_get_child_with("annotation", |child| Annotation::parse(child))?,
       sequence,
       choice,
     };

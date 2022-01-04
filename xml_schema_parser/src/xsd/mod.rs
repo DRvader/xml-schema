@@ -334,17 +334,18 @@ impl Xsd {
 mod test {
   use std::collections::BTreeMap;
 
-  use super::Xsd;
+  use super::{Xsd, XsdError};
 
   #[test]
-  fn musicxml() {
+  fn musicxml() -> Result<(), XsdError> {
     let mut xsd = Xsd::new_from_file(
       "C:/Users/micro/Code/musicxml-rs/assets/musicxml.xsd",
       &BTreeMap::new(),
-    )
-    .unwrap();
+    )?;
     let output = xsd.generate(&None);
 
     dbg!(output);
+
+    Ok(())
   }
 }

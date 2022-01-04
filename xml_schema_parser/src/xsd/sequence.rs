@@ -34,7 +34,7 @@ enum PureType {
 
 impl Sequence {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
-    element.check_name("xs:sequence")?;
+    element.check_name("sequence")?;
 
     let output = Self {
       id: element.try_get_attribute("id")?,
@@ -42,14 +42,14 @@ impl Sequence {
       max_occurences: element
         .try_get_attribute("maxOccurs")?
         .unwrap_or(MaxOccurences::Number { value: 1 }),
-      annotation: element.try_get_child_with("xs:annotation", |child| Annotation::parse(child))?,
-      elements: element.get_children_with("xs:element", |child| Element::parse(child))?,
-      groups: element.get_children_with("xs:group", |child| Group::parse(child))?,
-      choices: element.get_children_with("xs:choice", |child| Choice::parse(child))?,
-      sequences: element.get_children_with("xs:sequence", |child| Sequence::parse(child))?,
+      annotation: element.try_get_child_with("annotation", |child| Annotation::parse(child))?,
+      elements: element.get_children_with("element", |child| Element::parse(child))?,
+      groups: element.get_children_with("group", |child| Group::parse(child))?,
+      choices: element.get_children_with("choice", |child| Choice::parse(child))?,
+      sequences: element.get_children_with("sequence", |child| Sequence::parse(child))?,
     };
 
-    element.finalize(false, false);
+    element.finalize(false, false)?;
 
     Ok(output)
   }

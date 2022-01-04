@@ -17,7 +17,7 @@ pub struct Schema {
   pub element_form_default: qualification::Qualification,
   pub attribute_form_default: qualification::Qualification,
   pub imports: Vec<import::Import>,
-  pub annotation: Option<annotation::Annotation>,
+  pub annotations: Vec<annotation::Annotation>,
   pub elements: Vec<element::Element>,
   pub simple_type: Vec<simple_type::SimpleType>,
   pub complex_type: Vec<complex_type::ComplexType>,
@@ -28,32 +28,30 @@ pub struct Schema {
 
 impl Schema {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
-    element.check_name("xs:schema")?;
+    element.check_name("schema")?;
 
-    let annotation = element.try_get_child_with("xs:annotation", |child| {
-      annotation::Annotation::parse(child)
+    let annotations =
+      element.get_children_with("annotation", |child| annotation::Annotation::parse(child))?;
+    let imports = element.get_children_with("import", |child| import::Import::parse(child))?;
+    let elements = element.get_children_with("element", |child| element::Element::parse(child))?;
+    let simple_type = element.get_children_with("simpleType", |child| {
+      simple_type::SimpleType::parse(child, true)
     })?;
-    let imports = element.get_children_with("xs:import", |child| import::Import::parse(child))?;
-    let elements =
-      element.get_children_with("xs:element", |child| element::Element::parse(child))?;
-    let simple_type = element.get_children_with("xs:simpleType", |child| {
-      simple_type::SimpleType::parse(child)
-    })?;
-    let complex_type = element.get_children_with("xs:complexType", |child| {
+    let complex_type = element.get_children_with("complexType", |child| {
       complex_type::ComplexType::parse(child)
     })?;
     let attributes =
-      element.get_children_with("xs:attribute", |child| attribute::Attribute::parse(child))?;
-    let attribute_group = element.get_children_with("xs:attributeGroup", |child| {
+      element.get_children_with("attribute", |child| attribute::Attribute::parse(child))?;
+    let attribute_group = element.get_children_with("attributeGroup", |child| {
       attribute_group::AttributeGroup::parse(child)
     })?;
-    let groups = element.get_children_with("xs:group", |child| group::Group::parse(child))?;
+    let groups = element.get_children_with("group", |child| group::Group::parse(child))?;
 
     let output = Self {
       target_namespace: element.try_get_attribute("targetNamespace")?,
       element_form_default: element.get_attribute_default("elementFormDefault")?,
       attribute_form_default: element.get_attribute_default("attributeFormDefault")?,
-      annotation,
+      annotations,
       imports,
       elements,
       simple_type,
@@ -63,7 +61,7 @@ impl Schema {
       groups,
     };
 
-    element.finalize(false, false);
+    element.finalize(false, false)?;
 
     Ok(output)
   }

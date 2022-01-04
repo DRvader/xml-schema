@@ -56,7 +56,7 @@ impl Default for Required {
 
 impl Attribute {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
-    element.check_name("xs:attribute");
+    element.check_name("attribute")?;
 
     let name = element.try_get_attribute("name")?;
     let reference = element.try_get_attribute("ref")?;
@@ -71,7 +71,7 @@ impl Attribute {
     let kind = element.try_get_attribute("type")?;
 
     let simple_type =
-      element.try_get_child_with("xs:simpleType", |child| SimpleType::parse(child))?;
+      element.try_get_child_with("simpleType", |child| SimpleType::parse(child, false))?;
 
     let required = element.get_attribute_default("use")?;
 

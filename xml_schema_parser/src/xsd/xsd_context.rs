@@ -267,53 +267,56 @@ impl XsdImpl {
         self.element = element;
       }
       (_, XsdElement::Empty) => {}
-      (XsdElement::Struct(a), XsdElement::Struct(b)) => match (&mut a.fields, b.fields) {
-        (_, Fields::Empty) => {}
-        (Fields::Empty, Fields::Tuple(b)) => {
-          a.fields = Fields::Tuple(b);
-        }
-        (Fields::Empty, Fields::Named(b)) => {
-          a.fields = Fields::Named(b);
-        }
-        (Fields::Tuple(a), Fields::Tuple(b)) => {
-          for field in b {
-            for f in a.iter() {
-              if field.1.name == f.1.name {
-                panic!("Merge conflict in field!");
-              }
-            }
-            a.push(field);
+      (XsdElement::Struct(a), XsdElement::Struct(b)) => {
+        match (&mut a.fields, b.fields) {
+          (_, Fields::Empty) => {}
+          (Fields::Empty, Fields::Tuple(b)) => {
+            a.fields = Fields::Tuple(b);
           }
-        }
-        (Fields::Named(a), Fields::Named(b)) => {
-          for mut field in b {
-            let mut conflict = false;
-            for f in a.iter() {
-              if field.name == f.name {
-                conflict = true;
-                break;
+          (Fields::Empty, Fields::Named(b)) => {
+            a.fields = Fields::Named(b);
+          }
+          (Fields::Tuple(a), Fields::Tuple(b)) => {
+            for field in b {
+              for f in a.iter() {
+                if field.1.name == f.1.name {
+                  panic!("Merge conflict in field!");
+                }
               }
-            }
-
-            if conflict {
-              if let Some(prefix) = settings.conflict_prefix {
-                field.name = format!("{}{}", prefix, field.name);
-                a.push(field)
-              } else {
-                panic!("Merge conflict in field!");
-              }
-            } else {
               a.push(field);
             }
           }
+          (Fields::Named(a), Fields::Named(b)) => {
+            for mut field in b {
+              let mut conflict = false;
+              for f in a.iter() {
+                if field.name == f.name {
+                  conflict = true;
+                  break;
+                }
+              }
+
+              if conflict {
+                if let Some(prefix) = settings.conflict_prefix {
+                  field.name = format!("{}{}", prefix, field.name);
+                  a.push(field)
+                } else {
+                  panic!("Merge conflict in field!");
+                }
+              } else {
+                a.push(field);
+              }
+            }
+          }
+          (Fields::Tuple(_), Fields::Named(_)) => {
+            panic!("[ERROR] Tried to merge named field into tuple!")
+          }
+          (Fields::Named(_), Fields::Tuple(_)) => {
+            panic!("[ERROR] Tried to merge tuple field into named!")
+          }
         }
-        (Fields::Tuple(_), Fields::Named(_)) => {
-          panic!("[ERROR] Tried to merge named field into tuple!")
-        }
-        (Fields::Named(_), Fields::Tuple(_)) => {
-          panic!("[ERROR] Tried to merge tuple field into named!")
-        }
-      },
+        Self::merge_typedef(&mut a.type_def, b.type_def);
+      }
       (XsdElement::Enum(a), XsdElement::Enum(b)) => {
         for variant in b.variants {
           for v in &a.variants {
@@ -323,6 +326,7 @@ impl XsdImpl {
           }
           a.push_variant(variant);
         }
+        Self::merge_typedef(&mut a.type_def, b.type_def);
       }
       (XsdElement::Type(a), XsdElement::Type(b)) => {
         panic!("Tried to merge type with type");

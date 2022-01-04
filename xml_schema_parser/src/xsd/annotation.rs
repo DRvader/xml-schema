@@ -18,15 +18,15 @@ pub struct Annotation {
 
 impl Annotation {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
-    element.check_name("xs:annotation")?;
+    element.check_name("annotation")?;
 
     let output = Ok(Self {
       id: element.try_get_attribute("id")?,
       documentation: element
-        .get_children_with_filter("xs:documentation", |mut child| child.try_get_content())?,
+        .get_children_with_filter("documentation", |mut child| child.try_get_content())?,
     });
 
-    element.finalize(false, false);
+    element.finalize(false, false)?;
 
     output
   }

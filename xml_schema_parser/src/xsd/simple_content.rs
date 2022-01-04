@@ -15,11 +15,12 @@ pub struct SimpleContent {
 
 impl SimpleContent {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
-    element.check_name("xs:simpleContent")?;
+    element.check_name("simpleContent")?;
 
-    let restriction =
-      element.try_get_child_with("xs:restriction", |child| Restriction::parse(child))?;
-    let extension = element.try_get_child_with("xs:extension", |child| Extension::parse(child))?;
+    let restriction = element.try_get_child_with("restriction", |child| {
+      Restriction::parse(RestrictionParentType::SimpleContent, child)
+    })?;
+    let extension = element.try_get_child_with("extension", |child| Extension::parse(child))?;
 
     if restriction.is_some() && extension.is_some() {
       return Err(XsdError::XsdParseError(format!(

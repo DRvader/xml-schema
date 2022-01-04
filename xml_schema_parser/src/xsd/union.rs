@@ -15,7 +15,7 @@ pub struct Union {
 
 impl Union {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
-    element.check_name("xs:union")?;
+    element.check_name("union")?;
 
     let member_types: Option<String> = element.try_get_attribute("memberTypes")?;
     let mut members = vec![];
@@ -28,7 +28,8 @@ impl Union {
 
     let output = Self {
       member_types: members,
-      simple_types: element.get_children_with("xs:simpleType", |child| SimpleType::parse(child))?,
+      simple_types: element
+        .get_children_with("simpleType", |child| SimpleType::parse(child, false))?,
     };
 
     element.finalize(false, false)?;

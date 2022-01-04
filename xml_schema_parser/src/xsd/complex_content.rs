@@ -1,7 +1,7 @@
 use crate::xsd::{extension::Extension, xsd_context::XsdContext};
 
 use super::{
-  restriction::Restriction,
+  restriction::{Restriction, RestrictionParentType},
   xsd_context::{XsdImpl, XsdName},
   XMLElementWrapper, XsdError,
 };
@@ -15,26 +15,25 @@ pub struct ComplexContent {
 
 impl ComplexContent {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
-    element.check_name("xs:complexContent")?;
+    element.check_name("complexContent")?;
 
     let output = Self {
-      extension: element.try_get_child_with("xs:extension", |child| Extension::parse(child))?,
-      restriction: element
-        .try_get_child_with("xs:restriction", |child| Restriction::parse(child))?,
+      extension: element.try_get_child_with("extension", |child| Extension::parse(child))?,
+      restriction: element.try_get_child_with("restriction", |child| {
+        Restriction::parse(RestrictionParentType::ComplexContent, child)
+      })?,
     };
 
-    element.finalize(false, false);
+    element.finalize(false, false)?;
 
     Ok(output)
   }
 
   pub fn get_implementation(&self, parent_name: XsdName, context: &mut XsdContext) -> XsdImpl {
     match (&self.extension, &self.restriction) {
-      (None, Some(restriction)) => restriction.get_implementation(
-        parent_name,
-        super::restriction::RestrictionParentType::ComplexContent,
-        context,
-      ),
+      (None, Some(restriction)) => {
+        restriction.get_implementation(parent_name, RestrictionParentType::ComplexContent, context)
+      }
       (Some(extension), None) => extension.get_implementation(parent_name, context),
       _ => {
         unimplemented!("The source xsd is invalid.")

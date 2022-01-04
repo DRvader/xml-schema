@@ -20,7 +20,7 @@ pub struct AttributeGroup {
 
 impl AttributeGroup {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
-    element.check_name("xs:attributeGroup");
+    element.check_name("attributeGroup")?;
 
     let name = element.try_get_attribute("name")?;
     let reference = element.try_get_attribute("ref")?;
@@ -32,9 +32,9 @@ impl AttributeGroup {
       )));
     }
 
-    let attributes = element.get_children_with("xs:attribute", |child| Attribute::parse(child))?;
+    let attributes = element.get_children_with("attribute", |child| Attribute::parse(child))?;
     let attribute_groups =
-      element.get_children_with("xs:attributeGroup", |child| AttributeGroup::parse(child))?;
+      element.get_children_with("attributeGroup", |child| AttributeGroup::parse(child))?;
 
     let output = Ok(Self {
       name,
@@ -43,7 +43,7 @@ impl AttributeGroup {
       attribute_groups,
     });
 
-    element.finalize(false, false);
+    element.finalize(false, false)?;
 
     output
   }

@@ -23,19 +23,19 @@ pub struct Choice {
 
 impl Choice {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
-    element.check_name("xs:choice")?;
+    element.check_name("choice")?;
 
     let output = Self {
       id: element.try_get_attribute("id")?,
       min_occurences: element.try_get_attribute("minOccurs")?.unwrap_or(1),
       max_occurences: element.get_attribute_default("maxOccurs")?,
-      elements: element.get_children_with("xs:element", |child| Element::parse(child))?,
-      groups: element.get_children_with("xs:group", |child| Group::parse(child))?,
-      choices: element.get_children_with("xs:choice", |child| Choice::parse(child))?,
-      sequences: element.get_children_with("xs:sequence", |child| Sequence::parse(child))?,
+      elements: element.get_children_with("element", |child| Element::parse(child))?,
+      groups: element.get_children_with("group", |child| Group::parse(child))?,
+      choices: element.get_children_with("choice", |child| Choice::parse(child))?,
+      sequences: element.get_children_with("sequence", |child| Sequence::parse(child))?,
     };
 
-    element.finalize(false, false);
+    element.finalize(false, false)?;
 
     Ok(output)
   }

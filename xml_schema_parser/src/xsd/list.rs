@@ -16,7 +16,7 @@ pub struct List {
 
 impl List {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
-    element.check_name("xs:list")?;
+    element.check_name("list")?;
 
     let output = Self {
       item_type: element.get_attribute("itemType")?,

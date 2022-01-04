@@ -27,17 +27,17 @@ pub struct Extension {
 
 impl Extension {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
-    element.check_name("xs:extension")?;
+    element.check_name("extension")?;
 
-    let attributes = element.get_children_with("xs:attribute", |child| Attribute::parse(child))?;
+    let attributes = element.get_children_with("attribute", |child| Attribute::parse(child))?;
 
     let attribute_groups =
-      element.get_children_with("xs:attributeGroup", |child| AttributeGroup::parse(child))?;
+      element.get_children_with("attributeGroup", |child| AttributeGroup::parse(child))?;
 
     // group|all|choice|sequence
-    let group = element.try_get_child_with("xs:group", |child| Group::parse(child))?;
-    let choice = element.try_get_child_with("xs:choice", |child| Choice::parse(child))?;
-    let sequence = element.try_get_child_with("xs:sequence", |child| Sequence::parse(child))?;
+    let group = element.try_get_child_with("group", |child| Group::parse(child))?;
+    let choice = element.try_get_child_with("choice", |child| Choice::parse(child))?;
+    let sequence = element.try_get_child_with("sequence", |child| Sequence::parse(child))?;
 
     if (!attributes.is_empty() || !attribute_groups.is_empty())
       && (group.is_some() || choice.is_some() || sequence.is_some())
@@ -57,12 +57,12 @@ impl Extension {
 
     let output = Self {
       base: element.get_attribute("base")?,
-      sequence: element.try_get_child_with("xs:sequence", |child| Sequence::parse(child))?,
+      sequence: element.try_get_child_with("sequence", |child| Sequence::parse(child))?,
       group,
       choice,
       attributes,
       attribute_groups,
-      annotation: element.try_get_child_with("xs:annotation", |child| Annotation::parse(child))?,
+      annotation: element.try_get_child_with("annotation", |child| Annotation::parse(child))?,
     };
 
     element.finalize(false, false)?;

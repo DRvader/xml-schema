@@ -16,10 +16,13 @@ use super::XMLElementWrapper;
 #[derive(Clone, Default, Debug, PartialEq)]
 // #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Element {
-  pub name: String,
+  pub name: Option<String>,
   pub kind: Option<String>,
   pub refers: Option<String>,
   pub min_occurences: u64,
+  pub r#final: Option<String>,
+  pub block: Option<String>,
+
   pub max_occurences: MaxOccurences,
   pub complex_type: Option<ComplexType>,
   pub simple_type: Option<SimpleType>,
@@ -34,19 +37,20 @@ pub struct Element {
 
 impl Element {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
-    element.check_name("xs:element");
+    element.check_name("element")?;
 
     let complex_type =
-      element.try_get_child_with("xs:complexType", |child| ComplexType::parse(child))?;
+      element.try_get_child_with("complexType", |child| ComplexType::parse(child))?;
     let simple_type =
-      element.try_get_child_with("xs:simpleType", |child| SimpleType::parse(child))?;
-    let annotation =
-      element.try_get_child_with("xs:annotation", |child| Annotation::parse(child))?;
+      element.try_get_child_with("simpleType", |child| SimpleType::parse(child, false))?;
+    let annotation = element.try_get_child_with("annotation", |child| Annotation::parse(child))?;
 
     let output = Ok(Self {
-      name: element.get_attribute("name")?,
+      name: element.try_get_attribute("name")?,
       kind: element.try_get_attribute("type")?,
       refers: element.try_get_attribute("ref")?,
+      r#final: element.try_get_attribute("final")?,
+      block: element.try_get_attribute("block")?,
       min_occurences: element.try_get_attribute("minOccurs")?.unwrap_or(1),
       max_occurences: element
         .try_get_attribute("maxOccurs")?
@@ -76,7 +80,8 @@ impl Element {
   }
 
   pub fn get_implementation(&self, context: &mut XsdContext) -> XsdImpl {
-    let type_name = self.name.replace(".", "_").to_camel_case();
+    let name = self.name.clone().unwrap_or("temp".to_string());
+    let type_name = name.replace(".", "_").to_camel_case();
 
     let generated_impl = if self.is_multiple() || self.could_be_none() {
       let mut generated_field = self.get_field(context);
@@ -117,7 +122,9 @@ impl Element {
       _ => unreachable!("Invalid Xsd."),
     };
 
-    let field_name = XsdName::new(&self.name).to_field_name();
+    let name = self.name.clone().unwrap_or("temp".to_string());
+
+    let field_name = XsdName::new(&name).to_field_name();
 
     let multiple = self.is_multiple();
 
@@ -127,7 +134,7 @@ impl Element {
       field_name
     };
 
-    let yaserde_rename = &self.name;
+    let yaserde_rename = self.name.clone().unwrap_or("temp".to_string());
 
     if multiple {
       field_type.wrap("Vec");
@@ -167,7 +174,7 @@ mod tests {
   #[test]
   fn extern_type() {
     let element = Element {
-      name: "volume".to_string(),
+      name: Some("volume".to_string()),
       kind: Some("books:volume-type".to_string()),
       refers: None,
       min_occurences: 1,
@@ -203,7 +210,7 @@ mod tests {
   #[test]
   fn xs_string_element() {
     let element = Element {
-      name: "volume".to_string(),
+      name: Some("volume".to_string()),
       kind: Some("xs:string".to_string()),
       refers: None,
       min_occurences: 1,

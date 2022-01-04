@@ -27,7 +27,7 @@ impl Group {
     let name = element.try_get_attribute("name")?;
     let refers = element.try_get_attribute("ref")?;
 
-    let sequence = element.try_get_child_with("xsequence", |child| Sequence::parse(child))?;
+    let sequence = element.try_get_child_with("sequence", |child| Sequence::parse(child))?;
     let choice = element.try_get_child_with("choice", |child| Choice::parse(child))?;
 
     if name.is_some() && refers.is_some() {

@@ -61,7 +61,7 @@ impl ComplexType {
 
     if (simple_content.is_some() || complex_content.is_some())
       && (!attributes.is_empty()
-        || attribute_groups.is_empty()
+        || !attribute_groups.is_empty()
         || group.is_some()
         || choice.is_some()
         || sequence.is_some())

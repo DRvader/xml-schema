@@ -1,6 +1,7 @@
 use crate::{codegen::Struct, xsd::attribute::Attribute};
 
 use super::{
+  annotation::Annotation,
   xsd_context::{MergeSettings, XsdContext, XsdElement, XsdImpl, XsdName},
   XMLElementWrapper, XsdError,
 };
@@ -14,6 +15,7 @@ use super::{
 pub struct AttributeGroup {
   pub name: Option<String>,
   pub reference: Option<String>,
+  pub annotation: Option<Annotation>,
   pub attributes: Vec<Attribute>,
   pub attribute_groups: Vec<AttributeGroup>,
 }
@@ -39,6 +41,7 @@ impl AttributeGroup {
     let output = Ok(Self {
       name,
       reference,
+      annotation: element.try_get_child_with("annotation", |child| Annotation::parse(child))?,
       attributes,
       attribute_groups,
     });

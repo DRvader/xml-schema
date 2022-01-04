@@ -18,10 +18,8 @@ use crate::{
 pub struct Attribute {
   pub name: Option<String>,
   pub kind: Option<String>,
-  // #[yaserde(attribute)]
-  // pub default: Option<String>,
-  // #[yaserde(attribute)]
-  // pub fixed: Option<String>,
+  pub default: Option<String>,
+  pub fixed: Option<String>,
   pub required: Required,
   pub reference: Option<String>,
   pub simple_type: Option<SimpleType>,
@@ -91,6 +89,8 @@ impl Attribute {
 
     let output = Self {
       name,
+      default: element.try_get_attribute("default")?,
+      fixed: element.try_get_attribute("fixed")?,
       reference,
       kind,
       required,
@@ -179,6 +179,8 @@ mod tests {
     let attribute = Attribute {
       name: Some("language".to_string()),
       kind: Some("xs:string".to_string()),
+      default: None,
+      fixed: None,
       reference: None,
       required: Required::Required,
       simple_type: None,
@@ -205,6 +207,8 @@ mod tests {
     let attribute = Attribute {
       name: Some("language".to_string()),
       kind: Some("xs:string".to_string()),
+      default: None,
+      fixed: None,
       reference: None,
       required: Required::Optional,
       simple_type: None,
@@ -231,6 +235,8 @@ mod tests {
     let attribute = Attribute {
       name: Some("type".to_string()),
       kind: Some("xs:string".to_string()),
+      default: None,
+      fixed: None,
       reference: None,
       required: Required::Optional,
       simple_type: None,
@@ -257,6 +263,8 @@ mod tests {
     let attribute = Attribute {
       name: Some("type".to_string()),
       kind: None,
+      default: None,
+      fixed: None,
       reference: Some("MyType".to_string()),
       required: Required::Optional,
       simple_type: None,
@@ -283,6 +291,8 @@ mod tests {
   fn bad_type_attribute() {
     let attribute = Attribute {
       name: Some("type".to_string()),
+      default: None,
+      fixed: None,
       kind: None,
       reference: None,
       required: Required::Optional,
@@ -301,6 +311,8 @@ mod tests {
     let attribute = Attribute {
       name: None,
       kind: Some("xs:string".to_string()),
+      default: None,
+      fixed: None,
       reference: None,
       required: Required::Optional,
       simple_type: None,

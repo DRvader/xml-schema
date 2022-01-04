@@ -123,6 +123,8 @@ mod tests {
         Attribute {
           name: Some("attribute_1".to_string()),
           kind: Some("xs:string".to_string()),
+          default: None,
+          fixed: None,
           reference: None,
           required: Required::Required,
           simple_type: None,
@@ -130,6 +132,8 @@ mod tests {
         Attribute {
           name: Some("attribute_2".to_string()),
           kind: Some("xs:boolean".to_string()),
+          default: None,
+          fixed: None,
           reference: None,
           required: Required::Optional,
           simple_type: None,

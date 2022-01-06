@@ -96,7 +96,7 @@ impl ComplexType {
     Ok(output)
   }
 
-  pub fn get_implementation(&self, context: &mut XsdContext) -> XsdImpl {
+  pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
     let name = self.name.clone().unwrap_or("temp".to_string());
 
     let struct_id = XsdName {
@@ -165,9 +165,9 @@ impl ComplexType {
       ..Default::default()
     };
 
-    generated_impl.merge(fields, MergeSettings::default());
+    generated_impl.merge(fields?, MergeSettings::default());
     for attribute in &self.attributes {
-      if let Some(generated) = attribute.get_implementation(context) {
+      if let Some(generated) = attribute.get_implementation(context)? {
         generated_impl.merge(
           generated,
           MergeSettings {
@@ -177,6 +177,6 @@ impl ComplexType {
       }
     }
 
-    generated_impl
+    Ok(generated_impl)
   }
 }

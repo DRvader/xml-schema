@@ -29,7 +29,11 @@ impl ComplexContent {
     Ok(output)
   }
 
-  pub fn get_implementation(&self, parent_name: XsdName, context: &mut XsdContext) -> XsdImpl {
+  pub fn get_implementation(
+    &self,
+    parent_name: XsdName,
+    context: &mut XsdContext,
+  ) -> Result<XsdImpl, XsdError> {
     match (&self.extension, &self.restriction) {
       (None, Some(restriction)) => {
         restriction.get_implementation(parent_name, RestrictionParentType::ComplexContent, context)

@@ -55,7 +55,7 @@ impl AttributeGroup {
     &self,
     parent_name: Option<XsdName>,
     context: &mut XsdContext,
-  ) -> XsdImpl {
+  ) -> Result<XsdImpl, XsdError> {
     let mut generated_struct = XsdImpl {
       element: XsdElement::Struct(Struct::new(
         &self
@@ -68,18 +68,18 @@ impl AttributeGroup {
     };
 
     for attr in &self.attributes {
-      if let Some(attr) = attr.get_implementation(context) {
+      if let Some(attr) = attr.get_implementation(context)? {
         generated_struct.merge(attr, MergeSettings::default());
       }
     }
 
     for attr in &self.attribute_groups {
       generated_struct.merge(
-        attr.get_implementation(parent_name.clone(), context),
+        attr.get_implementation(parent_name.clone(), context)?,
         MergeSettings::default(),
       );
     }
 
-    generated_struct
+    Ok(generated_struct)
   }
 }

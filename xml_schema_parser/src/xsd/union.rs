@@ -37,7 +37,11 @@ impl Union {
     Ok(output)
   }
 
-  pub fn get_implementation(&self, parent_name: XsdName, context: &mut XsdContext) -> XsdImpl {
+  pub fn get_implementation(
+    &self,
+    parent_name: XsdName,
+    context: &mut XsdContext,
+  ) -> Result<XsdImpl, XsdError> {
     let mut generated_enum = Enum::new(&parent_name.local_name);
 
     for member in &self.member_types {
@@ -53,10 +57,10 @@ impl Union {
         .tuple(str.element.get_type());
     }
 
-    XsdImpl {
+    Ok(XsdImpl {
       name: Some(parent_name.clone()),
       element: XsdElement::Enum(generated_enum),
       ..Default::default()
-    }
+    })
   }
 }

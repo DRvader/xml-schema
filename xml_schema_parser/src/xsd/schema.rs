@@ -66,44 +66,64 @@ impl Schema {
     Ok(output)
   }
 
-  pub fn generate(&self, context: &mut XsdContext) -> String {
+  pub fn generate(&self, context: &mut XsdContext) -> Result<String, XsdError> {
     // let namespace_definition = generate_namespace_definition(target_prefix, &self.target_namespace);
 
     let mut top_level_names = vec![];
 
     dbg!("Generating SIMPLE TYPE");
     for simple_type in &self.simple_type {
-      let temp = simple_type.get_implementation(context);
-      top_level_names.push(temp.name.clone().unwrap());
-      context.structs.insert(temp.name.clone().unwrap(), temp);
+      match simple_type.get_implementation(context) {
+        Ok(temp) => {
+          top_level_names.push(temp.name.clone().unwrap());
+          context.structs.insert(temp.name.clone().unwrap(), temp);
+        }
+        Err(ty) => return Err(ty),
+      }
     }
 
     dbg!("Generating ATTR GROUPS");
     for attr_group in &self.attribute_group {
-      let temp = attr_group.get_implementation(None, context);
-      top_level_names.push(temp.name.clone().unwrap());
-      context.structs.insert(temp.name.clone().unwrap(), temp);
+      match attr_group.get_implementation(None, context) {
+        Ok(temp) => {
+          top_level_names.push(temp.name.clone().unwrap());
+          context.structs.insert(temp.name.clone().unwrap(), temp);
+        }
+        Err(ty) => return Err(ty),
+      }
     }
 
     dbg!("Generating GROUPS");
     for group in &self.groups {
-      let temp = group.get_implementation(None, context);
-      top_level_names.push(temp.name.clone().unwrap());
-      context.structs.insert(temp.name.clone().unwrap(), temp);
+      match group.get_implementation(None, context) {
+        Ok(temp) => {
+          top_level_names.push(temp.name.clone().unwrap());
+          context.structs.insert(temp.name.clone().unwrap(), temp);
+        }
+        Err(ty) => return Err(ty),
+      }
     }
 
     dbg!("Generating ELEMENTS");
     for element in &self.elements {
-      let temp = element.get_implementation(context);
-      top_level_names.push(temp.name.clone().unwrap());
-      context.structs.insert(temp.name.clone().unwrap(), temp);
+      match element.get_implementation(context) {
+        Ok(temp) => {
+          top_level_names.push(temp.name.clone().unwrap());
+          context.structs.insert(temp.name.clone().unwrap(), temp);
+        }
+        Err(ty) => return Err(ty),
+      }
     }
 
     dbg!("Generating COMPLEX TYPE");
     for complex_type in &self.complex_type {
-      let temp = complex_type.get_implementation(context);
-      top_level_names.push(temp.name.clone().unwrap());
-      context.structs.insert(temp.name.clone().unwrap(), temp);
+      match complex_type.get_implementation(context) {
+        Ok(temp) => {
+          top_level_names.push(temp.name.clone().unwrap());
+          context.structs.insert(temp.name.clone().unwrap(), temp);
+        }
+        Err(ty) => return Err(ty),
+      }
     }
 
     let mut dst = String::new();
@@ -117,7 +137,7 @@ impl Schema {
         .unwrap();
     }
 
-    dst
+    Ok(dst)
   }
 }
 
@@ -152,7 +172,7 @@ mod tests {
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
         .unwrap();
 
-    let implementation = format!("{}", schema.generate(&mut context));
+    let implementation = format!("{}", schema.generate(&mut context).unwrap());
     assert_eq!(implementation, "");
   }
 

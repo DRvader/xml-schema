@@ -27,7 +27,11 @@ impl List {
     Ok(output)
   }
 
-  pub fn get_implementation(&self, name: XsdName, context: &mut XsdContext) -> XsdImpl {
+  pub fn get_implementation(
+    &self,
+    name: XsdName,
+    context: &mut XsdContext,
+  ) -> Result<XsdImpl, XsdError> {
     let list_type = RustTypesMapping::get(context, &self.item_type);
 
     let mut generated_struct = Struct::new(&name.local_name);
@@ -106,7 +110,7 @@ Ok(())
       "Ok((source_attributes, source_namespace))".to_string(),
     )]);
 
-    XsdImpl {
+    Ok(XsdImpl {
       name: Some(name),
       element: XsdElement::Struct(generated_struct.clone()),
       inner: vec![],
@@ -121,7 +125,7 @@ Ok(())
           .push_fn(serialize_attributes)
           .to_owned(),
       ],
-    }
+    })
   }
 }
 
@@ -141,6 +145,7 @@ mod tests {
 
     let value = list_type
       .get_implementation(XsdName::new("parent"), &mut context)
+      .unwrap()
       .to_string()
       .unwrap();
     let implementation = quote!(#value).to_string();

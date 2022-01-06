@@ -40,7 +40,11 @@ impl Choice {
     Ok(output)
   }
 
-  pub fn get_implementation(&self, parent_name: XsdName, context: &mut XsdContext) -> XsdImpl {
+  pub fn get_implementation(
+    &self,
+    parent_name: XsdName,
+    context: &mut XsdContext,
+  ) -> Result<XsdImpl, XsdError> {
     let mut outer_enum = XsdImpl {
       name: Some(parent_name.clone()),
       element: XsdElement::Enum(Enum::new(&parent_name.to_struct_name())),
@@ -49,7 +53,7 @@ impl Choice {
     };
     for group in &self.groups {
       outer_enum.merge_into_enum(
-        group.get_implementation(Some(parent_name.clone()), context),
+        group.get_implementation(Some(parent_name.clone()), context)?,
         true,
       );
     }
@@ -62,7 +66,7 @@ impl Choice {
             local_name: "temp".to_string(),
           },
           context,
-        ),
+        )?,
         false,
       );
     }
@@ -75,13 +79,13 @@ impl Choice {
             local_name: "temp".to_string(),
           },
           context,
-        ),
+        )?,
         false,
       );
     }
 
     for element in &self.elements {
-      outer_enum.merge_into_enum(element.get_implementation(context), true);
+      outer_enum.merge_into_enum(element.get_implementation(context)?, true);
     }
 
     let multiple = match &self.max_occurences {
@@ -109,7 +113,7 @@ impl Choice {
         _ => {}
       }
 
-      XsdImpl {
+      Ok(XsdImpl {
         name: Some(parent_name.clone()),
         element: XsdElement::Struct(
           Struct::new(&parent_name.to_struct_name())
@@ -125,7 +129,7 @@ impl Choice {
         ),
         inner: vec![Box::from(inner_enum)],
         implementation: vec![],
-      }
+      })
     } else if option {
       let mut inner_enum = outer_enum;
       match &mut inner_enum.element {
@@ -141,7 +145,7 @@ impl Choice {
         _ => {}
       }
 
-      XsdImpl {
+      Ok(XsdImpl {
         name: Some(parent_name.clone()),
         element: XsdElement::Struct(
           Struct::new(&parent_name.to_struct_name())
@@ -157,9 +161,9 @@ impl Choice {
         ),
         inner: vec![Box::from(inner_enum)],
         implementation: vec![],
-      }
+      })
     } else {
-      outer_enum
+      Ok(outer_enum)
     }
   }
 }

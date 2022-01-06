@@ -102,9 +102,9 @@ impl Attribute {
     Ok(output)
   }
 
-  pub fn get_implementation(&self, context: &mut XsdContext) -> Option<XsdImpl> {
+  pub fn get_implementation(&self, context: &mut XsdContext) -> Result<Option<XsdImpl>, XsdError> {
     if self.name.is_none() {
-      return None;
+      return Ok(None);
     }
 
     let rust_type = match (
@@ -128,7 +128,7 @@ impl Attribute {
         })
         .unwrap()
         .clone(),
-      (None, None, Some(simple_type)) => simple_type.get_implementation(context),
+      (None, None, Some(simple_type)) => simple_type.get_implementation(context)?,
       (_, _, _) => panic!("Not implemented Rust type for: {:?}", self),
     };
 
@@ -161,7 +161,7 @@ impl Attribute {
       ..Default::default()
     };
 
-    Some(generated_impl)
+    Ok(Some(generated_impl))
   }
 }
 
@@ -193,6 +193,7 @@ mod tests {
     let value = attribute
       .get_implementation(&mut context)
       .unwrap()
+      .unwrap()
       .to_string()
       .unwrap();
     let implementation = quote!(#value).to_string();
@@ -220,6 +221,7 @@ mod tests {
 
     let value = attribute
       .get_implementation(&mut context)
+      .unwrap()
       .unwrap()
       .to_string()
       .unwrap();
@@ -249,6 +251,7 @@ mod tests {
     let value = attribute
       .get_implementation(&mut context)
       .unwrap()
+      .unwrap()
       .to_string()
       .unwrap();
     let implementation = quote!(#value).to_string();
@@ -276,6 +279,7 @@ mod tests {
 
     let value = attribute
       .get_implementation(&mut context)
+      .unwrap()
       .unwrap()
       .to_string()
       .unwrap();
@@ -324,6 +328,7 @@ mod tests {
 
     let value = attribute
       .get_implementation(&mut context)
+      .unwrap()
       .unwrap()
       .to_string()
       .unwrap();

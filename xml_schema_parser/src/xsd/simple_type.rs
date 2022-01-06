@@ -61,7 +61,7 @@ impl SimpleType {
     Ok(output)
   }
 
-  pub fn get_implementation(&self, context: &mut XsdContext) -> XsdImpl {
+  pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
     let name = XsdName {
       namespace: None,
       local_name: self.name.clone().unwrap_or("temp".to_string()),
@@ -99,7 +99,11 @@ mod tests {
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
         .unwrap();
 
-    let value = st.get_implementation(&mut context).to_string().unwrap();
+    let value = st
+      .get_implementation(&mut context)
+      .unwrap()
+      .to_string()
+      .unwrap();
     let ts = quote!(#value).to_string();
 
     assert_eq!(

@@ -59,14 +59,17 @@ impl Restriction {
     parent_name: XsdName,
     parent_type: RestrictionParentType,
     context: &mut XsdContext,
-  ) -> XsdImpl {
+  ) -> Result<XsdImpl, XsdError> {
     let base_type = context.structs.get(&XsdName {
       namespace: None,
       local_name: self.base.clone(),
     });
 
     if !context.allow_unknown_type && base_type.is_none() {
-      panic!("Unknown type {}", self.base);
+      return Err(XsdError::XsdImplNotFound(XsdName {
+        namespace: None,
+        local_name: self.base.clone(),
+      }));
     }
 
     let (local, generated_type) = if let Some(base_type) = base_type {
@@ -75,7 +78,7 @@ impl Restriction {
       (false, Type::new(&self.base.replace(":", "::")))
     };
 
-    if !self.enumerations.is_empty() {
+    Ok(if !self.enumerations.is_empty() {
       let type_name = parent_name.to_struct_name();
       let mut generated_enum = Enum::new(&type_name);
 
@@ -110,6 +113,6 @@ impl Restriction {
         inner: Vec::new(),
         implementation: Vec::new(),
       }
-    }
+    })
   }
 }

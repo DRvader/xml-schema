@@ -29,8 +29,12 @@ use thiserror::Error;
 use xmltree::{Element, XMLNode};
 use xsd_context::XsdContext;
 
+use self::xsd_context::XsdName;
+
 #[derive(Error, Debug)]
 pub enum XsdError {
+  #[error("{0} not found")]
+  XsdImplNotFound(XsdName),
   #[error("{0}")]
   XsdParseError(String),
   #[error(transparent)]
@@ -325,7 +329,7 @@ impl Xsd {
     Xsd::new(&content, module_namespace_mappings)
   }
 
-  pub fn generate(&mut self, target_prefix: &Option<String>) -> String {
+  pub fn generate(&mut self, target_prefix: &Option<String>) -> Result<String, XsdError> {
     self.schema.generate(&mut self.context)
   }
 }
@@ -338,11 +342,8 @@ mod test {
 
   #[test]
   fn musicxml() -> Result<(), XsdError> {
-    let mut xsd = Xsd::new_from_file(
-      "../musicxml.xsd",
-      &BTreeMap::new(),
-    )?;
-    let output = xsd.generate(&None);
+    let mut xsd = Xsd::new_from_file("../musicxml.xsd", &BTreeMap::new())?;
+    let output = xsd.generate(&None)?;
 
     dbg!(output);
 

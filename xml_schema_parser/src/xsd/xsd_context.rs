@@ -17,6 +17,16 @@ pub struct XsdName {
   pub local_name: String,
 }
 
+impl std::fmt::Display for XsdName {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    if let Some(namespace) = &self.namespace {
+      write!(f, "{}:{}", namespace, self.local_name)
+    } else {
+      write!(f, "{}", self.local_name)
+    }
+  }
+}
+
 impl XsdName {
   pub fn new(name: &str) -> Self {
     Self {
@@ -859,7 +869,7 @@ impl XsdContext {
                     element: XsdElement::Type(Type::new("chrono::Date")),
                     ..Default::default()
                   },
-                )
+                ),
               ]),
             });
           }

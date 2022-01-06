@@ -75,7 +75,11 @@ impl Sequence {
     PureType::None
   }
 
-  pub fn get_implementation(&self, parent_name: XsdName, context: &mut XsdContext) -> XsdImpl {
+  pub fn get_implementation(
+    &self,
+    parent_name: XsdName,
+    context: &mut XsdContext,
+  ) -> Result<XsdImpl, XsdError> {
     let pure_type = self.pure_type();
 
     match pure_type {
@@ -87,7 +91,7 @@ impl Sequence {
 
         for element in &self.elements {
           generated_impl.merge(
-            element.get_implementation(context),
+            element.get_implementation(context)?,
             MergeSettings::default(),
           );
         }
@@ -100,7 +104,7 @@ impl Sequence {
                 local_name: "temp".to_string(),
               },
               context,
-            ),
+            )?,
             MergeSettings::default(),
           );
         }
@@ -113,12 +117,12 @@ impl Sequence {
                 local_name: "temp".to_string(),
               },
               context,
-            ),
+            )?,
             MergeSettings::default(),
           );
         }
 
-        generated_impl
+        Ok(generated_impl)
       }
       PureType::Group => {
         let mut generated_impl = XsdImpl::default();
@@ -130,12 +134,12 @@ impl Sequence {
                 local_name: "temp".to_string(),
               }),
               context,
-            ),
+            )?,
             MergeSettings::default(),
           );
         }
 
-        generated_impl
+        Ok(generated_impl)
       }
       PureType::Sequence => todo!(),
     }

@@ -70,23 +70,25 @@ impl Extension {
     Ok(output)
   }
 
-  pub fn get_implementation(&self, parent_name: XsdName, context: &mut XsdContext) -> XsdImpl {
+  pub fn get_implementation(
+    &self,
+    parent_name: XsdName,
+    context: &mut XsdContext,
+  ) -> Result<XsdImpl, XsdError> {
     let mut generated_impl = match (&self.group, &self.sequence, &self.choice) {
       (None, None, Some(choice)) => choice.get_implementation(parent_name, context),
       (None, Some(sequence), None) => sequence.get_implementation(parent_name, context),
       (Some(group), None, None) => group.get_implementation(Some(parent_name), context),
       _ => unreachable!("Invalid Xsd!"),
-    };
+    }?;
 
-    for attribute in self
-      .attributes
-      .iter()
-      .filter_map(|attribute| attribute.get_implementation(context))
-    {
-      generated_impl.merge(attribute, MergeSettings::ATTRIBUTE);
+    for attribute in &self.attributes {
+      if let Some(attribute) = attribute.get_implementation(context)? {
+        generated_impl.merge(attribute, MergeSettings::ATTRIBUTE);
+      }
     }
 
-    generated_impl
+    Ok(generated_impl)
   }
 }
 
@@ -107,6 +109,7 @@ mod tests {
 
     let value = st
       .get_implementation(XsdName::new("test"), &mut context)
+      .unwrap()
       .to_string()
       .unwrap();
     let ts = quote!(#value).to_string();
@@ -148,6 +151,7 @@ mod tests {
 
     let value = st
       .get_implementation(XsdName::new("test"), &mut context)
+      .unwrap()
       .to_string()
       .unwrap();
     let ts = quote!(#value).to_string();

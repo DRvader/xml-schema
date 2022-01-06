@@ -66,7 +66,7 @@ impl Group {
     &self,
     parent_name: Option<XsdName>,
     context: &mut XsdContext,
-  ) -> XsdImpl {
+  ) -> Result<XsdImpl, XsdError> {
     match (&self.name, parent_name, &self.refers) {
       (Some(name), _, None) => match (&self.choice, &self.sequence) {
         (None, Some(sequence)) => sequence.get_implementation(
@@ -97,7 +97,7 @@ impl Group {
 
         inner.element.set_type(&name.local_name);
 
-        inner
+        Ok(inner)
       }
       _ => unreachable!("The Xsd is invalid!"),
     }

@@ -79,12 +79,12 @@ impl Element {
     }) && self.min_occurences == 0
   }
 
-  pub fn get_implementation(&self, context: &mut XsdContext) -> XsdImpl {
+  pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
     let name = self.name.clone().unwrap_or("temp".to_string());
     let type_name = name.replace(".", "_").to_camel_case();
 
     let generated_impl = if self.is_multiple() || self.could_be_none() {
-      let mut generated_field = self.get_field(context);
+      let mut generated_field = self.get_field(context)?;
       let docs = generated_field.documentation.join("\n");
       generated_field.documentation = vec![];
 
@@ -93,10 +93,10 @@ impl Element {
         .doc(&docs)
         .to_owned();
 
-      XsdImpl {
+      Ok(XsdImpl {
         element: XsdElement::Struct(generated_struct),
         ..Default::default()
-      }
+      })
     } else {
       let docs = self
         .annotation
@@ -115,10 +115,10 @@ impl Element {
     generated_impl
   }
 
-  pub fn get_field(&self, context: &mut XsdContext) -> Field {
+  pub fn get_field(&self, context: &mut XsdContext) -> Result<Field, XsdError> {
     let mut field_type = match (&self.simple_type, &self.complex_type) {
-      (None, Some(complex_type)) => complex_type.get_implementation(context).element.get_type(),
-      (Some(simple_type), None) => simple_type.get_implementation(context).element.get_type(),
+      (None, Some(complex_type)) => complex_type.get_implementation(context)?.element.get_type(),
+      (Some(simple_type), None) => simple_type.get_implementation(context)?.element.get_type(),
       _ => unreachable!("Invalid Xsd."),
     };
 
@@ -158,7 +158,7 @@ impl Element {
       generated_field.doc(docs.iter().map(|f| f.as_str()).collect());
     }
 
-    generated_field
+    Ok(generated_field)
   }
 }
 
@@ -194,6 +194,7 @@ mod tests {
 
     let value = element
       .get_implementation(&mut context)
+      .unwrap()
       .to_string()
       .unwrap();
     let ts = quote!(#value).to_string();
@@ -230,6 +231,7 @@ mod tests {
 
     let value = element
       .get_implementation(&mut context)
+      .unwrap()
       .to_string()
       .unwrap();
     let ts = quote!(#value).to_string();

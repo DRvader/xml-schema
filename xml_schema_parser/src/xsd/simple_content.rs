@@ -39,7 +39,11 @@ impl SimpleContent {
     Ok(output)
   }
 
-  pub fn get_implementation(&self, parent_name: XsdName, context: &mut XsdContext) -> XsdImpl {
+  pub fn get_implementation(
+    &self,
+    parent_name: XsdName,
+    context: &mut XsdContext,
+  ) -> Result<XsdImpl, XsdError> {
     match (&self.restriction, &self.extension) {
       (None, Some(extension)) => extension.get_implementation(parent_name, context),
       (Some(restriction), None) => {

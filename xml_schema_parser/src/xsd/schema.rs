@@ -1,6 +1,6 @@
 use crate::xsd::{
   attribute, attribute_group, complex_type, element, group, import, qualification, simple_type,
-  XsdContext,
+  xsd_context::XsdName, XsdContext,
 };
 use proc_macro2::TokenStream;
 
@@ -71,59 +71,158 @@ impl Schema {
 
     let mut top_level_names = vec![];
 
-    dbg!("Generating SIMPLE TYPE");
-    for simple_type in &self.simple_type {
-      match simple_type.get_implementation(context) {
-        Ok(temp) => {
-          top_level_names.push(temp.name.clone().unwrap());
-          context.structs.insert(temp.name.clone().unwrap(), temp);
+    let mut simple_type_to_run = (0..self.simple_type.len())
+      .into_iter()
+      .map(|i| (i, XsdName::new("")))
+      .collect::<Vec<_>>();
+    let mut attr_group_to_run = (0..self.attribute_group.len())
+      .into_iter()
+      .map(|i| (i, XsdName::new("")))
+      .collect::<Vec<_>>();
+    let mut group_to_run = (0..self.groups.len())
+      .into_iter()
+      .map(|i| (i, XsdName::new("")))
+      .collect::<Vec<_>>();
+    let mut element_to_run = (0..self.elements.len())
+      .into_iter()
+      .map(|i| (i, XsdName::new("")))
+      .collect::<Vec<_>>();
+    let mut complex_type_to_run = (0..self.complex_type.len())
+      .into_iter()
+      .map(|i| (i, XsdName::new("")))
+      .collect::<Vec<_>>();
+
+    let mut new = vec![];
+
+    let mut changed = true;
+    while changed {
+      changed = false;
+
+      new.clear();
+      for index in &simple_type_to_run {
+        let simple_type = &self.simple_type[index.0];
+        match simple_type.get_implementation(context) {
+          Ok(temp) => {
+            top_level_names.push(temp.name.clone().unwrap());
+            context.structs.insert(temp.name.clone().unwrap(), temp);
+          }
+          Err(ty) => match ty {
+            XsdError::XsdImplNotFound(name) => {
+              new.push((index.0, name));
+            }
+            _ => return Err(ty),
+          },
         }
-        Err(ty) => return Err(ty),
       }
+      if simple_type_to_run.len() != new.len() {
+        changed = true;
+      }
+      simple_type_to_run = new.clone();
+
+      new.clear();
+      for index in &attr_group_to_run {
+        let attr_group = &self.attribute_group[index.0];
+        match attr_group.get_implementation(None, context) {
+          Ok(temp) => {
+            top_level_names.push(temp.name.clone().unwrap());
+            context.structs.insert(temp.name.clone().unwrap(), temp);
+          }
+          Err(ty) => match ty {
+            XsdError::XsdImplNotFound(name) => {
+              new.push((index.0, name));
+            }
+            _ => return Err(ty),
+          },
+        }
+      }
+      if attr_group_to_run.len() != new.len() {
+        changed = true;
+      }
+      attr_group_to_run = new.clone();
+
+      new.clear();
+      for index in &group_to_run {
+        let group = &self.groups[index.0];
+        match group.get_implementation(None, context) {
+          Ok(temp) => {
+            top_level_names.push(temp.name.clone().unwrap());
+            context.structs.insert(temp.name.clone().unwrap(), temp);
+          }
+          Err(ty) => match ty {
+            XsdError::XsdImplNotFound(name) => {
+              new.push((index.0, name));
+            }
+            _ => return Err(ty),
+          },
+        }
+      }
+      if group_to_run.len() != new.len() {
+        changed = true;
+      }
+      group_to_run = new.clone();
+
+      new.clear();
+      for index in &element_to_run {
+        let element = &self.elements[index.0];
+        match element.get_implementation(context) {
+          Ok(temp) => {
+            top_level_names.push(temp.name.clone().unwrap());
+            context.structs.insert(temp.name.clone().unwrap(), temp);
+          }
+          Err(ty) => match ty {
+            XsdError::XsdImplNotFound(name) => {
+              new.push((index.0, name));
+            }
+            _ => return Err(ty),
+          },
+        }
+      }
+      if element_to_run.len() != new.len() {
+        changed = true;
+      }
+      element_to_run = new.clone();
+
+      new.clear();
+      for index in &complex_type_to_run {
+        let complex_type = &self.complex_type[index.0];
+        match complex_type.get_implementation(context) {
+          Ok(temp) => {
+            top_level_names.push(temp.name.clone().unwrap());
+            context.structs.insert(temp.name.clone().unwrap(), temp);
+          }
+          Err(ty) => match ty {
+            XsdError::XsdImplNotFound(name) => {
+              new.push((index.0, name));
+            }
+            _ => return Err(ty),
+          },
+        }
+      }
+      if complex_type_to_run.len() != new.len() {
+        changed = true;
+      }
+      complex_type_to_run = new.clone()
     }
 
-    dbg!("Generating ATTR GROUPS");
-    for attr_group in &self.attribute_group {
-      match attr_group.get_implementation(None, context) {
-        Ok(temp) => {
-          top_level_names.push(temp.name.clone().unwrap());
-          context.structs.insert(temp.name.clone().unwrap(), temp);
-        }
-        Err(ty) => return Err(ty),
-      }
+    let mut error = String::new();
+    for (_, v) in simple_type_to_run {
+      error.push_str(&format!("\nsimple_type::{}", v));
+    }
+    for (_, v) in attr_group_to_run {
+      error.push_str(&format!("\nattribute_group::{}", v));
+    }
+    for (_, v) in group_to_run {
+      error.push_str(&format!("\ngroup::{}", v));
+    }
+    for (_, v) in element_to_run {
+      error.push_str(&format!("\nelement::{}", v));
+    }
+    for (_, v) in complex_type_to_run {
+      error.push_str(&format!("\ncomplex_type::{}", v));
     }
 
-    dbg!("Generating GROUPS");
-    for group in &self.groups {
-      match group.get_implementation(None, context) {
-        Ok(temp) => {
-          top_level_names.push(temp.name.clone().unwrap());
-          context.structs.insert(temp.name.clone().unwrap(), temp);
-        }
-        Err(ty) => return Err(ty),
-      }
-    }
-
-    dbg!("Generating ELEMENTS");
-    for element in &self.elements {
-      match element.get_implementation(context) {
-        Ok(temp) => {
-          top_level_names.push(temp.name.clone().unwrap());
-          context.structs.insert(temp.name.clone().unwrap(), temp);
-        }
-        Err(ty) => return Err(ty),
-      }
-    }
-
-    dbg!("Generating COMPLEX TYPE");
-    for complex_type in &self.complex_type {
-      match complex_type.get_implementation(context) {
-        Ok(temp) => {
-          top_level_names.push(temp.name.clone().unwrap());
-          context.structs.insert(temp.name.clone().unwrap(), temp);
-        }
-        Err(ty) => return Err(ty),
-      }
+    if !error.is_empty() {
+      return Err(XsdError::XsdParseError(format!("COULD NOT FIND:{}", error)));
     }
 
     let mut dst = String::new();
@@ -186,7 +285,7 @@ mod tests {
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
         .unwrap();
 
-    schema.generate(&mut context);
+    schema.generate(&mut context).unwrap();
   }
 
   #[test]

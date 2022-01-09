@@ -2,7 +2,7 @@ use crate::{codegen::Struct, xsd::attribute::Attribute};
 
 use super::{
   annotation::Annotation,
-  xsd_context::{MergeSettings, XsdContext, XsdElement, XsdImpl, XsdName},
+  xsd_context::{to_struct_name, MergeSettings, XsdContext, XsdElement, XsdImpl, XsdName},
   XMLElementWrapper, XsdError,
 };
 
@@ -56,16 +56,30 @@ impl AttributeGroup {
     parent_name: Option<XsdName>,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
+    // TODO(drosen): We know that both name and reference cannot be some,
+    //               but we have no handler for what happens if the parent
+    //               name is None.
+    let xml_name = self
+      .name
+      .as_ref()
+      .or_else(|| self.reference.as_ref())
+      .unwrap_or_else(|| &parent_name.as_ref().unwrap().local_name);
+
     let mut generated_struct = XsdImpl {
-      element: XsdElement::Struct(Struct::new(
-        &self
-          .name
-          .as_ref()
-          .and_then(|v| Some(v.to_string()))
-          .unwrap_or_else(|| parent_name.as_ref().unwrap().to_struct_name()),
-      )),
+      name: Some(XsdName::new(xml_name)), // Could be a child of schema so set the name.
+      element: XsdElement::Struct(Struct::new(&to_struct_name(xml_name))),
       ..Default::default()
     };
+
+    if let Some(reference) = &self.reference {
+      let name = XsdName::new(reference);
+      // We are using a reference as a base so load the reference
+      if let Some(imp) = context.structs.get(&name) {
+        generated_struct.merge(imp.clone(), MergeSettings::default());
+      } else {
+        return Err(XsdError::XsdImplNotFound(name));
+      }
+    }
 
     for attr in &self.attributes {
       if let Some(attr) = attr.get_implementation(context)? {

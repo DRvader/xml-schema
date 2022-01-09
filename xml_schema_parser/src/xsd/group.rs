@@ -86,14 +86,15 @@ impl Group {
         _ => unreachable!("The Xsd is invalid!"),
       },
       (None, Some(name), Some(refers)) => {
-        let mut inner = context
-          .structs
-          .get(&XsdName {
-            namespace: None,
-            local_name: refers.to_string(),
-          })
-          .unwrap()
-          .clone();
+        let name = XsdName {
+          namespace: None,
+          local_name: refers.to_string(),
+        };
+        let mut inner = if let Some(imp) = context.structs.get(&name) {
+          imp.clone()
+        } else {
+          return Err(XsdError::XsdImplNotFound(name));
+        };
 
         inner.element.set_type(&name.local_name);
 

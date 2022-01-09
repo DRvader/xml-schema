@@ -5,7 +5,7 @@ use super::{
   XMLElementWrapper, XsdError,
 };
 use crate::{
-  codegen::{Field, Struct, Type},
+  codegen::{Field, Impl, Struct, Type},
   xsd::{simple_type::SimpleType, XsdContext},
 };
 
@@ -112,22 +112,28 @@ impl Attribute {
       self.kind.as_ref(),
       self.simple_type.as_ref(),
     ) {
-      (None, Some(kind), None) => context
-        .structs
-        .get(&XsdName {
-          namespace: None,
-          local_name: kind.clone(),
-        })
-        .unwrap()
-        .clone(),
-      (Some(reference), None, None) => context
-        .structs
-        .get(&XsdName {
+      (Some(reference), None, None) => {
+        let name = XsdName {
           namespace: None,
           local_name: reference.clone(),
-        })
-        .unwrap()
-        .clone(),
+        };
+        if let Some(str) = context.structs.get(&name) {
+          str.clone()
+        } else {
+          return Err(XsdError::XsdImplNotFound(name));
+        }
+      }
+      (None, Some(kind), None) => {
+        let name = XsdName {
+          namespace: None,
+          local_name: kind.clone(),
+        };
+        if let Some(str) = context.structs.get(&name) {
+          str.clone()
+        } else {
+          return Err(XsdError::XsdImplNotFound(name));
+        }
+      }
       (None, None, Some(simple_type)) => simple_type.get_implementation(context)?,
       (_, _, _) => panic!("Not implemented Rust type for: {:?}", self),
     };

@@ -172,6 +172,7 @@ impl ComplexType {
           generated,
           MergeSettings {
             conflict_prefix: Some("attr_"),
+            merge_type: crate::xsd::xsd_context::MergeType::Structs,
           },
         );
       }

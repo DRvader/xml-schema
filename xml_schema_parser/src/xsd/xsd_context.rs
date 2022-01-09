@@ -1,4 +1,4 @@
-use crate::codegen::{Enum, Fields, Struct, Type, TypeDef, Variant};
+use crate::codegen::{Block, Enum, Fields, Struct, Type, TypeDef, Variant};
 use heck::{CamelCase, SnakeCase};
 
 use std::collections::BTreeMap;
@@ -36,17 +36,25 @@ impl XsdName {
   }
 
   pub fn to_struct_name(&self) -> String {
-    self.local_name.replace(".", "_").to_camel_case()
+    to_struct_name(&self.local_name)
   }
 
   pub fn to_field_name(&self) -> String {
-    let name = self.local_name.to_snake_case();
+    to_field_name(&self.local_name)
+  }
+}
 
-    if name == "type" {
-      "r#type".to_string()
-    } else {
-      name
-    }
+pub fn to_struct_name(name: &str) -> String {
+  name.replace(".", "_").to_camel_case()
+}
+
+pub fn to_field_name(name: &str) -> String {
+  let name = name.to_snake_case();
+
+  if name == "type" {
+    "r#type".to_string()
+  } else {
+    name
   }
 }
 
@@ -105,6 +113,11 @@ impl XsdElement {
   }
 }
 
+#[derive(Default, Debug, Clone)]
+pub struct XsdDeserialize {
+  map: BTreeMap<String, (Block, bool)>,
+}
+
 #[derive(Debug, Clone)]
 pub struct XsdImpl {
   pub name: Option<XsdName>,
@@ -124,13 +137,20 @@ impl Default for XsdImpl {
   }
 }
 
+pub enum MergeType {
+  Fields,
+  Structs,
+}
+
 pub struct MergeSettings<'a> {
   pub conflict_prefix: Option<&'a str>,
+  pub merge_type: MergeType,
 }
 
 impl<'a> MergeSettings<'a> {
   pub const ATTRIBUTE: MergeSettings<'a> = MergeSettings {
     conflict_prefix: Some("attr_"),
+    merge_type: MergeType::Structs,
   };
 }
 
@@ -138,6 +158,7 @@ impl<'a> Default for MergeSettings<'a> {
   fn default() -> Self {
     Self {
       conflict_prefix: None,
+      merge_type: MergeType::Structs,
     }
   }
 }
@@ -272,6 +293,46 @@ impl XsdImpl {
   }
 
   pub fn merge(&mut self, other: XsdImpl, settings: MergeSettings) {
+    match &settings.merge_type {
+      MergeType::Fields => self.merge_fields(other, settings),
+      MergeType::Structs => self.merge_structs(other, settings),
+    }
+  }
+
+  pub fn merge_structs(&mut self, other: XsdImpl, settings: MergeSettings) {
+    match &mut self.element {
+      XsdElement::Empty => unimplemented!("Cannot merge into an empty struct."),
+      XsdElement::Struct(a) => match other.element {
+        XsdElement::Empty => {}
+        XsdElement::Struct(b) => {
+          a.push_field(Field::new(&to_field_name(&b.ty().name), b.ty()));
+        }
+        XsdElement::Enum(b) => {
+          a.push_field(Field::new(&to_field_name(&b.ty().name), b.ty()));
+        }
+        XsdElement::Type(b) => {
+          a.push_field(Field::new(&to_field_name(&b.name), b));
+        }
+      },
+      XsdElement::Enum(a) => match other.element {
+        XsdElement::Empty => {}
+        XsdElement::Struct(b) => {
+          a.new_variant(&to_field_name(&b.ty().name)).tuple(b.ty());
+        }
+        XsdElement::Enum(b) => {
+          a.new_variant(&to_field_name(&b.ty().name)).tuple(b.ty());
+        }
+        XsdElement::Type(b) => {
+          a.new_variant(&to_field_name(&b.name)).tuple(b);
+        }
+      },
+      XsdElement::Type(_) => unimplemented!("Cannot merge into type."),
+    }
+
+    self.inner.extend(other.inner);
+  }
+
+  pub fn merge_fields(&mut self, other: XsdImpl, settings: MergeSettings) {
     match (&mut self.element, other.element) {
       (XsdElement::Empty, element) => {
         self.element = element;

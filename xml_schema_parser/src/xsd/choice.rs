@@ -1,11 +1,11 @@
-use crate::codegen::{Enum, Field, Struct, Type};
+use crate::codegen::{Block, Enum, Field, Impl, Struct, Type};
 
 use super::{
   element::Element,
   group::Group,
   max_occurences::MaxOccurences,
   sequence::Sequence,
-  xsd_context::{XsdContext, XsdElement, XsdImpl, XsdName},
+  xsd_context::{MergeSettings, XsdContext, XsdElement, XsdImpl, XsdName},
   XMLElementWrapper, XsdError,
 };
 
@@ -52,14 +52,14 @@ impl Choice {
       implementation: vec![],
     };
     for group in &self.groups {
-      outer_enum.merge_into_enum(
+      outer_enum.merge(
         group.get_implementation(Some(parent_name.clone()), context)?,
-        true,
+        MergeSettings::default(),
       );
     }
 
     for sequence in &self.sequences {
-      outer_enum.merge_into_enum(
+      outer_enum.merge(
         sequence.get_implementation(
           XsdName {
             namespace: None,
@@ -67,12 +67,12 @@ impl Choice {
           },
           context,
         )?,
-        false,
+        MergeSettings::default(),
       );
     }
 
     for choice in &self.choices {
-      outer_enum.merge_into_enum(
+      outer_enum.merge(
         choice.get_implementation(
           XsdName {
             namespace: None,
@@ -80,12 +80,15 @@ impl Choice {
           },
           context,
         )?,
-        false,
+        MergeSettings::default(),
       );
     }
 
     for element in &self.elements {
-      outer_enum.merge_into_enum(element.get_implementation(context)?, true);
+      outer_enum.merge(
+        element.get_implementation(context)?,
+        MergeSettings::default(),
+      );
     }
 
     let multiple = match &self.max_occurences {
@@ -99,6 +102,33 @@ impl Choice {
     };
 
     if multiple {
+      let mut inner_impl = Impl::new(&parent_name.to_struct_name());
+
+      inner_impl
+        .new_fn("parse")
+        .vis("pub")
+        .arg("mut element", "XMLElementWrapper")
+        .ret("Result<Self, XsdError>")
+        .push_block(
+          Block::new("")
+            .line(format!(
+              "element.check_name(\"{}\")?;",
+              parent_name.local_name
+            ))
+            .push_block(
+              Block::new(&format!(
+                "element.get_children_with(\"{}\", |child| ",
+                parent_name.local_name
+              ))
+              .line("")
+              .after(")?;")
+              .to_owned(),
+            )
+            .line("element.finalize(false, false)?;")
+            .line("Ok(output);")
+            .to_owned(),
+        );
+
       let mut inner_enum = outer_enum;
       match &mut inner_enum.element {
         XsdElement::Struct(str) => {
@@ -117,18 +147,14 @@ impl Choice {
         name: Some(parent_name.clone()),
         element: XsdElement::Struct(
           Struct::new(&parent_name.to_struct_name())
-            .push_field(
-              Field::new(
-                "inner",
-                inner_enum.element.get_type().wrap("Vec").to_owned(),
-              )
-              .annotation(vec!["yaserde(flatten)"])
-              .to_owned(),
-            )
+            .push_field(Field::new(
+              "inner",
+              inner_enum.element.get_type().wrap("Vec").to_owned(),
+            ))
             .to_owned(),
         ),
         inner: vec![Box::from(inner_enum)],
-        implementation: vec![],
+        implementation: vec![inner_impl],
       })
     } else if option {
       let mut inner_enum = outer_enum;
@@ -149,14 +175,10 @@ impl Choice {
         name: Some(parent_name.clone()),
         element: XsdElement::Struct(
           Struct::new(&parent_name.to_struct_name())
-            .push_field(
-              Field::new(
-                "inner",
-                Type::new(&inner_enum.element.get_type().wrap("Option").to_string()),
-              )
-              .annotation(vec!["yaserde(flatten)"])
-              .to_owned(),
-            )
+            .push_field(Field::new(
+              "inner",
+              Type::new(&inner_enum.element.get_type().wrap("Option").to_string()),
+            ))
             .to_owned(),
         ),
         inner: vec![Box::from(inner_enum)],

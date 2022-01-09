@@ -98,11 +98,6 @@ impl Element {
         ..Default::default()
       })
     } else {
-      let docs = self
-        .annotation
-        .as_ref()
-        .map(|annotation| annotation.get_doc());
-
       let generated_impl = match (&self.simple_type, &self.complex_type) {
         (None, Some(complex_type)) => complex_type.get_implementation(context),
         (Some(simple_type), None) => simple_type.get_implementation(context),

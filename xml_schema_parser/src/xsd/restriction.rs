@@ -102,6 +102,7 @@ impl Restriction {
 
       XsdImpl {
         name: Some(parent_name.clone()),
+        fieldname_hint: Some(parent_name.to_field_name()),
         element: XsdElement::Enum(generated_enum),
         inner: Vec::new(),
         implementation: vec![enum_impl],
@@ -109,6 +110,7 @@ impl Restriction {
     } else {
       XsdImpl {
         name: Some(parent_name.clone()),
+        fieldname_hint: Some(parent_name.to_field_name()),
         element: XsdElement::Struct(Struct::new(&parent_name.to_struct_name())),
         inner: Vec::new(),
         implementation: Vec::new(),

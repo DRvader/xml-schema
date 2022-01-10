@@ -111,7 +111,8 @@ Ok(())
     )]);
 
     Ok(XsdImpl {
-      name: Some(name),
+      name: Some(name.clone()),
+      fieldname_hint: Some(name.to_field_name()),
       element: XsdElement::Struct(generated_struct.clone()),
       inner: vec![],
       implementation: vec![

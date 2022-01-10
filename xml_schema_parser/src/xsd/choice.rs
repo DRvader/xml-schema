@@ -29,7 +29,7 @@ impl Choice {
       id: element.try_get_attribute("id")?,
       min_occurences: element.try_get_attribute("minOccurs")?.unwrap_or(1),
       max_occurences: element.get_attribute_default("maxOccurs")?,
-      elements: element.get_children_with("element", |child| Element::parse(child))?,
+      elements: element.get_children_with("element", |child| Element::parse(child, false))?,
       groups: element.get_children_with("group", |child| Group::parse(child))?,
       choices: element.get_children_with("choice", |child| Choice::parse(child))?,
       sequences: element.get_children_with("sequence", |child| Sequence::parse(child))?,
@@ -47,6 +47,7 @@ impl Choice {
   ) -> Result<XsdImpl, XsdError> {
     let mut outer_enum = XsdImpl {
       name: Some(parent_name.clone()),
+      fieldname_hint: Some(parent_name.to_field_name()),
       element: XsdElement::Enum(Enum::new(&parent_name.to_struct_name())),
       inner: vec![],
       implementation: vec![],
@@ -145,6 +146,7 @@ impl Choice {
 
       Ok(XsdImpl {
         name: Some(parent_name.clone()),
+        fieldname_hint: Some(parent_name.to_field_name()),
         element: XsdElement::Struct(
           Struct::new(&parent_name.to_struct_name())
             .push_field(Field::new(
@@ -173,6 +175,7 @@ impl Choice {
 
       Ok(XsdImpl {
         name: Some(parent_name.clone()),
+        fieldname_hint: Some(parent_name.to_field_name()),
         element: XsdElement::Struct(
           Struct::new(&parent_name.to_struct_name())
             .push_field(Field::new(

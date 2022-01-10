@@ -11,7 +11,10 @@ use crate::{
 };
 use heck::CamelCase;
 
-use super::XMLElementWrapper;
+use super::{
+  xsd_context::{to_field_name, to_struct_name},
+  XMLElementWrapper,
+};
 
 #[derive(Clone, Default, Debug, PartialEq)]
 // #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
@@ -36,19 +39,41 @@ pub struct Element {
 }
 
 impl Element {
-  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+  pub fn parse(mut element: XMLElementWrapper, parent_is_schema: bool) -> Result<Self, XsdError> {
     element.check_name("element")?;
+
+    let name = element.try_get_attribute("name")?;
+    let refers = element.try_get_attribute("ref")?;
+
+    if parent_is_schema && name.is_none() {
+      return Err(XsdError::XsdParseError(
+        "name attribute cannot be absent when parent is the schema tag.".to_string(),
+      ));
+    } else if parent_is_schema && refers.is_some() {
+      return Err(XsdError::XsdParseError(format!(
+        "ref attribute ({}) cannot be present when parent is the schema tag.",
+        refers.unwrap()
+      )));
+    }
 
     let complex_type =
       element.try_get_child_with("complexType", |child| ComplexType::parse(child))?;
     let simple_type =
       element.try_get_child_with("simpleType", |child| SimpleType::parse(child, false))?;
+
+    if simple_type.is_some() && complex_type.is_some() {
+      return Err(XsdError::XsdParseError(format!(
+        "simpleType | complexType cannot both present in {}",
+        element.name()
+      )));
+    }
+
     let annotation = element.try_get_child_with("annotation", |child| Annotation::parse(child))?;
 
     let output = Ok(Self {
-      name: element.try_get_attribute("name")?,
+      name,
       kind: element.try_get_attribute("type")?,
-      refers: element.try_get_attribute("ref")?,
+      refers,
       r#final: element.try_get_attribute("final")?,
       block: element.try_get_attribute("block")?,
       min_occurences: element.try_get_attribute("minOccurs")?.unwrap_or(1),
@@ -80,80 +105,101 @@ impl Element {
   }
 
   pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
-    let name = self.name.clone().unwrap_or("temp".to_string());
-    let type_name = name.replace(".", "_").to_camel_case();
+    // We either have a named (such as a schema decl) or an anonymous element.
+    let xml_name = self.name.clone().unwrap_or("anon".to_string());
+    let type_name = to_struct_name(&xml_name);
 
-    let generated_impl = if self.is_multiple() || self.could_be_none() {
-      let mut generated_field = self.get_field(context)?;
-      let docs = generated_field.documentation.join("\n");
-      generated_field.documentation = vec![];
+    // Now we will generate and return a struct which contains the data declared in the element.
+    // TODO(drosen): Simplify output if element is trivial (e.g. simpleType).
 
-      let generated_struct = Struct::new(&type_name)
-        .push_field(generated_field)
-        .doc(&docs)
-        .to_owned();
+    let mut ty_impl = match (&self.simple_type, &self.complex_type) {
+      (None, Some(complex_type)) => complex_type.get_implementation(context)?,
+      (Some(simple_type), None) => simple_type.get_implementation(context)?,
+      (None, None) => {
+        if self.kind.is_none() {
+          return Ok(XsdImpl {
+            name: Some(XsdName::new(&xml_name)),
+            fieldname_hint: None,
+            element: XsdElement::Empty,
+            ..Default::default()
+          });
+        } else if let Some(imp) = context
+          .structs
+          .get(&XsdName::new(&self.kind.as_ref().unwrap()))
+        {
+          imp.clone()
+        } else {
+          return Err(XsdError::XsdImplNotFound(XsdName::new(&xml_name)));
+        }
+      }
+      _ => {
+        return Err(XsdError::XsdGenError {
+          node_name: xml_name,
+          msg: "Found both simple and complex type in element.".to_string(),
+        })
+      }
+    };
 
-      Ok(XsdImpl {
-        element: XsdElement::Struct(generated_struct),
-        ..Default::default()
-      })
-    } else {
-      let generated_impl = match (&self.simple_type, &self.complex_type) {
-        (None, Some(complex_type)) => complex_type.get_implementation(context),
-        (Some(simple_type), None) => simple_type.get_implementation(context),
-        _ => unreachable!("Invalid Xsd."),
+    let initial_field_name = to_field_name(&xml_name);
+
+    let generated_struct = if self.is_multiple() || self.could_be_none() {
+      let field_name = if self.is_multiple() {
+        format!("{}s", initial_field_name)
+      } else {
+        initial_field_name.clone()
       };
 
-      generated_impl
-    };
+      let mut field_type = ty_impl.element.get_type();
 
-    generated_impl
-  }
+      if self.is_multiple() {
+        field_type.wrap("Vec");
+      } else if self.could_be_none() {
+        field_type.wrap("Option");
+      }
 
-  pub fn get_field(&self, context: &mut XsdContext) -> Result<Field, XsdError> {
-    let mut field_type = match (&self.simple_type, &self.complex_type) {
-      (None, Some(complex_type)) => complex_type.get_implementation(context)?.element.get_type(),
-      (Some(simple_type), None) => simple_type.get_implementation(context)?.element.get_type(),
-      _ => unreachable!("Invalid Xsd."),
-    };
+      if self.could_be_none() {
+        field_type.wrap("Option");
+      }
 
-    let name = self.name.clone().unwrap_or("temp".to_string());
+      todo!("Gen STRUCT impl");
 
-    let field_name = XsdName::new(&name).to_field_name();
-
-    let multiple = self.is_multiple();
-
-    let field_name = if multiple {
-      format!("{}s", field_name)
+      XsdImpl {
+        name: Some(XsdName::new(&xml_name)),
+        fieldname_hint: Some(initial_field_name),
+        element: XsdElement::Struct(
+          Struct::new(&type_name)
+            .push_field(Field::new(&field_name, field_type).vis("pub").to_owned())
+            .to_owned(),
+        ),
+        ..Default::default()
+      }
     } else {
-      field_name
+      let docs = self
+        .annotation
+        .as_ref()
+        .map(|annotation| annotation.get_doc());
+
+      if let Some(docs) = docs {
+        match &mut ty_impl.element {
+          XsdElement::Empty => {
+            unreachable!()
+          }
+          XsdElement::Struct(str) => {
+            str.doc(&docs.as_slice().join("\n"));
+          }
+          XsdElement::Enum(en) => {
+            en.doc(&docs.as_slice().join("\n"));
+          }
+          XsdElement::Type(_) => {
+            unreachable!()
+          }
+        }
+      }
+
+      ty_impl
     };
 
-    let yaserde_rename = self.name.clone().unwrap_or("temp".to_string());
-
-    if multiple {
-      field_type.wrap("Vec");
-    }
-
-    if self.could_be_none() {
-      field_type.wrap("Option");
-    }
-
-    let mut generated_field = Field::new(&field_name, field_type)
-      .vis("pub")
-      .annotation(vec![&format!("yaserde(rename={})", yaserde_rename)])
-      .to_owned();
-
-    let docs = self
-      .annotation
-      .as_ref()
-      .map(|annotation| annotation.get_doc());
-
-    if let Some(docs) = docs {
-      generated_field.doc(docs.iter().map(|f| f.as_str()).collect());
-    }
-
-    Ok(generated_field)
+    Ok(generated_struct)
   }
 }
 

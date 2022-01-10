@@ -43,7 +43,7 @@ impl Sequence {
         .try_get_attribute("maxOccurs")?
         .unwrap_or(MaxOccurences::Number { value: 1 }),
       annotation: element.try_get_child_with("annotation", |child| Annotation::parse(child))?,
-      elements: element.get_children_with("element", |child| Element::parse(child))?,
+      elements: element.get_children_with("element", |child| Element::parse(child, false))?,
       groups: element.get_children_with("group", |child| Group::parse(child))?,
       choices: element.get_children_with("choice", |child| Choice::parse(child))?,
       sequences: element.get_children_with("sequence", |child| Sequence::parse(child))?,

@@ -33,7 +33,8 @@ impl Schema {
     let annotations =
       element.get_children_with("annotation", |child| annotation::Annotation::parse(child))?;
     let imports = element.get_children_with("import", |child| import::Import::parse(child))?;
-    let elements = element.get_children_with("element", |child| element::Element::parse(child))?;
+    let elements =
+      element.get_children_with("element", |child| element::Element::parse(child, true))?;
     let simple_type = element.get_children_with("simpleType", |child| {
       simple_type::SimpleType::parse(child, true)
     })?;

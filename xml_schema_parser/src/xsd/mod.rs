@@ -39,6 +39,8 @@ pub enum XsdError {
   XsdParseError(String),
   #[error(transparent)]
   XmlParseError(#[from] xmltree::ParseError),
+  #[error("Error parsing node[{node_name}]: {msg}")]
+  XsdGenError { node_name: String, msg: String },
   #[error(transparent)]
   Io(#[from] std::io::Error),
   #[error("Unknown Xsd error")]

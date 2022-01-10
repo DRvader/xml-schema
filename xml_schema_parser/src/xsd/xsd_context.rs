@@ -121,6 +121,7 @@ pub struct XsdDeserialize {
 #[derive(Debug, Clone)]
 pub struct XsdImpl {
   pub name: Option<XsdName>,
+  pub fieldname_hint: Option<String>,
   pub element: XsdElement,
   pub inner: Vec<Box<XsdImpl>>,
   pub implementation: Vec<Impl>,
@@ -130,6 +131,7 @@ impl Default for XsdImpl {
   fn default() -> Self {
     Self {
       name: None,
+      fieldname_hint: None,
       element: XsdElement::Empty,
       inner: Default::default(),
       implementation: Default::default(),
@@ -305,25 +307,51 @@ impl XsdImpl {
       XsdElement::Struct(a) => match other.element {
         XsdElement::Empty => {}
         XsdElement::Struct(b) => {
-          a.push_field(Field::new(&to_field_name(&b.ty().name), b.ty()));
+          let field_name = to_field_name(
+            other
+              .fieldname_hint
+              .as_ref()
+              .unwrap_or_else(|| &b.ty().name),
+          );
+          a.push_field(Field::new(&field_name, b.ty()));
         }
         XsdElement::Enum(b) => {
-          a.push_field(Field::new(&to_field_name(&b.ty().name), b.ty()));
+          let field_name = to_field_name(
+            &other
+              .fieldname_hint
+              .as_ref()
+              .unwrap_or_else(|| &b.ty().name),
+          );
+          a.push_field(Field::new(&field_name, b.ty()));
         }
         XsdElement::Type(b) => {
-          a.push_field(Field::new(&to_field_name(&b.name), b));
+          let field_name = to_field_name(&other.fieldname_hint.as_ref().unwrap_or_else(|| &b.name));
+          a.push_field(Field::new(&field_name, b));
         }
       },
       XsdElement::Enum(a) => match other.element {
         XsdElement::Empty => {}
         XsdElement::Struct(b) => {
-          a.new_variant(&to_field_name(&b.ty().name)).tuple(b.ty());
+          let field_name = to_field_name(
+            &other
+              .fieldname_hint
+              .as_ref()
+              .unwrap_or_else(|| &b.ty().name),
+          );
+          a.new_variant(&field_name).tuple(b.ty());
         }
         XsdElement::Enum(b) => {
-          a.new_variant(&to_field_name(&b.ty().name)).tuple(b.ty());
+          let field_name = to_field_name(
+            &other
+              .fieldname_hint
+              .as_ref()
+              .unwrap_or_else(|| &b.ty().name),
+          );
+          a.new_variant(&field_name).tuple(b.ty());
         }
         XsdElement::Type(b) => {
-          a.new_variant(&to_field_name(&b.name)).tuple(b);
+          let field_name = to_field_name(&other.fieldname_hint.as_ref().unwrap_or_else(|| &b.name));
+          a.new_variant(&field_name).tuple(b);
         }
       },
       XsdElement::Type(_) => unimplemented!("Cannot merge into type."),

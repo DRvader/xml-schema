@@ -156,6 +156,7 @@ impl ComplexType {
       .unwrap_or_default();
 
     let mut generated_impl = XsdImpl {
+      name: self.name.as_ref().map(|n| XsdName::new(n)),
       element: XsdElement::Struct(
         Struct::new(&struct_name)
           .doc(&docs.join("\n"))

@@ -79,7 +79,7 @@ impl Extension {
       (None, None, Some(choice)) => choice.get_implementation(parent_name, context),
       (None, Some(sequence), None) => sequence.get_implementation(parent_name, context),
       (Some(group), None, None) => group.get_implementation(Some(parent_name), context),
-      _ => unreachable!("Invalid Xsd!"),
+      _ => unreachable!("Error parsing {}, Invalid XSD!", &parent_name.local_name),
     }?;
 
     for attribute in &self.attributes {

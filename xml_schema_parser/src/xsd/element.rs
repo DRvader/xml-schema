@@ -161,7 +161,7 @@ impl Element {
         field_type.wrap("Option");
       }
 
-      todo!("Gen STRUCT impl");
+      // TODO(drosen): Gen parse function for this case!
 
       XsdImpl {
         name: Some(XsdName::new(&xml_name)),

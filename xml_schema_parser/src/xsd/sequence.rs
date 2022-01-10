@@ -85,6 +85,7 @@ impl Sequence {
     match pure_type {
       PureType::None | PureType::Choice | PureType::Element => {
         let mut generated_impl = XsdImpl {
+          name: Some(parent_name.clone()),
           element: XsdElement::Struct(Struct::new(&parent_name.local_name)),
           ..XsdImpl::default()
         };
@@ -125,7 +126,10 @@ impl Sequence {
         Ok(generated_impl)
       }
       PureType::Group => {
-        let mut generated_impl = XsdImpl::default();
+        let mut generated_impl = XsdImpl{
+          name: Some(parent_name.clone()),
+          ..Default::default()
+        };
         for group in &self.groups {
           generated_impl.merge(
             group.get_implementation(

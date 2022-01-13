@@ -30,9 +30,8 @@ impl Schema {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
     element.check_name("schema")?;
 
-    let annotations =
-      element.get_children_with("annotation", |child| annotation::Annotation::parse(child))?;
-    let imports = element.get_children_with("import", |child| import::Import::parse(child))?;
+    let annotations = element.get_children_with("annotation", annotation::Annotation::parse)?;
+    let imports = element.get_children_with("import", import::Import::parse)?;
     let elements =
       element.get_children_with("element", |child| element::Element::parse(child, true))?;
     let simple_type = element.get_children_with("simpleType", |child| {
@@ -41,12 +40,11 @@ impl Schema {
     let complex_type = element.get_children_with("complexType", |child| {
       complex_type::ComplexType::parse(child)
     })?;
-    let attributes =
-      element.get_children_with("attribute", |child| attribute::Attribute::parse(child))?;
+    let attributes = element.get_children_with("attribute", attribute::Attribute::parse)?;
     let attribute_group = element.get_children_with("attributeGroup", |child| {
       attribute_group::AttributeGroup::parse(child)
     })?;
-    let groups = element.get_children_with("group", |child| group::Group::parse(child))?;
+    let groups = element.get_children_with("group", group::Group::parse)?;
 
     let output = Self {
       target_namespace: element.try_get_attribute("targetNamespace")?,
@@ -272,15 +270,17 @@ mod tests {
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
         .unwrap();
 
-    let implementation = format!("{}", schema.generate(&mut context).unwrap());
-    assert_eq!(implementation, "");
+    let implementation = schema.generate(&mut context).unwrap();
+    assert!(implementation.is_empty());
   }
 
   #[test]
   #[should_panic]
   fn missing_prefix() {
-    let mut schema = Schema::default();
-    schema.target_namespace = Some("http://example.com".to_string());
+    let schema = Schema {
+      target_namespace: Some("http://example.com".to_string()),
+      ..Schema::default()
+    };
 
     let mut context =
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
@@ -298,7 +298,7 @@ mod tests {
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
         .unwrap();
 
-    schema.generate(&mut context);
+    schema.generate(&mut context).unwrap();
   }
 
   #[test]

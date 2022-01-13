@@ -38,19 +38,16 @@ impl ComplexType {
     element.check_name("complexType")?;
 
     // (annotation?,(simpleContent|complexContent|((group|all|choice|sequence)?,((attribute|attributeGroup)*,anyAttribute?))))
-    let simple_content =
-      element.try_get_child_with("simpleContent", |child| SimpleContent::parse(child))?;
-    let complex_content =
-      element.try_get_child_with("complexContent", |child| ComplexContent::parse(child))?;
+    let simple_content = element.try_get_child_with("simpleContent", SimpleContent::parse)?;
+    let complex_content = element.try_get_child_with("complexContent", ComplexContent::parse)?;
 
-    let choice = element.try_get_child_with("choice", |child| Choice::parse(child))?;
-    let group = element.try_get_child_with("group", |child| Group::parse(child))?;
-    let sequence = element.try_get_child_with("sequence", |child| Sequence::parse(child))?;
+    let choice = element.try_get_child_with("choice", Choice::parse)?;
+    let group = element.try_get_child_with("group", Group::parse)?;
+    let sequence = element.try_get_child_with("sequence", Sequence::parse)?;
 
-    let attributes = element.get_children_with("attribute", |child| Attribute::parse(child))?;
+    let attributes = element.get_children_with("attribute", Attribute::parse)?;
 
-    let attribute_groups =
-      element.get_children_with("attributeGroup", |child| AttributeGroup::parse(child))?;
+    let attribute_groups = element.get_children_with("attributeGroup", AttributeGroup::parse)?;
 
     if simple_content.is_some() && complex_content.is_some() {
       return Err(XsdError::XsdParseError(format!(
@@ -88,7 +85,7 @@ impl ComplexType {
       complex_content,
       attribute_groups,
       attributes,
-      annotation: element.try_get_child_with("annotation", |child| Annotation::parse(child))?,
+      annotation: element.try_get_child_with("annotation", Annotation::parse)?,
     };
 
     element.finalize(false, false)?;
@@ -97,7 +94,7 @@ impl ComplexType {
   }
 
   pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
-    let name = self.name.clone().unwrap_or("temp".to_string());
+    let name = self.name.clone().unwrap_or_else(|| "temp".to_string());
 
     let struct_id = XsdName {
       namespace: None,

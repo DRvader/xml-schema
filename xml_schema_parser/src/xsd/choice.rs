@@ -30,9 +30,9 @@ impl Choice {
       min_occurences: element.try_get_attribute("minOccurs")?.unwrap_or(1),
       max_occurences: element.get_attribute_default("maxOccurs")?,
       elements: element.get_children_with("element", |child| Element::parse(child, false))?,
-      groups: element.get_children_with("group", |child| Group::parse(child))?,
-      choices: element.get_children_with("choice", |child| Choice::parse(child))?,
-      sequences: element.get_children_with("sequence", |child| Sequence::parse(child))?,
+      groups: element.get_children_with("group", Group::parse)?,
+      choices: element.get_children_with("choice", Choice::parse)?,
+      sequences: element.get_children_with("sequence", Sequence::parse)?,
     };
 
     element.finalize(false, false)?;
@@ -155,7 +155,7 @@ impl Choice {
             ))
             .to_owned(),
         ),
-        inner: vec![Box::from(inner_enum)],
+        inner: vec![inner_enum],
         implementation: vec![inner_impl],
       })
     } else if option {
@@ -184,7 +184,7 @@ impl Choice {
             ))
             .to_owned(),
         ),
-        inner: vec![Box::from(inner_enum)],
+        inner: vec![inner_enum],
         implementation: vec![],
       })
     } else {

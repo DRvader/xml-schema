@@ -123,7 +123,7 @@ pub struct XsdImpl {
   pub name: Option<XsdName>,
   pub fieldname_hint: Option<String>,
   pub element: XsdElement,
-  pub inner: Vec<Box<XsdImpl>>,
+  pub inner: Vec<XsdImpl>,
   pub implementation: Vec<Impl>,
 }
 
@@ -181,7 +181,7 @@ impl XsdImpl {
 
     self.fmt(&mut formatter)?;
 
-    return Ok(dst);
+    Ok(dst)
   }
 
   pub fn merge_into_enum(&mut self, mut other: XsdImpl, merge_as_fields: bool) {
@@ -242,7 +242,7 @@ impl XsdImpl {
       }
       (Some(_), None) => {}
       (Some(a), Some(b)) => {
-        if !a.docs.ends_with("\n") {
+        if !a.docs.ends_with('\n') {
           a.docs.push('\n');
         }
         a.docs.push_str(&b.docs);
@@ -301,7 +301,7 @@ impl XsdImpl {
     }
   }
 
-  pub fn merge_structs(&mut self, other: XsdImpl, settings: MergeSettings) {
+  pub fn merge_structs(&mut self, other: XsdImpl, _settings: MergeSettings) {
     match &mut self.element {
       XsdElement::Empty => unimplemented!("Cannot merge into an empty struct."),
       XsdElement::Struct(a) => match other.element {
@@ -317,7 +317,7 @@ impl XsdImpl {
         }
         XsdElement::Enum(b) => {
           let field_name = to_field_name(
-            &other
+            other
               .fieldname_hint
               .as_ref()
               .unwrap_or_else(|| &b.ty().name),
@@ -325,7 +325,7 @@ impl XsdImpl {
           a.push_field(Field::new(&field_name, b.ty()));
         }
         XsdElement::Type(b) => {
-          let field_name = to_field_name(&other.fieldname_hint.as_ref().unwrap_or_else(|| &b.name));
+          let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or(&b.name));
           a.push_field(Field::new(&field_name, b));
         }
       },
@@ -333,7 +333,7 @@ impl XsdImpl {
         XsdElement::Empty => {}
         XsdElement::Struct(b) => {
           let field_name = to_field_name(
-            &other
+            other
               .fieldname_hint
               .as_ref()
               .unwrap_or_else(|| &b.ty().name),
@@ -342,7 +342,7 @@ impl XsdImpl {
         }
         XsdElement::Enum(b) => {
           let field_name = to_field_name(
-            &other
+            other
               .fieldname_hint
               .as_ref()
               .unwrap_or_else(|| &b.ty().name),
@@ -350,7 +350,7 @@ impl XsdImpl {
           a.new_variant(&field_name).tuple(b.ty());
         }
         XsdElement::Type(b) => {
-          let field_name = to_field_name(&other.fieldname_hint.as_ref().unwrap_or_else(|| &b.name));
+          let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or(&b.name));
           a.new_variant(&field_name).tuple(b);
         }
       },
@@ -427,7 +427,7 @@ impl XsdImpl {
         }
         Self::merge_typedef(&mut a.type_def, b.type_def);
       }
-      (XsdElement::Type(a), XsdElement::Type(b)) => {
+      (XsdElement::Type(_a), XsdElement::Type(_b)) => {
         panic!("Tried to merge type with type");
       }
       _ => panic!("Invalid merge"),
@@ -499,10 +499,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}bool",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("bool")),
@@ -514,10 +513,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}boolean",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("bool")),
@@ -529,10 +527,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}positiveInteger",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("u64")),
@@ -544,10 +541,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}byte",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("i8")),
@@ -559,10 +555,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}unsignedByte",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("u8")),
@@ -574,10 +569,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}short",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("i16")),
@@ -589,10 +583,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}unsignedShort",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("u16")),
@@ -604,10 +597,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}int",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("i32")),
@@ -619,10 +611,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}integer",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("i32")),
@@ -634,10 +625,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}unsignedInt",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("u32")),
@@ -649,10 +639,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}long",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("i64")),
@@ -664,10 +653,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}unsignedLong",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("u64")),
@@ -679,10 +667,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}nonNegativeInteger",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("u64")),
@@ -694,10 +681,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}double",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("f64")),
@@ -709,10 +695,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}decimal",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("f64")),
@@ -724,10 +709,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}string",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("String")),
@@ -739,10 +723,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}normalizedString",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("String")),
@@ -754,10 +737,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}anyURI",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("String")),
@@ -769,10 +751,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}NMTOKEN",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("String")),
@@ -784,10 +765,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}token",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("String")),
@@ -799,10 +779,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}language",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("String")),
@@ -814,10 +793,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}hexBinary",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("String")),
@@ -829,10 +807,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}dateTime",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("String")),
@@ -844,10 +821,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}base64Binary",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("String")),
@@ -859,10 +835,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}duration",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("String")),
@@ -874,10 +849,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}gYear",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("u16")),
@@ -889,10 +863,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}ID",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("String")),
@@ -904,10 +877,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}IDREF",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("String")),
@@ -919,10 +891,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}IDREFS",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("String")),
@@ -934,10 +905,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}anyType",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("String")),
@@ -949,10 +919,9 @@ impl XsdContext {
                     namespace: None,
                     local_name: format!(
                       "{}{}date",
-                      xml_schema_prefix.as_ref().map(|v| v.as_str()).unwrap_or(""),
+                      xml_schema_prefix.as_deref().unwrap_or(""),
                       if xml_schema_prefix.is_some() { ":" } else { "" }
-                    )
-                    .to_string(),
+                    ),
                   },
                   XsdImpl {
                     element: XsdElement::Type(Type::new("chrono::Date")),

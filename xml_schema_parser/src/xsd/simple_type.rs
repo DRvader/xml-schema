@@ -24,8 +24,8 @@ impl SimpleType {
     let restriction = element.try_get_child_with("restriction", |child| {
       Restriction::parse(RestrictionParentType::SimpleType, child)
     })?;
-    let list = element.try_get_child_with("list", |child| List::parse(child))?;
-    let union = element.try_get_child_with("union", |child| Union::parse(child))?;
+    let list = element.try_get_child_with("list", List::parse)?;
+    let union = element.try_get_child_with("union", Union::parse)?;
 
     if restriction.is_some() as u8 + list.is_some() as u8 + union.is_some() as u8 > 1 {
       return Err(XsdError::XsdParseError(format!(
@@ -50,7 +50,7 @@ impl SimpleType {
 
     let output = Self {
       name,
-      annotation: element.try_get_child_with("annotation", |child| Annotation::parse(child))?,
+      annotation: element.try_get_child_with("annotation", Annotation::parse)?,
       restriction,
       list,
       union,
@@ -64,7 +64,7 @@ impl SimpleType {
   pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
     let name = XsdName {
       namespace: None,
-      local_name: self.name.clone().unwrap_or("temp".to_string()),
+      local_name: self.name.clone().unwrap_or_else(|| "temp".to_string()),
     };
 
     match (&self.list, &self.union, &self.restriction) {

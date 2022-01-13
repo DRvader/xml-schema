@@ -58,7 +58,7 @@ impl Union {
     }
 
     Ok(XsdImpl {
-      name: Some(parent_name.clone()),
+      name: Some(parent_name),
       element: XsdElement::Enum(generated_enum),
       ..Default::default()
     })

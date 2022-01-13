@@ -34,14 +34,13 @@ impl AttributeGroup {
       )));
     }
 
-    let attributes = element.get_children_with("attribute", |child| Attribute::parse(child))?;
-    let attribute_groups =
-      element.get_children_with("attributeGroup", |child| AttributeGroup::parse(child))?;
+    let attributes = element.get_children_with("attribute", Attribute::parse)?;
+    let attribute_groups = element.get_children_with("attributeGroup", AttributeGroup::parse)?;
 
     let output = Ok(Self {
       name,
       reference,
-      annotation: element.try_get_child_with("annotation", |child| Annotation::parse(child))?,
+      annotation: element.try_get_child_with("annotation", Annotation::parse)?,
       attributes,
       attribute_groups,
     });

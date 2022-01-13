@@ -5,7 +5,7 @@ use super::{
   XMLElementWrapper, XsdError,
 };
 use crate::{
-  codegen::{Field, Impl, Struct, Type},
+  codegen::{Field, Struct, Type},
   xsd::{simple_type::SimpleType, XsdContext},
 };
 
@@ -313,7 +313,7 @@ mod tests {
       XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
         .unwrap();
 
-    attribute.get_implementation(&mut context);
+    attribute.get_implementation(&mut context).unwrap();
   }
 
   #[test]

@@ -1,5 +1,4 @@
 use super::{
-  enumeration::Enumeration,
   xsd_context::{XsdElement, XsdImpl, XsdName},
   XMLElementWrapper, XsdError,
 };
@@ -29,7 +28,7 @@ pub enum RestrictionParentType {
 
 impl Restriction {
   pub fn parse(
-    parent_type: RestrictionParentType,
+    _parent_type: RestrictionParentType,
     mut element: XMLElementWrapper,
   ) -> Result<Self, XsdError> {
     element.check_name("restriction")?;
@@ -57,7 +56,7 @@ impl Restriction {
   pub fn get_implementation(
     &self,
     parent_name: XsdName,
-    parent_type: RestrictionParentType,
+    _parent_type: RestrictionParentType,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
     let base_type = context.structs.get(&XsdName {
@@ -72,7 +71,7 @@ impl Restriction {
       }));
     }
 
-    let (local, generated_type) = if let Some(base_type) = base_type {
+    let (_local, _generated_type) = if let Some(base_type) = base_type {
       (true, base_type.element.get_type())
     } else {
       (false, Type::new(&self.base.replace(":", "::")))

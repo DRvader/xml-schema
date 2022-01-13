@@ -128,7 +128,7 @@ impl XMLElementWrapper {
     name: &str,
     func: impl Fn(XMLElementWrapper) -> Result<T, XsdError>,
   ) -> Result<Vec<T>, XsdError> {
-    self.get_children_with_filter(name, |child| func(child).map(|v| Some(v)))
+    self.get_children_with_filter(name, |child| func(child).map(Some))
   }
 
   fn get_child_with<T>(
@@ -157,14 +157,14 @@ impl XMLElementWrapper {
   {
     let value = self.0.attributes.remove(name);
     if let Some(value) = value {
-      return Ok(Some(value.parse::<T>().map_err(|e| {
+      Ok(Some(value.parse::<T>().map_err(|e| {
         XsdError::XsdParseError(format!(
           "Error parsing {} in {}: {}",
           name,
           self.0.name,
           e.to_string()
         ))
-      })?));
+      })?))
     } else {
       Ok(None)
     }
@@ -200,13 +200,13 @@ impl XMLElementWrapper {
   {
     let value = self.0.get_text();
     if let Some(value) = value {
-      return Ok(Some(value.parse::<T>().map_err(|e| {
+      Ok(Some(value.parse::<T>().map_err(|e| {
         XsdError::XsdParseError(format!(
           "Error parsing node text in {}: {}",
           self.0.name,
           e.to_string()
         ))
-      })?));
+      })?))
     } else {
       Ok(None)
     }
@@ -331,7 +331,7 @@ impl Xsd {
     Xsd::new(&content, module_namespace_mappings)
   }
 
-  pub fn generate(&mut self, target_prefix: &Option<String>) -> Result<String, XsdError> {
+  pub fn generate(&mut self, _target_prefix: &Option<String>) -> Result<String, XsdError> {
     self.schema.generate(&mut self.context)
   }
 }

@@ -32,6 +32,6 @@ impl Annotation {
   }
 
   pub fn get_doc(&self) -> Vec<String> {
-    return self.documentation.clone();
+    self.documentation.clone()
   }
 }

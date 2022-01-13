@@ -18,7 +18,7 @@ impl ComplexContent {
     element.check_name("complexContent")?;
 
     let output = Self {
-      extension: element.try_get_child_with("extension", |child| Extension::parse(child))?,
+      extension: element.try_get_child_with("extension", Extension::parse)?,
       restriction: element.try_get_child_with("restriction", |child| {
         Restriction::parse(RestrictionParentType::ComplexContent, child)
       })?,

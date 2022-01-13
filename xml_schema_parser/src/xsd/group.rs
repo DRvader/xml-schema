@@ -27,8 +27,8 @@ impl Group {
     let name = element.try_get_attribute("name")?;
     let refers = element.try_get_attribute("ref")?;
 
-    let sequence = element.try_get_child_with("sequence", |child| Sequence::parse(child))?;
-    let choice = element.try_get_child_with("choice", |child| Choice::parse(child))?;
+    let sequence = element.try_get_child_with("sequence", Sequence::parse)?;
+    let choice = element.try_get_child_with("choice", Choice::parse)?;
 
     if name.is_some() && refers.is_some() {
       return Err(XsdError::XsdParseError(format!(
@@ -52,7 +52,7 @@ impl Group {
       max_occurences: element
         .try_get_attribute("maxOccurs")?
         .unwrap_or(MaxOccurences::Number { value: 1 }),
-      annotation: element.try_get_child_with("annotation", |child| Annotation::parse(child))?,
+      annotation: element.try_get_child_with("annotation", Annotation::parse)?,
       sequence,
       choice,
     };
@@ -85,7 +85,7 @@ impl Group {
         ),
         _ => unreachable!("The Xsd is invalid!"),
       },
-      (None, Some(name), Some(refers)) => {
+      (None, Some(_name), Some(refers)) => {
         let name = XsdName {
           namespace: None,
           local_name: refers.to_string(),

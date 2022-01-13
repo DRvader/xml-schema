@@ -9,7 +9,6 @@ use crate::{
     XsdContext, XsdError,
   },
 };
-use heck::CamelCase;
 
 use super::{
   xsd_context::{to_field_name, to_struct_name},
@@ -56,8 +55,7 @@ impl Element {
       )));
     }
 
-    let complex_type =
-      element.try_get_child_with("complexType", |child| ComplexType::parse(child))?;
+    let complex_type = element.try_get_child_with("complexType", ComplexType::parse)?;
     let simple_type =
       element.try_get_child_with("simpleType", |child| SimpleType::parse(child, false))?;
 
@@ -68,7 +66,7 @@ impl Element {
       )));
     }
 
-    let annotation = element.try_get_child_with("annotation", |child| Annotation::parse(child))?;
+    let annotation = element.try_get_child_with("annotation", Annotation::parse)?;
 
     let output = Ok(Self {
       name,
@@ -106,7 +104,7 @@ impl Element {
 
   pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
     // We either have a named (such as a schema decl) or an anonymous element.
-    let xml_name = self.name.clone().unwrap_or("anon".to_string());
+    let xml_name = self.name.clone().unwrap_or_else(|| "anon".to_string());
     let type_name = to_struct_name(&xml_name);
 
     // Now we will generate and return a struct which contains the data declared in the element.
@@ -125,7 +123,7 @@ impl Element {
           });
         } else if let Some(imp) = context
           .structs
-          .get(&XsdName::new(&self.kind.as_ref().unwrap()))
+          .get(&XsdName::new(self.kind.as_ref().unwrap()))
         {
           imp.clone()
         } else {
@@ -241,7 +239,7 @@ mod tests {
     let ts = quote!(#value).to_string();
 
     assert_eq!(
-      ts.to_string(),
+      ts,
       format!(
         "{}{}pub struct Volume {{ # [ yaserde ( flatten ) ] pub content : VolumeType , }}",
         DOCS, DERIVES
@@ -278,7 +276,7 @@ mod tests {
     let ts = quote!(#value).to_string();
 
     assert_eq!(
-      ts.to_string(),
+      ts,
       format!(
         "{}{}pub struct Volume {{ # [ yaserde ( text ) ] pub content : String , }}",
         DOCS, DERIVES

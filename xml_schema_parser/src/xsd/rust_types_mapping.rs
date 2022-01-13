@@ -76,7 +76,7 @@ impl RustTypesMapping {
   }
 
   fn extern_type(context: &XsdContext, items: Vec<&str>) -> TokenStream {
-    let struct_name = if *items.last().unwrap() == "" {
+    let struct_name = if items.last().unwrap().is_empty() {
       "String".to_string()
     } else {
       (*items.last().unwrap().replace(".", "_").to_camel_case()).to_string()
@@ -89,7 +89,7 @@ impl RustTypesMapping {
 
     let module = if items.len() == 2 {
       let prefix = items.first().unwrap();
-      if let Some(module) = context.get_module(&prefix) {
+      if let Some(module) = context.get_module(prefix) {
         module + "::"
       } else {
         default_module
@@ -229,8 +229,8 @@ mod tests {
     )
     .unwrap();
 
-    assert_eq!(RustTypesMapping::is_xs_string(&context, "xs:string"), true);
-    assert_eq!(RustTypesMapping::is_xs_string(&context, "MyType"), false);
+    assert!(RustTypesMapping::is_xs_string(&context, "xs:string"));
+    assert!(!RustTypesMapping::is_xs_string(&context, "MyType"));
 
     let context = XsdContext::new(
       r#"
@@ -243,10 +243,7 @@ mod tests {
     )
     .unwrap();
 
-    assert_eq!(RustTypesMapping::is_xs_string(&context, "string"), true);
-    assert_eq!(
-      RustTypesMapping::is_xs_string(&context, "example:MyType"),
-      false
-    );
+    assert!(RustTypesMapping::is_xs_string(&context, "string"));
+    assert!(!RustTypesMapping::is_xs_string(&context, "example:MyType"),);
   }
 }

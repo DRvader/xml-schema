@@ -26,8 +26,6 @@ use std::{
   fmt::{self, Write},
 };
 
-use syn::token::In;
-
 /// Defines a scope.
 ///
 /// A scope contains modules, types, etc...
@@ -290,7 +288,7 @@ impl Scope {
     self
       .imports
       .entry(path.to_string())
-      .or_insert(BTreeMap::new())
+      .or_insert_with(BTreeMap::new)
       .entry(ty.to_string())
       .or_insert_with(|| Import::new(path, ty))
   }
@@ -321,14 +319,10 @@ impl Scope {
   where
     String: PartialEq<Q>,
   {
-    self
-      .items
-      .iter_mut()
-      .filter_map(|item| match item {
-        &mut Item::Module(ref mut module) if module.name == *name => Some(module),
-        _ => None,
-      })
-      .next()
+    self.items.iter_mut().find_map(|item| match *item {
+      Item::Module(ref mut module) if module.name == *name => Some(module),
+      _ => None,
+    })
   }
 
   /// Returns a mutable reference to a module if it is exists in this scope.
@@ -336,14 +330,10 @@ impl Scope {
   where
     String: PartialEq<Q>,
   {
-    self
-      .items
-      .iter()
-      .filter_map(|item| match item {
-        &Item::Module(ref module) if module.name == *name => Some(module),
-        _ => None,
-      })
-      .next()
+    self.items.iter().find_map(|item| match *item {
+      Item::Module(ref module) if module.name == *name => Some(module),
+      _ => None,
+    })
   }
 
   /// Returns a mutable reference to a module, creating it if it does
@@ -481,12 +471,12 @@ impl Scope {
     self.fmt_imports(fmt)?;
 
     if !self.imports.is_empty() {
-      write!(fmt, "\n")?;
+      writeln!(fmt)?;
     }
 
     for (i, item) in self.items.iter().enumerate() {
       if i != 0 {
-        write!(fmt, "\n")?;
+        writeln!(fmt)?;
       }
 
       match *item {
@@ -497,7 +487,7 @@ impl Scope {
         Item::Enum(ref v) => v.fmt(fmt)?,
         Item::Impl(ref v) => v.fmt(fmt)?,
         Item::Raw(ref v) => {
-          write!(fmt, "{}\n", v)?;
+          writeln!(fmt, "{}", v)?;
         }
       }
     }
@@ -509,8 +499,8 @@ impl Scope {
     // First, collect all visibilities
     let mut visibilities = vec![];
 
-    for (_, imports) in &self.imports {
-      for (_, import) in imports {
+    for imports in self.imports.values() {
+      for import in imports.values() {
         if !visibilities.contains(&import.vis) {
           visibilities.push(import.vis.clone());
         }
@@ -547,9 +537,9 @@ impl Scope {
               write!(fmt, "{}", ty)?;
             }
 
-            write!(fmt, "}};\n")?;
+            writeln!(fmt, "}};")?;
           } else if tys.len() == 1 {
-            write!(fmt, "{};\n", tys[0])?;
+            writeln!(fmt, "{};", tys[0])?;
           }
         }
       }
@@ -809,10 +799,10 @@ impl Struct {
 
     match self.fields {
       Fields::Empty => {
-        write!(fmt, ";\n")?;
+        writeln!(fmt, ";")?;
       }
       Fields::Tuple(..) => {
-        write!(fmt, ";\n")?;
+        writeln!(fmt, ";")?;
       }
       _ => {}
     }
@@ -927,13 +917,13 @@ impl Trait {
             fmt_bound_rhs(&ty.bound, fmt)?;
           }
 
-          write!(fmt, ";\n")?;
+          writeln!(fmt, ";")?;
         }
       }
 
       for (i, func) in self.fns.iter().enumerate() {
         if i != 0 || !assoc.is_empty() {
-          write!(fmt, "\n")?;
+          writeln!(fmt)?;
         }
 
         func.fmt(true, fmt)?;
@@ -1061,7 +1051,7 @@ impl Variant {
   pub fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
     write!(fmt, "{}", self.name)?;
     self.fields.fmt(fmt)?;
-    write!(fmt, ",\n")?;
+    writeln!(fmt, ",")?;
 
     Ok(())
   }
@@ -1098,7 +1088,7 @@ impl Type {
   {
     // Make sure that the name doesn't already include generics
     assert!(
-      !self.name.contains("<"),
+      !self.name.contains('<'),
       "type name already includes generics"
     );
 
@@ -1269,7 +1259,7 @@ impl TypeDef {
 
   fn fmt_allow(&self, fmt: &mut Formatter) -> fmt::Result {
     if !self.allow.is_empty() {
-      write!(fmt, "#[allow({})]\n", self.allow.join(", "))?;
+      writeln!(fmt, "#[allow({})]", self.allow.join(", "))?;
     }
 
     Ok(())
@@ -1277,7 +1267,7 @@ impl TypeDef {
 
   fn fmt_repr(&self, fmt: &mut Formatter) -> fmt::Result {
     if let Some(ref repr) = self.repr {
-      write!(fmt, "#[repr({})]\n", repr)?;
+      writeln!(fmt, "#[repr({})]", repr)?;
     }
 
     Ok(())
@@ -1294,7 +1284,7 @@ impl TypeDef {
         write!(fmt, "{}", name)?;
       }
 
-      write!(fmt, ")]\n")?;
+      writeln!(fmt, ")]")?;
     }
 
     Ok(())
@@ -1302,7 +1292,7 @@ impl TypeDef {
 
   fn fmt_macros(&self, fmt: &mut Formatter) -> fmt::Result {
     for m in self.macros.iter() {
-      write!(fmt, "{}\n", m)?;
+      writeln!(fmt, "{}", m)?;
     }
     Ok(())
   }
@@ -1327,17 +1317,17 @@ fn fmt_generics(generics: &[String], fmt: &mut Formatter) -> fmt::Result {
 
 fn fmt_bounds(bounds: &[Bound], fmt: &mut Formatter) -> fmt::Result {
   if !bounds.is_empty() {
-    write!(fmt, "\n")?;
+    writeln!(fmt)?;
 
     // Write first bound
     write!(fmt, "where {}: ", bounds[0].name)?;
     fmt_bound_rhs(&bounds[0].bound, fmt)?;
-    write!(fmt, ",\n")?;
+    writeln!(fmt, ",")?;
 
     for bound in &bounds[1..] {
       write!(fmt, "      {}: ", bound.name)?;
       fmt_bound_rhs(&bound.bound, fmt)?;
-      write!(fmt, ",\n")?;
+      writeln!(fmt, ",")?;
     }
   }
 
@@ -1476,23 +1466,23 @@ impl Fields {
           for f in fields {
             if !f.documentation.is_empty() {
               for doc in &f.documentation {
-                write!(fmt, "/// {}\n", doc)?;
+                writeln!(fmt, "/// {}", doc)?;
               }
             }
             if !f.annotation.is_empty() {
               for ann in &f.annotation {
-                write!(fmt, "{}\n", ann)?;
+                writeln!(fmt, "{}", ann)?;
               }
             }
             write!(
               fmt,
               "{}{}{}: ",
-              f.vis.as_ref().map(|f| f.as_str()).unwrap_or(""),
+              f.vis.as_deref().unwrap_or(""),
               if f.vis.is_some() { " " } else { "" },
               f.name
             )?;
             f.ty.fmt(fmt)?;
-            write!(fmt, ",\n")?;
+            writeln!(fmt, ",")?;
           }
 
           Ok(())
@@ -1508,7 +1498,7 @@ impl Fields {
             write!(fmt, ", ")?;
           }
           if let Some(vis) = vis {
-            write!(fmt, "{} ", vis);
+            write!(fmt, "{} ", vis)?;
           }
 
           ty.fmt(fmt)?;
@@ -1617,7 +1607,7 @@ impl Impl {
   /// Formats the impl block using the given formatter.
   pub fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
     for m in self.macros.iter() {
-      write!(fmt, "{}\n", m)?;
+      writeln!(fmt, "{}", m)?;
     }
     write!(fmt, "impl")?;
     fmt_generics(&self.generics[..], fmt)?;
@@ -1639,13 +1629,13 @@ impl Impl {
         for ty in &self.assoc_tys {
           write!(fmt, "type {} = ", ty.name)?;
           ty.ty.fmt(fmt)?;
-          write!(fmt, ";\n")?;
+          writeln!(fmt, ";")?;
         }
       }
 
       for (i, func) in self.fns.iter().enumerate() {
         if i != 0 || !self.assoc_tys.is_empty() {
-          write!(fmt, "\n")?;
+          writeln!(fmt)?;
         }
 
         func.fmt(false, fmt)?;
@@ -1840,11 +1830,11 @@ impl Function {
     }
 
     if let Some(ref allow) = self.allow {
-      write!(fmt, "#[allow({})]\n", allow)?;
+      writeln!(fmt, "#[allow({})]", allow)?;
     }
 
     for attr in self.attributes.iter() {
-      write!(fmt, "#[{}]\n", attr)?;
+      writeln!(fmt, "#[{}]", attr)?;
     }
 
     if is_trait {
@@ -1906,7 +1896,7 @@ impl Function {
           panic!("impl blocks must define fn bodies");
         }
 
-        write!(fmt, ";\n")
+        writeln!(fmt, ";")
       }
     }
   }
@@ -1957,7 +1947,7 @@ impl Block {
       write!(fmt, " ")?;
     }
 
-    write!(fmt, "{{\n")?;
+    writeln!(fmt, "{{")?;
 
     fmt.indent(|fmt| {
       for b in &self.body {
@@ -1973,7 +1963,7 @@ impl Block {
       write!(fmt, "{}", after)?;
     }
 
-    write!(fmt, "\n")?;
+    writeln!(fmt)?;
     Ok(())
   }
 }
@@ -1983,7 +1973,7 @@ impl Block {
 impl Body {
   fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
     match *self {
-      Body::String(ref s) => write!(fmt, "{}\n", s),
+      Body::String(ref s) => writeln!(fmt, "{}", s),
       Body::Block(ref b) => b.fmt(fmt),
     }
   }
@@ -2000,7 +1990,7 @@ impl Docs {
 
   fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
     for line in self.docs.lines() {
-      write!(fmt, "/// {}\n", line)?;
+      writeln!(fmt, "/// {}", line)?;
     }
 
     Ok(())
@@ -2027,9 +2017,9 @@ impl<'a> Formatter<'a> {
       write!(self, " ")?;
     }
 
-    write!(self, "{{\n")?;
+    writeln!(self, "{{")?;
     self.indent(f)?;
-    write!(self, "}}\n")?;
+    writeln!(self, "}}")?;
     Ok(())
   }
 
@@ -2050,7 +2040,7 @@ impl<'a> Formatter<'a> {
 
   fn push_spaces(&mut self) {
     for _ in 0..self.spaces {
-      self.dst.push_str(" ");
+      self.dst.push(' ');
     }
   }
 }
@@ -2062,7 +2052,7 @@ impl<'a> fmt::Write for Formatter<'a> {
 
     for line in s.lines() {
       if !first {
-        self.dst.push_str("\n");
+        self.dst.push('\n');
       }
 
       first = false;
@@ -2080,7 +2070,7 @@ impl<'a> fmt::Write for Formatter<'a> {
     }
 
     if s.as_bytes().last() == Some(&b'\n') {
-      self.dst.push_str("\n");
+      self.dst.push('\n');
     }
 
     Ok(())

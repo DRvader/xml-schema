@@ -42,11 +42,11 @@ impl Sequence {
       max_occurences: element
         .try_get_attribute("maxOccurs")?
         .unwrap_or(MaxOccurences::Number { value: 1 }),
-      annotation: element.try_get_child_with("annotation", |child| Annotation::parse(child))?,
+      annotation: element.try_get_child_with("annotation", Annotation::parse)?,
       elements: element.get_children_with("element", |child| Element::parse(child, false))?,
-      groups: element.get_children_with("group", |child| Group::parse(child))?,
-      choices: element.get_children_with("choice", |child| Choice::parse(child))?,
-      sequences: element.get_children_with("sequence", |child| Sequence::parse(child))?,
+      groups: element.get_children_with("group", Group::parse)?,
+      choices: element.get_children_with("choice", Choice::parse)?,
+      sequences: element.get_children_with("sequence", Sequence::parse)?,
     };
 
     element.finalize(false, false)?;
@@ -126,8 +126,8 @@ impl Sequence {
         Ok(generated_impl)
       }
       PureType::Group => {
-        let mut generated_impl = XsdImpl{
-          name: Some(parent_name.clone()),
+        let mut generated_impl = XsdImpl {
+          name: Some(parent_name),
           ..Default::default()
         };
         for group in &self.groups {

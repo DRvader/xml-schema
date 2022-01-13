@@ -20,7 +20,7 @@ impl SimpleContent {
     let restriction = element.try_get_child_with("restriction", |child| {
       Restriction::parse(RestrictionParentType::SimpleContent, child)
     })?;
-    let extension = element.try_get_child_with("extension", |child| Extension::parse(child))?;
+    let extension = element.try_get_child_with("extension", Extension::parse)?;
 
     if restriction.is_some() && extension.is_some() {
       return Err(XsdError::XsdParseError(format!(

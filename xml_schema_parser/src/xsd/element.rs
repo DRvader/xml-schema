@@ -107,6 +107,8 @@ impl Element {
     let xml_name = self.name.clone().unwrap_or_else(|| "anon".to_string());
     let type_name = to_struct_name(&xml_name);
 
+    log::debug!("Entered element: {}", xml_name);
+
     // Now we will generate and return a struct which contains the data declared in the element.
     // TODO(drosen): Simplify output if element is trivial (e.g. simpleType).
 
@@ -118,7 +120,7 @@ impl Element {
           return Ok(XsdImpl {
             name: Some(XsdName::new(&xml_name)),
             fieldname_hint: None,
-            element: XsdElement::Empty,
+            element: XsdElement::Struct(Struct::new(&to_struct_name(&xml_name))),
             ..Default::default()
           });
         } else if let Some(imp) = context
@@ -196,6 +198,8 @@ impl Element {
 
       ty_impl
     };
+
+    log::debug!("Exited element: {}", xml_name);
 
     Ok(generated_struct)
   }

@@ -67,14 +67,20 @@ impl SimpleType {
       local_name: self.name.clone().unwrap_or_else(|| "temp".to_string()),
     };
 
-    match (&self.list, &self.union, &self.restriction) {
+    log::debug!("Entered Simple Type: {:?}", &name);
+
+    let generated_impl = match (&self.list, &self.union, &self.restriction) {
       (None, None, Some(restriction)) => {
-        restriction.get_implementation(name, RestrictionParentType::SimpleType, context)
+        restriction.get_implementation(name.clone(), RestrictionParentType::SimpleType, context)
       }
-      (None, Some(union), None) => union.get_implementation(name, context),
-      (Some(list), None, None) => list.get_implementation(name, context),
+      (None, Some(union), None) => union.get_implementation(name.clone(), context),
+      (Some(list), None, None) => list.get_implementation(name.clone(), context),
       _ => unreachable!("Invalid Xsd!"),
-    }
+    };
+
+    log::debug!("Exited Simple Type: {:?}", &name);
+
+    generated_impl
   }
 }
 

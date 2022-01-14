@@ -344,6 +344,8 @@ mod test {
 
   #[test]
   fn musicxml() -> Result<(), XsdError> {
+    let _ = simple_logger::init_with_level(log::Level::Debug);
+
     let mut xsd = Xsd::new_from_file("../musicxml.xsd", &BTreeMap::new())?;
     let output = xsd.generate(&None)?;
 

@@ -64,6 +64,8 @@ impl AttributeGroup {
       .or_else(|| self.reference.as_ref())
       .unwrap_or_else(|| &parent_name.as_ref().unwrap().local_name);
 
+    log::debug!("Entered attribute group: {}", xml_name);
+
     let mut generated_struct = XsdImpl {
       name: Some(XsdName::new(xml_name)), // Could be a child of schema so set the name.
       element: XsdElement::Struct(Struct::new(&to_struct_name(xml_name))),
@@ -92,6 +94,8 @@ impl AttributeGroup {
         MergeSettings::default(),
       );
     }
+
+    log::debug!("Exited attribute group: {}", xml_name);
 
     Ok(generated_struct)
   }

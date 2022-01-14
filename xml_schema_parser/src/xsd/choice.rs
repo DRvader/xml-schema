@@ -45,6 +45,8 @@ impl Choice {
     parent_name: XsdName,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
+    log::debug!("Entered Choice: {:?}", parent_name);
+
     let mut outer_enum = XsdImpl {
       name: Some(parent_name.clone()),
       fieldname_hint: Some(parent_name.to_field_name()),
@@ -102,7 +104,7 @@ impl Choice {
       MaxOccurences::Number { value } => *value == 1 && self.min_occurences == 0,
     };
 
-    if multiple {
+    let generated_impl = if multiple {
       let mut inner_impl = Impl::new(&parent_name.to_struct_name());
 
       inner_impl
@@ -189,6 +191,10 @@ impl Choice {
       })
     } else {
       Ok(outer_enum)
-    }
+    };
+
+    log::debug!("Entered Choice: {:?}", parent_name);
+
+    generated_impl
   }
 }

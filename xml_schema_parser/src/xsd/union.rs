@@ -42,6 +42,8 @@ impl Union {
     parent_name: XsdName,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
+    log::debug!("Entered Union: {:?}", &parent_name);
+
     let mut generated_enum = Enum::new(&parent_name.local_name);
 
     for member in &self.member_types {
@@ -56,6 +58,8 @@ impl Union {
         .new_variant(&str.element.get_type().name)
         .tuple(str.element.get_type());
     }
+
+    log::debug!("Exited Union: {:?}", &parent_name);
 
     Ok(XsdImpl {
       name: Some(parent_name),

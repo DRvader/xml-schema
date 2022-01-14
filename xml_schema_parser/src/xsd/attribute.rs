@@ -107,6 +107,8 @@ impl Attribute {
       return Ok(None);
     }
 
+    log::debug!("Entered attribute: {:?}", self.name);
+
     let rust_type = match (
       self.reference.as_ref(),
       self.kind.as_ref(),
@@ -166,6 +168,8 @@ impl Attribute {
       ),
       ..Default::default()
     };
+
+    log::debug!("Exited attribute: {:?}", self.name);
 
     Ok(Some(generated_impl))
   }

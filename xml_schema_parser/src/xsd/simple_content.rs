@@ -44,12 +44,20 @@ impl SimpleContent {
     parent_name: XsdName,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    match (&self.restriction, &self.extension) {
-      (None, Some(extension)) => extension.get_implementation(parent_name, context),
-      (Some(restriction), None) => {
-        restriction.get_implementation(parent_name, RestrictionParentType::SimpleContent, context)
-      }
+    log::debug!("Entered Simple Content: {:?}", &parent_name);
+
+    let generated_impl = match (&self.restriction, &self.extension) {
+      (None, Some(extension)) => extension.get_implementation(parent_name.clone(), context),
+      (Some(restriction), None) => restriction.get_implementation(
+        parent_name.clone(),
+        RestrictionParentType::SimpleContent,
+        context,
+      ),
       _ => unreachable!("Xsd is invalid!"),
-    }
+    };
+
+    log::debug!("Exited Simple Content: {:?}", &parent_name);
+
+    generated_impl
   }
 }

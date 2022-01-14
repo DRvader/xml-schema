@@ -82,11 +82,13 @@ impl Sequence {
   ) -> Result<XsdImpl, XsdError> {
     let pure_type = self.pure_type();
 
-    match pure_type {
+    log::debug!("Entered Sequence: {:?}", &parent_name);
+
+    let generated_impl = match pure_type {
       PureType::None | PureType::Choice | PureType::Element => {
         let mut generated_impl = XsdImpl {
           name: Some(parent_name.clone()),
-          element: XsdElement::Struct(Struct::new(&parent_name.local_name)),
+          element: XsdElement::Struct(Struct::new(&parent_name.to_struct_name())),
           ..XsdImpl::default()
         };
 
@@ -127,7 +129,8 @@ impl Sequence {
       }
       PureType::Group => {
         let mut generated_impl = XsdImpl {
-          name: Some(parent_name),
+          name: Some(parent_name.clone()),
+          element: XsdElement::Struct(Struct::new(&parent_name.to_struct_name())),
           ..Default::default()
         };
         for group in &self.groups {
@@ -146,6 +149,10 @@ impl Sequence {
         Ok(generated_impl)
       }
       PureType::Sequence => todo!(),
-    }
+    };
+
+    log::debug!("Exited Sequence: {:?}", &parent_name);
+
+    generated_impl
   }
 }

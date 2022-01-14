@@ -67,7 +67,9 @@ impl Group {
     parent_name: Option<XsdName>,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    match (&self.name, parent_name, &self.refers) {
+    log::debug!("Entered Group: {:?}", &parent_name);
+
+    let generated_impl = match (&self.name, &parent_name, &self.refers) {
       (Some(name), _, None) => match (&self.choice, &self.sequence) {
         (None, Some(sequence)) => sequence.get_implementation(
           XsdName {
@@ -101,6 +103,10 @@ impl Group {
         Ok(inner)
       }
       _ => unreachable!("The Xsd is invalid!"),
-    }
+    };
+
+    log::debug!("Exited Group: {:?}", &parent_name);
+
+    generated_impl
   }
 }

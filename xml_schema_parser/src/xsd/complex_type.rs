@@ -9,11 +9,10 @@ use crate::{
     complex_content::ComplexContent,
     sequence::Sequence,
     simple_content::SimpleContent,
-    xsd_context::{MergeSettings, XsdElement, XsdImpl, XsdName},
+    xsd_context::{to_struct_name, MergeSettings, XsdElement, XsdImpl, XsdName},
     XsdContext,
   },
 };
-use heck::CamelCase;
 
 #[derive(Clone, Default, Debug, PartialEq)]
 // #[yaserde(
@@ -96,18 +95,16 @@ impl ComplexType {
   pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
     let name = self.name.clone().unwrap_or_else(|| "temp".to_string());
 
+    log::debug!("Entered Complex Type: {:?}", &name);
+
     let struct_id = XsdName {
       namespace: None,
       local_name: name.clone(),
     };
 
-    assert!(
-      !context.structs.contains_key(&struct_id),
-      "Struct {:?} has already been declared.",
-      &struct_id
-    );
-
-    let struct_name = name.replace(".", "_").to_camel_case();
+    if context.structs.contains_key(&struct_id) {
+      return Ok(context.structs.get(&struct_id).unwrap().clone());
+    }
 
     let fields = match (
       &self.complex_content,
@@ -115,34 +112,19 @@ impl ComplexType {
       &self.group,
       &self.sequence,
     ) {
-      (Some(complex_content), None, None, None) => complex_content.get_implementation(
-        XsdName {
-          namespace: None,
-          local_name: name,
-        },
-        context,
-      ),
-      (None, Some(simple_content), None, None) => simple_content.get_implementation(
-        XsdName {
-          namespace: None,
-          local_name: name,
-        },
-        context,
-      ),
-      (None, None, Some(group), None) => group.get_implementation(
-        Some(XsdName {
-          namespace: None,
-          local_name: name,
-        }),
-        context,
-      ),
-      (None, None, None, Some(sequence)) => sequence.get_implementation(
-        XsdName {
-          namespace: None,
-          local_name: name,
-        },
-        context,
-      ),
+      (Some(complex_content), None, None, None) => {
+        complex_content.get_implementation(struct_id, context)
+      }
+      (None, Some(simple_content), None, None) => {
+        simple_content.get_implementation(struct_id, context)
+      }
+      (None, None, Some(group), None) => group.get_implementation(Some(struct_id), context),
+      (None, None, None, Some(sequence)) => sequence.get_implementation(struct_id, context),
+      (None, None, None, None) => Ok(XsdImpl {
+        name: Some(struct_id),
+        element: XsdElement::Struct(Struct::new(&to_struct_name(&name))),
+        ..Default::default()
+      }),
       _ => unreachable!("Xsd is invalid."),
     };
 
@@ -155,7 +137,7 @@ impl ComplexType {
     let mut generated_impl = XsdImpl {
       name: self.name.as_ref().map(|n| XsdName::new(n)),
       element: XsdElement::Struct(
-        Struct::new(&struct_name)
+        Struct::new(&to_struct_name(&name))
           .doc(&docs.join("\n"))
           .derive("#[derive(Clone, Debug, Default, PartialEq, YaDeserialize, YaSerialize)]")
           .to_owned(),
@@ -175,6 +157,8 @@ impl ComplexType {
         );
       }
     }
+
+    log::debug!("Exited Complex Type: {:?}", &name);
 
     Ok(generated_impl)
   }

@@ -303,7 +303,7 @@ impl XsdImpl {
 
   pub fn merge_structs(&mut self, other: XsdImpl, _settings: MergeSettings) {
     match &mut self.element {
-      XsdElement::Empty => unimplemented!("Cannot merge into an empty struct."),
+      XsdElement::Empty => unimplemented!("Cannot merge {:?} into an empty struct.", other.name),
       XsdElement::Struct(a) => match other.element {
         XsdElement::Empty => {}
         XsdElement::Struct(b) => {

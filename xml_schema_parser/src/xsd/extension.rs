@@ -1,11 +1,14 @@
-use crate::xsd::{attribute::Attribute, sequence::Sequence, XsdContext};
+use crate::{
+  codegen::Struct,
+  xsd::{attribute::Attribute, sequence::Sequence, XsdContext},
+};
 
 use super::{
   annotation::Annotation,
   attribute_group::AttributeGroup,
   choice::Choice,
   group::Group,
-  xsd_context::{MergeSettings, XsdImpl, XsdName},
+  xsd_context::{to_struct_name, MergeSettings, XsdElement, XsdImpl, XsdName},
   XMLElementWrapper, XsdError,
 };
 
@@ -74,10 +77,17 @@ impl Extension {
     parent_name: XsdName,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
+    log::debug!("Entered Extension: {:?}", &parent_name);
+
     let mut generated_impl = match (&self.group, &self.sequence, &self.choice) {
-      (None, None, Some(choice)) => choice.get_implementation(parent_name, context),
-      (None, Some(sequence), None) => sequence.get_implementation(parent_name, context),
-      (Some(group), None, None) => group.get_implementation(Some(parent_name), context),
+      (None, None, Some(choice)) => choice.get_implementation(parent_name.clone(), context),
+      (None, Some(sequence), None) => sequence.get_implementation(parent_name.clone(), context),
+      (Some(group), None, None) => group.get_implementation(Some(parent_name.clone()), context),
+      (None, None, None) => Ok(XsdImpl {
+        name: Some(parent_name.clone()),
+        element: XsdElement::Struct(Struct::new(&parent_name.to_struct_name())),
+        ..Default::default()
+      }),
       _ => unreachable!("Error parsing {}, Invalid XSD!", &parent_name.local_name),
     }?;
 
@@ -86,6 +96,8 @@ impl Extension {
         generated_impl.merge(attribute, MergeSettings::ATTRIBUTE);
       }
     }
+
+    log::debug!("Exited Extension: {:?}", &parent_name);
 
     Ok(generated_impl)
   }

@@ -61,24 +61,21 @@ impl SimpleType {
     Ok(output)
   }
 
+  #[tracing::instrument(skip_all)]
   pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
     let name = XsdName {
       namespace: None,
       local_name: self.name.clone().unwrap_or_else(|| "temp".to_string()),
     };
 
-    log::debug!("Entered Simple Type: {:?}", &name);
-
     let generated_impl = match (&self.list, &self.union, &self.restriction) {
       (None, None, Some(restriction)) => {
-        restriction.get_implementation(name.clone(), RestrictionParentType::SimpleType, context)
+        restriction.get_implementation(name, RestrictionParentType::SimpleType, context)
       }
-      (None, Some(union), None) => union.get_implementation(name.clone(), context),
-      (Some(list), None, None) => list.get_implementation(name.clone(), context),
+      (None, Some(union), None) => union.get_implementation(name, context),
+      (Some(list), None, None) => list.get_implementation(name, context),
       _ => unreachable!("Invalid Xsd!"),
     };
-
-    log::debug!("Exited Simple Type: {:?}", &name);
 
     generated_impl
   }

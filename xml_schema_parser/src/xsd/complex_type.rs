@@ -92,10 +92,9 @@ impl ComplexType {
     Ok(output)
   }
 
+  #[tracing::instrument(skip_all)]
   pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
     let name = self.name.clone().unwrap_or_else(|| "temp".to_string());
-
-    log::debug!("Entered Complex Type: {:?}", &name);
 
     let struct_id = XsdName {
       namespace: None,
@@ -138,8 +137,8 @@ impl ComplexType {
       name: self.name.as_ref().map(|n| XsdName::new(n)),
       element: XsdElement::Struct(
         Struct::new(&to_struct_name(&name))
-          .doc(&docs.join("\n"))
-          .derive("#[derive(Clone, Debug, Default, PartialEq, YaDeserialize, YaSerialize)]")
+          .doc(&docs.join(""))
+          .derive("#[derive(Clone, Debug, Default, PartialEq)]")
           .to_owned(),
       ),
       ..Default::default()
@@ -157,8 +156,6 @@ impl ComplexType {
         );
       }
     }
-
-    log::debug!("Exited Complex Type: {:?}", &name);
 
     Ok(generated_impl)
   }

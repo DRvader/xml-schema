@@ -40,13 +40,12 @@ impl Choice {
     Ok(output)
   }
 
+  #[tracing::instrument(skip_all)]
   pub fn get_implementation(
     &self,
     parent_name: XsdName,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    log::debug!("Entered Choice: {:?}", parent_name);
-
     let mut outer_enum = XsdImpl {
       name: Some(parent_name.clone()),
       fieldname_hint: Some(parent_name.to_field_name()),
@@ -192,8 +191,6 @@ impl Choice {
     } else {
       Ok(outer_enum)
     };
-
-    log::debug!("Entered Choice: {:?}", parent_name);
 
     generated_impl
   }

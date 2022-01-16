@@ -235,6 +235,8 @@ impl Schema {
         .unwrap();
     }
 
+    std::fs::write("tmp.log", &dst);
+
     Ok(dst)
   }
 }

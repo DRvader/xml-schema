@@ -102,12 +102,11 @@ impl Attribute {
     Ok(output)
   }
 
+  #[tracing::instrument(skip_all)]
   pub fn get_implementation(&self, context: &mut XsdContext) -> Result<Option<XsdImpl>, XsdError> {
     if self.name.is_none() {
       return Ok(None);
     }
-
-    log::debug!("Entered attribute: {:?}", self.name);
 
     let rust_type = match (
       self.reference.as_ref(),
@@ -168,8 +167,6 @@ impl Attribute {
       ),
       ..Default::default()
     };
-
-    log::debug!("Exited attribute: {:?}", self.name);
 
     Ok(Some(generated_impl))
   }

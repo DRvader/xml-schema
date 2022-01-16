@@ -102,12 +102,11 @@ impl Element {
     }) && self.min_occurences == 0
   }
 
+  #[tracing::instrument(skip_all)]
   pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
     // We either have a named (such as a schema decl) or an anonymous element.
     let xml_name = self.name.clone().unwrap_or_else(|| "anon".to_string());
     let type_name = to_struct_name(&xml_name);
-
-    log::debug!("Entered element: {}", xml_name);
 
     // Now we will generate and return a struct which contains the data declared in the element.
     // TODO(drosen): Simplify output if element is trivial (e.g. simpleType).
@@ -185,10 +184,10 @@ impl Element {
             unreachable!()
           }
           XsdElement::Struct(str) => {
-            str.doc(&docs.as_slice().join("\n"));
+            str.doc(&docs.as_slice().join(""));
           }
           XsdElement::Enum(en) => {
-            en.doc(&docs.as_slice().join("\n"));
+            en.doc(&docs.as_slice().join(""));
           }
           XsdElement::Type(_) => {
             unreachable!()
@@ -198,8 +197,6 @@ impl Element {
 
       ty_impl
     };
-
-    log::debug!("Exited element: {}", xml_name);
 
     Ok(generated_struct)
   }

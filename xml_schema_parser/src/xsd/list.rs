@@ -27,13 +27,12 @@ impl List {
     Ok(output)
   }
 
+  #[tracing::instrument(skip_all)]
   pub fn get_implementation(
     &self,
     name: XsdName,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    log::debug!("Entered List: {:?}", &name);
-
     let list_type = RustTypesMapping::get(context, &self.item_type);
 
     let mut generated_struct = Struct::new(&name.local_name);
@@ -112,7 +111,7 @@ Ok(())
       "Ok((source_attributes, source_namespace))".to_string(),
     )]);
 
-    let generated_impl = Ok(XsdImpl {
+    Ok(XsdImpl {
       name: Some(name.clone()),
       fieldname_hint: Some(name.to_field_name()),
       element: XsdElement::Struct(generated_struct.clone()),
@@ -128,11 +127,7 @@ Ok(())
           .push_fn(serialize_attributes)
           .to_owned(),
       ],
-    });
-
-    log::debug!("Exited List: {:?}", &name);
-
-    generated_impl
+    })
   }
 }
 

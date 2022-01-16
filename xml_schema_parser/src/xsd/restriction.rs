@@ -20,6 +20,7 @@ pub struct Restriction {
   pub min_length: Option<i64>,
 }
 
+#[derive(Debug)]
 pub enum RestrictionParentType {
   SimpleType,
   ComplexContent,
@@ -53,14 +54,13 @@ impl Restriction {
     Ok(output)
   }
 
+  #[tracing::instrument(skip_all)]
   pub fn get_implementation(
     &self,
     parent_name: XsdName,
     _parent_type: RestrictionParentType,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    log::debug!("Entered Restriction: {:?}", &parent_name);
-
     let base_type = context.structs.get(&XsdName {
       namespace: None,
       local_name: self.base.clone(),
@@ -117,8 +117,6 @@ impl Restriction {
         implementation: Vec::new(),
       }
     };
-
-    log::debug!("Exited Restriction: {:?}", &parent_name);
 
     Ok(generated_impl)
   }

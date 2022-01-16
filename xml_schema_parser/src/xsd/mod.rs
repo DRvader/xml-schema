@@ -21,7 +21,6 @@ mod simple_type;
 mod union;
 mod xsd_context;
 
-use log::info;
 use std::collections::BTreeMap;
 use std::fs;
 use std::str::FromStr;
@@ -121,6 +120,14 @@ impl XMLElementWrapper {
     }
 
     Ok(output)
+  }
+
+  fn has_child(&self, name: &str) -> bool {
+    self.0.get_child(name).is_some()
+  }
+
+  fn has_attr(&self, name: &str) -> bool {
+    self.0.attributes.contains_key(name)
   }
 
   fn get_children_with<T>(
@@ -312,11 +319,11 @@ impl Xsd {
     module_namespace_mappings: &BTreeMap<String, String>,
   ) -> Result<Self, XsdError> {
     let content = if source.starts_with("http://") || source.starts_with("https://") {
-      info!("Load HTTP schema {}", source);
+      tracing::info!("Load HTTP schema {}", source);
       reqwest::blocking::get(source)?.text()?
     } else {
       let path = std::env::current_dir().unwrap();
-      info!("The current directory is {}", path.display());
+      tracing::info!("The current directory is {}", path.display());
 
       fs::read_to_string(source)?
     };
@@ -340,11 +347,19 @@ impl Xsd {
 mod test {
   use std::collections::BTreeMap;
 
+  use tracing_subscriber::fmt::format::FmtSpan;
+
   use super::{Xsd, XsdError};
 
   #[test]
   fn musicxml() -> Result<(), XsdError> {
-    let _ = simple_logger::init_with_level(log::Level::Debug);
+    // tracing_subscriber::util::SubscriberInitExt::try_init(
+    //   tracing_subscriber::fmt::SubscriberBuilder::default()
+    //     .with_max_level(tracing::Level::TRACE)
+    //     // .with_span_events(FmtSpan::ENTER | FmtSpan::EXIT)
+    //     .finish(),
+    // )
+    // .unwrap();
 
     let mut xsd = Xsd::new_from_file("../musicxml.xsd", &BTreeMap::new())?;
     let output = xsd.generate(&None)?;

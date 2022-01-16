@@ -29,27 +29,20 @@ impl ComplexContent {
     Ok(output)
   }
 
+  #[tracing::instrument(skip_all)]
   pub fn get_implementation(
     &self,
     parent_name: XsdName,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    log::debug!("Entered Complex Content: {:?}", &parent_name);
-
-    let generated_struct = match (&self.extension, &self.restriction) {
-      (None, Some(restriction)) => restriction.get_implementation(
-        parent_name.clone(),
-        RestrictionParentType::ComplexContent,
-        context,
-      ),
-      (Some(extension), None) => extension.get_implementation(parent_name.clone(), context),
+    match (&self.extension, &self.restriction) {
+      (None, Some(restriction)) => {
+        restriction.get_implementation(parent_name, RestrictionParentType::ComplexContent, context)
+      }
+      (Some(extension), None) => extension.get_implementation(parent_name, context),
       _ => {
         unimplemented!("The source xsd is invalid.")
       }
-    };
-
-    log::debug!("Exited Complex Content: {:?}", &parent_name);
-
-    generated_struct
+    }
   }
 }

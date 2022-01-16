@@ -1,8 +1,8 @@
-use crate::codegen::Enum;
+use crate::codegen::{Block, Enum, Impl};
 
 use super::{
   simple_type::SimpleType,
-  xsd_context::{XsdContext, XsdElement, XsdImpl, XsdName},
+  xsd_context::{to_struct_name, XsdContext, XsdElement, XsdImpl, XsdName},
   XMLElementWrapper, XsdError,
 };
 
@@ -37,33 +37,82 @@ impl Union {
     Ok(output)
   }
 
+  #[tracing::instrument(skip_all)]
   pub fn get_implementation(
     &self,
     parent_name: XsdName,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    log::debug!("Entered Union: {:?}", &parent_name);
-
     let mut generated_enum = Enum::new(&parent_name.local_name);
 
-    for member in &self.member_types {
-      let str = context
-        .structs
-        .get(&XsdName {
-          namespace: None,
-          local_name: member.to_string(),
-        })
-        .unwrap();
-      generated_enum
-        .new_variant(&str.element.get_type().name)
-        .tuple(str.element.get_type());
+    let mut output = Block::new("let output = ").after(";").to_owned();
+
+    let mut names = Vec::new();
+    for (index, member) in self.member_types.iter().enumerate() {
+      if let Some(imp) = context.structs.get(&XsdName::new(member)) {
+        let st_name = to_struct_name(&imp.element.get_type().name);
+        generated_enum
+          .new_variant(&st_name)
+          .tuple(imp.element.get_type());
+        output.line(format!(
+          "let gen_{}: {} = element.get_content();",
+          index,
+          imp.element.get_type().name
+        ));
+        names.push(st_name);
+      } else {
+        return Err(XsdError::XsdImplNotFound(parent_name));
+      }
     }
 
-    log::debug!("Exited Union: {:?}", &parent_name);
+    for index in 0..names.len() {
+      output.line(&format!(
+        "if gen_{}.is_ok() {{ oks.push({}) }}",
+        index, index
+      ));
+    }
+
+    output.line("if oks.len() > 1 { return Err(XsdError::XsdGenError {{ name: element.name, msg: format!(\"{} were able to be parsed.\", oks.join(\", \")) }}); }");
+
+    let mut match_block = Block::new(&format!(
+      "match ({})",
+      (0..self.member_types.len())
+        .map(|i| format!("gen_{}", i))
+        .collect::<Vec<_>>()
+        .join(", ")
+    ));
+    for index in 0..self.member_types.len() {
+      match_block.line(&format!(
+        "({}) => {}(value)",
+        (0..self.member_types.len())
+          .map(|i| if i == index { "Ok(value)" } else { "Err(_)" })
+          .collect::<Vec<_>>()
+          .join(", "),
+        names[index]
+      ));
+    }
+
+    output.push_block(match_block);
+
+    let mut r#impl = Impl::new(generated_enum.ty());
+
+    let parse = r#impl.new_fn("parse");
+    parse.arg("mut element", "XMLElementWrapper");
+    parse.ret("Result<Self, XsdError>");
+
+    parse.push_block(
+      Block::new("")
+        .push_block(output)
+        .to_owned()
+        .line("element.finalize(false, false)?")
+        .line("Ok(output)")
+        .to_owned(),
+    );
 
     Ok(XsdImpl {
       name: Some(parent_name),
       element: XsdElement::Enum(generated_enum),
+      implementation: vec![r#impl],
       ..Default::default()
     })
   }

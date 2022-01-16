@@ -43,7 +43,7 @@ impl Union {
     parent_name: XsdName,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    let mut generated_enum = Enum::new(&parent_name.local_name);
+    let mut generated_enum = Enum::new(&parent_name.to_struct_name());
 
     let mut output = Block::new("let output = ").after(";").to_owned();
 
@@ -55,7 +55,7 @@ impl Union {
           .new_variant(&st_name)
           .tuple(imp.element.get_type());
         output.line(format!(
-          "let gen_{}: {} = element.get_content();",
+          "let gen_{}: Option<{}> = element.try_get_content();",
           index,
           imp.element.get_type().name
         ));
@@ -67,7 +67,7 @@ impl Union {
 
     for index in 0..names.len() {
       output.line(&format!(
-        "if gen_{}.is_ok() {{ oks.push({}) }}",
+        "if gen_{}.is_some() {{ oks.push({}) }}",
         index, index
       ));
     }
@@ -85,12 +85,19 @@ impl Union {
       match_block.line(&format!(
         "({}) => {}(value)",
         (0..self.member_types.len())
-          .map(|i| if i == index { "Ok(value)" } else { "Err(_)" })
+          .map(|i| if i == index { "Some(value)" } else { "None" })
           .collect::<Vec<_>>()
           .join(", "),
         names[index]
       ));
     }
+    match_block.line(format!(
+      "({}) => return Err(XsdError::XsdGenError {{ name: element.name, msg: format!(\"No valid values could be parsed.\") }});",
+      (0..self.member_types.len())
+        .map(|_| "None")
+        .collect::<Vec<_>>()
+        .join(", "))
+    );
 
     output.push_block(match_block);
 

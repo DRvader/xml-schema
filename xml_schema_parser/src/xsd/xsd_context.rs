@@ -1,4 +1,4 @@
-use crate::codegen::{Block, Enum, Fields, Struct, Type, TypeDef, Variant};
+use crate::codegen::{Block, Enum, Fields, Module, Struct, Type, TypeDef, Variant};
 use heck::{CamelCase, SnakeCase};
 
 use std::collections::BTreeMap;
@@ -63,6 +63,7 @@ pub enum XsdElement {
   Empty,
   Struct(Struct),
   Enum(Enum),
+  Field(Field),
   Type(Type),
 }
 
@@ -73,6 +74,7 @@ impl XsdElement {
       XsdElement::Struct(r#struct) => r#struct.fmt(f),
       XsdElement::Enum(r#enum) => r#enum.fmt(f),
       XsdElement::Type(r#type) => r#type.fmt(f),
+      XsdElement::Field(_) => unreachable!("Should have packed field into an enum or struct."),
     }
   }
 
@@ -86,6 +88,7 @@ impl XsdElement {
       XsdElement::Struct(r#struct) => Some(r#struct.ty().to_owned()),
       XsdElement::Enum(r#enum) => Some(r#enum.ty().to_owned()),
       XsdElement::Type(r#type) => Some(r#type.clone()),
+      XsdElement::Field(field) => Some(field.ty.clone()),
     }
   }
 
@@ -96,6 +99,21 @@ impl XsdElement {
       }
       XsdElement::Enum(r#enum) => {
         r#enum.type_def.ty = name.into();
+      }
+      _ => {}
+    }
+  }
+
+  pub fn add_doc(&mut self, doc: &str) {
+    match self {
+      XsdElement::Struct(r#struct) => {
+        r#struct.doc(doc);
+      }
+      XsdElement::Enum(r#enum) => {
+        r#enum.doc(doc);
+      }
+      XsdElement::Field(field) => {
+        field.doc(vec![doc]);
       }
       _ => {}
     }
@@ -328,6 +346,9 @@ impl XsdImpl {
           let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or(&b.name));
           a.push_field(Field::new(&field_name, b));
         }
+        XsdElement::Field(b) => {
+          a.push_field(b);
+        }
       },
       XsdElement::Enum(a) => match other.element {
         XsdElement::Empty => {}
@@ -353,8 +374,12 @@ impl XsdImpl {
           let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or(&b.name));
           a.new_variant(&field_name).tuple(b);
         }
+        XsdElement::Field(b) => {
+          a.new_variant(&b.name).tuple(b.ty);
+        }
       },
       XsdElement::Type(_) => unimplemented!("Cannot merge into type."),
+      XsdElement::Field(_) => unimplemented!("Cannot merge into field."),
     }
 
     self.inner.extend(other.inner);

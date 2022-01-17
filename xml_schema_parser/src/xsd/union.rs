@@ -44,6 +44,9 @@ impl Union {
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
     let mut generated_enum = Enum::new(&parent_name.to_struct_name());
+    for derive in ["Clone", "Debug", "Default", "PartialEq"] {
+      generated_enum.derive(derive);
+    }
 
     let mut output = Block::new("let output = ").after(";").to_owned();
 
@@ -83,7 +86,7 @@ impl Union {
     ));
     for index in 0..self.member_types.len() {
       match_block.line(&format!(
-        "({}) => {}(value)",
+        "({}) => Self::{}(value)",
         (0..self.member_types.len())
           .map(|i| if i == index { "Some(value)" } else { "None" })
           .collect::<Vec<_>>()

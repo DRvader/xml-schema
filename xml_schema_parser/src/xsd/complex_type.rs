@@ -138,7 +138,7 @@ impl ComplexType {
       element: XsdElement::Struct(
         Struct::new(&to_struct_name(&name))
           .doc(&docs.join(""))
-          .derive("#[derive(Clone, Debug, Default, PartialEq)]")
+          .derives(vec!["Clone", "Debug", "Default", "PartialEq"])
           .to_owned(),
       ),
       ..Default::default()

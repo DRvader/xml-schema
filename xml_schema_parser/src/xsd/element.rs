@@ -189,6 +189,9 @@ impl Element {
           XsdElement::Enum(en) => {
             en.doc(&docs.as_slice().join(""));
           }
+          XsdElement::Field(field) => {
+            field.doc(vec![&docs.as_slice().join("")]);
+          }
           XsdElement::Type(_) => {
             unreachable!()
           }

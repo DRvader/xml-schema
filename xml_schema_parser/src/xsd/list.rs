@@ -35,98 +35,32 @@ impl List {
   ) -> Result<XsdImpl, XsdError> {
     let list_type = RustTypesMapping::get(context, &self.item_type);
 
-    let mut generated_struct = Struct::new(&name.local_name);
-    generated_struct.push_field(Field::new("items", format!("Vec<{}>", list_type)));
+    let struct_name = name.to_struct_name();
+
+    let mut generated_struct = Struct::new(&struct_name);
+    generated_struct.tuple_field(format!("Vec<{}>", list_type));
     for derive in ["Clone", "Debug", "Default", "PartialEq"] {
       generated_struct.derive(derive);
     }
 
-    let mut deserialize = Function::new("deserialize")
-      .bound("R", "Read")
-      .arg("reader", "&mut yaserde::de::Deserializer<R>")
-      .ret("Result<Self, String>")
+    let mut parse_fn = Function::new("parse")
+      .arg("mut element", "XsdElementWrapper")
+      .ret("Result<Self, XsdError>")
       .to_owned();
-    deserialize.body = Some(vec![Body::String(
-      r#"
-loop {
-  match reader.next_event()? {
-    xml::reader::XmlEvent::StartElement{..} => {}
-    xml::reader::XmlEvent::Characters(ref text_content) => {
-      let items: Vec<#list_type> =
-        text_content
-          .split(' ')
-          .map(|item| item.to_owned())
-          .map(|item| item.parse().unwrap())
-          .collect();
 
-      return Ok(#struct_name {items});
-    }
-    _ => {break;}
-  }
-}
+    parse_fn.line(format!("let output: Vec<{list_type}> = element.get_content()?.split(' ').map(|item| item.to_owned()).map(|item| item.parse().unwrap()).collect();"));
 
-Err("Unable to parse attribute".to_string())
-"#
-      .to_string(),
-    )]);
-
-    let mut serialize = Function::new("serialize")
-      .bound("R", "Read")
-      .arg_ref_self()
-      .arg("writer", "&mut yaserde::ser::Serializer<W>")
-      .ret("Result<(), String>")
-      .to_owned();
-    serialize.body = Some(vec![Body::String(
-      r#"
-let content =
-  self.items.iter().map(|item| item.to_string()).collect::<Vec<String>>().join(" ");
-
-let data_event = xml::writer::XmlEvent::characters(&content);
-writer.write(data_event).map_err(|e| e.to_string())?;
-
-Ok(())
-"#
-      .to_string(),
-    )]);
-
-    let mut serialize_attributes = Function::new("serialize_attributes")
-      .bound("R", "Read")
-      .arg_ref_self()
-      .arg(
-        "mut source_attributes",
-        "Vec<xml::attribute::OwnedAttribute>",
-      )
-      .arg("mut source_namespace", "xml::namespace::Namespace")
-      .ret(
-        r#"Result<
-        (
-          Vec<xml::attribute::OwnedAttribute>,
-          xml::namespace::Namespace,
-        ),
-        String,
-      >"#,
-      )
-      .to_owned();
-    serialize_attributes.body = Some(vec![Body::String(
-      "Ok((source_attributes, source_namespace))".to_string(),
-    )]);
+    parse_fn.line("element.finalize(false, false)?;");
+    parse_fn.line(format!("Ok({struct_name}(output))"));
 
     Ok(XsdImpl {
       name: Some(name.clone()),
       fieldname_hint: Some(name.to_field_name()),
       element: XsdElement::Struct(generated_struct.clone()),
       inner: vec![],
-      implementation: vec![
-        Impl::new(generated_struct.ty())
-          .impl_trait("YaDeserialize")
-          .push_fn(deserialize)
-          .to_owned(),
-        Impl::new(generated_struct.ty())
-          .impl_trait("YaSerialize")
-          .push_fn(serialize)
-          .push_fn(serialize_attributes)
-          .to_owned(),
-      ],
+      implementation: vec![Impl::new(generated_struct.ty())
+        .push_fn(parse_fn)
+        .to_owned()],
     })
   }
 }

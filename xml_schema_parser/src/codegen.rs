@@ -747,6 +747,14 @@ impl Struct {
     self
   }
 
+  /// Add new types that the struct should derive.
+  pub fn derives(&mut self, name: Vec<&str>) -> &mut Self {
+    for n in name {
+      self.type_def.derive(n);
+    }
+    self
+  }
+
   /// Specify lint attribute to supress a warning or error.
   pub fn allow(&mut self, allow: &str) -> &mut Self {
     self.type_def.allow(allow);

@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use super::{
-  xsd_context::{XsdElement, XsdImpl, XsdName},
+  xsd_context::{to_field_name, XsdElement, XsdImpl, XsdName},
   XMLElementWrapper, XsdError,
 };
 use crate::{
@@ -146,25 +146,10 @@ impl Attribute {
     };
 
     let generated_impl = XsdImpl {
-      element: XsdElement::Struct(
-        Struct::new("attribute")
-          .push_field(
-            Field::new(
-              &XsdName {
-                namespace: None,
-                local_name: self.name.clone().unwrap(),
-              }
-              .to_field_name(),
-              rust_type,
-            )
-            .annotation(vec![&format!(
-              "yaserde(attribute, rename={})",
-              self.name.clone().unwrap()
-            )])
-            .to_owned(),
-          )
-          .to_owned(),
-      ),
+      element: XsdElement::Field(Field::new(
+        &to_field_name(self.name.as_ref().unwrap()),
+        rust_type,
+      )),
       ..Default::default()
     };
 

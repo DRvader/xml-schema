@@ -315,14 +315,21 @@ impl XsdImpl {
   pub fn merge(&mut self, other: XsdImpl, settings: MergeSettings) {
     match &settings.merge_type {
       MergeType::Fields => self.merge_fields(other, settings),
-      MergeType::Structs => self.merge_structs(other, settings),
+      MergeType::Structs => {
+        self.merge_structs(other, settings);
+      }
     }
   }
 
-  pub fn merge_structs(&mut self, other: XsdImpl, _settings: MergeSettings) {
+  pub fn merge_structs(&mut self, other: XsdImpl, _settings: MergeSettings) -> String {
+    let output;
+    self.inner.push(other);
+
+    let other = &self.inner[self.inner.len() - 1];
+
     match &mut self.element {
       XsdElement::Empty => unimplemented!("Cannot merge {:?} into an empty struct.", other.name),
-      XsdElement::Struct(a) => match other.element {
+      XsdElement::Struct(a) => match &other.element {
         XsdElement::Empty => {}
         XsdElement::Struct(b) => {
           let field_name = to_field_name(
@@ -332,6 +339,7 @@ impl XsdImpl {
               .unwrap_or_else(|| &b.ty().name),
           );
           a.push_field(Field::new(&field_name, b.ty()));
+          output = field_name;
         }
         XsdElement::Enum(b) => {
           let field_name = to_field_name(
@@ -341,12 +349,15 @@ impl XsdImpl {
               .unwrap_or_else(|| &b.ty().name),
           );
           a.push_field(Field::new(&field_name, b.ty()));
+          output = field_name;
         }
         XsdElement::Type(b) => {
           let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or(&b.name));
           a.push_field(Field::new(&field_name, b));
+          output = field_name;
         }
         XsdElement::Field(b) => {
+          output = b.name.clone();
           a.push_field(b);
         }
       },
@@ -360,6 +371,7 @@ impl XsdImpl {
               .unwrap_or_else(|| &b.ty().name),
           );
           a.new_variant(&field_name).tuple(b.ty());
+          output = field_name;
         }
         XsdElement::Enum(b) => {
           let field_name = to_field_name(
@@ -369,13 +381,16 @@ impl XsdImpl {
               .unwrap_or_else(|| &b.ty().name),
           );
           a.new_variant(&field_name).tuple(b.ty());
+          output = field_name;
         }
         XsdElement::Type(b) => {
           let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or(&b.name));
           a.new_variant(&field_name).tuple(b);
+          output = field_name;
         }
         XsdElement::Field(b) => {
           a.new_variant(&b.name).tuple(b.ty);
+          output = b.name.clone();
         }
       },
       XsdElement::Type(_) => unimplemented!("Cannot merge into type."),
@@ -383,6 +398,8 @@ impl XsdImpl {
     }
 
     self.inner.extend(other.inner);
+
+    output
   }
 
   pub fn merge_fields(&mut self, other: XsdImpl, settings: MergeSettings) {

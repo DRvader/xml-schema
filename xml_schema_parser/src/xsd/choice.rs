@@ -54,7 +54,7 @@ impl Choice {
       implementation: vec![],
     };
     for group in &self.groups {
-      outer_enum.merge(
+      outer_enum.merge_structs(
         group.get_implementation(Some(parent_name.clone()), context)?,
         MergeSettings::default(),
       );

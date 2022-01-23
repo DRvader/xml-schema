@@ -79,13 +79,15 @@ impl Extension {
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
     let mut generated_impl = match (&self.group, &self.sequence, &self.choice) {
-      (None, None, Some(choice)) => choice.get_implementation(parent_name, context),
-      (None, Some(sequence), None) => sequence.get_implementation(parent_name, context),
+      (None, None, Some(choice)) => choice.get_implementation(Some(parent_name), context),
+      (None, Some(sequence), None) => sequence.get_implementation(Some(parent_name), context),
       (Some(group), None, None) => group.get_implementation(Some(parent_name), context),
       (None, None, None) => Ok(XsdImpl {
-        name: Some(parent_name.clone()),
+        name: parent_name.clone(),
+        fieldname_hint: Some(parent_name.to_field_name()),
         element: XsdElement::Struct(Struct::new(&parent_name.to_struct_name())),
-        ..Default::default()
+        inner: vec![],
+        implementation: vec![],
       }),
       _ => unreachable!("Error parsing {}, Invalid XSD!", &parent_name.local_name),
     }?;

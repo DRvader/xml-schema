@@ -81,7 +81,7 @@ impl SimpleType {
       generated_impl.element.add_doc(&doc.get_doc().join(""));
     }
 
-    generated_impl.name = Some(name);
+    generated_impl.name = name;
 
     Ok(generated_impl)
   }

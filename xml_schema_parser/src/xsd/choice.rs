@@ -5,7 +5,7 @@ use super::{
   group::Group,
   max_occurences::MaxOccurences,
   sequence::Sequence,
-  xsd_context::{MergeSettings, XsdContext, XsdElement, XsdImpl, XsdName},
+  xsd_context::{to_struct_name, MergeSettings, XsdContext, XsdElement, XsdImpl, XsdName},
   XMLElementWrapper, XsdError,
 };
 
@@ -43,47 +43,55 @@ impl Choice {
   #[tracing::instrument(skip_all)]
   pub fn get_implementation(
     &self,
-    parent_name: XsdName,
+    parent_name: Option<XsdName>,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
     let mut outer_enum = XsdImpl {
-      name: Some(parent_name.clone()),
-      fieldname_hint: Some(parent_name.to_field_name()),
-      element: XsdElement::Enum(Enum::new(&parent_name.to_struct_name())),
+      name: XsdName::new("temp"),
+      fieldname_hint: "temp".to_string(),
+      element: XsdElement::Enum(Enum::new(&"Temp")),
       inner: vec![],
       implementation: vec![],
     };
+
+    let mut possible_enums = vec![];
     for group in &self.groups {
       outer_enum.merge_structs(
-        group.get_implementation(Some(parent_name.clone()), context)?,
+        group.get_implementation(None, context)?,
         MergeSettings::default(),
       );
+
+      if let XsdElement::Enum(en) = &outer_enum.element {
+        possible_enums.push(en.variants.last().unwrap().name.clone());
+      } else {
+        unreachable!();
+      }
     }
 
     for sequence in &self.sequences {
       outer_enum.merge(
-        sequence.get_implementation(
-          XsdName {
-            namespace: None,
-            local_name: "temp".to_string(),
-          },
-          context,
-        )?,
+        sequence.get_implementation(None, context)?,
         MergeSettings::default(),
       );
+
+      if let XsdElement::Enum(en) = &outer_enum.element {
+        possible_enums.push(en.variants.last().unwrap().name.clone());
+      } else {
+        unreachable!();
+      }
     }
 
     for choice in &self.choices {
       outer_enum.merge(
-        choice.get_implementation(
-          XsdName {
-            namespace: None,
-            local_name: "temp".to_string(),
-          },
-          context,
-        )?,
+        choice.get_implementation(None, context)?,
         MergeSettings::default(),
       );
+
+      if let XsdElement::Enum(en) = &outer_enum.element {
+        possible_enums.push(en.variants.last().unwrap().name.clone());
+      } else {
+        unreachable!();
+      }
     }
 
     for element in &self.elements {
@@ -91,7 +99,25 @@ impl Choice {
         element.get_implementation(context)?,
         MergeSettings::default(),
       );
+
+      if let XsdElement::Enum(en) = &outer_enum.element {
+        possible_enums.push(en.variants.last().unwrap().name.clone());
+      } else {
+        unreachable!();
+      }
     }
+
+    if let Some(parent_name) = parent_name {
+      parent_name
+    } else {
+      outer_enum.set_type(outer_enum.infer_type_name());
+    }
+    imp.element.set_type(&new_type);
+    for implementation in &mut imp.implementation {
+      implementation.target = crate::codegen::Type::new(&new_type);
+    }
+
+    imp.name = XsdName::new(&new_type);
 
     let multiple = match &self.max_occurences {
       MaxOccurences::Unbounded => true,

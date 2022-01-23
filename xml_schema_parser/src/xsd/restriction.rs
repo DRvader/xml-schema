@@ -219,7 +219,7 @@ impl Restriction {
       let enum_impl = Impl::new(generated_enum.ty()).push_fn(value).to_owned();
 
       XsdImpl {
-        name: Some(parent_name.clone()),
+        name: parent_name.clone(),
         fieldname_hint: Some(parent_name.to_field_name()),
         element: XsdElement::Enum(generated_enum),
         inner: Vec::new(),
@@ -244,7 +244,7 @@ impl Restriction {
       let struct_impl = Impl::new(generated_struct.ty()).push_fn(value).to_owned();
 
       XsdImpl {
-        name: Some(parent_name.clone()),
+        name: parent_name.clone(),
         fieldname_hint: Some(parent_name.to_field_name()),
         element: XsdElement::Struct(
           Struct::new(&parent_name.to_struct_name())
@@ -292,7 +292,7 @@ impl Restriction {
     }
 
     let mut base_type = base_type.unwrap().clone();
-    base_type.name = Some(parent_name.clone());
+    base_type.name = parent_name.clone();
 
     match (&self.group, &self.choice, &self.sequence) {
       (Some(group), None, None) => {
@@ -303,13 +303,13 @@ impl Restriction {
       }
       (None, Some(choice), None) => {
         base_type.merge(
-          choice.get_implementation(parent_name, context)?,
+          choice.get_implementation(Some(parent_name), context)?,
           MergeSettings::default(),
         );
       }
       (None, None, Some(sequence)) => {
         base_type.merge(
-          sequence.get_implementation(parent_name, context)?,
+          sequence.get_implementation(Some(parent_name), context)?,
           MergeSettings::default(),
         );
       }

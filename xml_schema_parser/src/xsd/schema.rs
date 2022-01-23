@@ -102,8 +102,8 @@ impl Schema {
         let simple_type = &self.simple_type[index.0];
         match simple_type.get_implementation(context) {
           Ok(temp) => {
-            top_level_names.push(temp.name.clone().unwrap());
-            context.structs.insert(temp.name.clone().unwrap(), temp);
+            top_level_names.push(temp.name.clone());
+            context.structs.insert(temp.name.clone(), temp);
           }
           Err(ty) => match ty {
             XsdError::XsdImplNotFound(name) => {
@@ -123,8 +123,8 @@ impl Schema {
         let attr_group = &self.attribute_group[index.0];
         match attr_group.get_implementation(None, context) {
           Ok(temp) => {
-            top_level_names.push(temp.name.clone().unwrap());
-            context.structs.insert(temp.name.clone().unwrap(), temp);
+            top_level_names.push(temp.name.clone());
+            context.structs.insert(temp.name.clone(), temp);
           }
           Err(ty) => match ty {
             XsdError::XsdImplNotFound(name) => {
@@ -144,8 +144,8 @@ impl Schema {
         let group = &self.groups[index.0];
         match group.get_implementation(None, context) {
           Ok(temp) => {
-            top_level_names.push(temp.name.clone().unwrap());
-            context.structs.insert(temp.name.clone().unwrap(), temp);
+            top_level_names.push(temp.name.clone());
+            context.structs.insert(temp.name.clone(), temp);
           }
           Err(ty) => match ty {
             XsdError::XsdImplNotFound(name) => {
@@ -165,8 +165,8 @@ impl Schema {
         let element = &self.elements[index.0];
         match element.get_implementation(context) {
           Ok(temp) => {
-            top_level_names.push(temp.name.clone().unwrap());
-            context.structs.insert(temp.name.clone().unwrap(), temp);
+            top_level_names.push(temp.name.clone());
+            context.structs.insert(temp.name.clone(), temp);
           }
           Err(ty) => match ty {
             XsdError::XsdImplNotFound(name) => {
@@ -186,8 +186,8 @@ impl Schema {
         let complex_type = &self.complex_type[index.0];
         match complex_type.get_implementation(context) {
           Ok(temp) => {
-            top_level_names.push(temp.name.clone().unwrap());
-            context.structs.insert(temp.name.clone().unwrap(), temp);
+            top_level_names.push(temp.name.clone());
+            context.structs.insert(temp.name.clone(), temp);
           }
           Err(ty) => match ty {
             XsdError::XsdImplNotFound(name) => {

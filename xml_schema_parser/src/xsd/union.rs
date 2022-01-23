@@ -120,10 +120,11 @@ impl Union {
     );
 
     Ok(XsdImpl {
-      name: Some(parent_name),
+      fieldname_hint: Some(parent_name.to_field_name()),
+      name: parent_name,
       element: XsdElement::Enum(generated_enum),
       implementation: vec![r#impl],
-      ..Default::default()
+      inner: vec![],
     })
   }
 }

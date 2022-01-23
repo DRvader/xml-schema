@@ -150,7 +150,10 @@ impl Attribute {
         &to_field_name(self.name.as_ref().unwrap()),
         rust_type,
       )),
-      ..Default::default()
+      name: XsdName::new(self.name.as_ref().unwrap()),
+      fieldname_hint: Some(to_field_name(self.name.as_ref().unwrap())),
+      inner: vec![],
+      implementation: vec![],
     };
 
     Ok(Some(generated_impl))

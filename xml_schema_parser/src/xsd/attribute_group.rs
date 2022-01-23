@@ -2,7 +2,9 @@ use crate::{codegen::Struct, xsd::attribute::Attribute};
 
 use super::{
   annotation::Annotation,
-  xsd_context::{to_struct_name, MergeSettings, XsdContext, XsdElement, XsdImpl, XsdName},
+  xsd_context::{
+    to_field_name, to_struct_name, MergeSettings, XsdContext, XsdElement, XsdImpl, XsdName,
+  },
   XMLElementWrapper, XsdError,
 };
 
@@ -66,9 +68,11 @@ impl AttributeGroup {
       .unwrap_or_else(|| &parent_name.as_ref().unwrap().local_name);
 
     let mut generated_struct = XsdImpl {
-      name: Some(XsdName::new(xml_name)), // Could be a child of schema so set the name.
+      name: XsdName::new(xml_name),
+      fieldname_hint: Some(to_field_name(xml_name)),
       element: XsdElement::Struct(Struct::new(&to_struct_name(xml_name))),
-      ..Default::default()
+      inner: vec![],
+      implementation: vec![],
     };
 
     if let Some(reference) = &self.reference {

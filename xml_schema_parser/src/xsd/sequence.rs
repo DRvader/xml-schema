@@ -78,76 +78,45 @@ impl Sequence {
   #[tracing::instrument(skip_all)]
   pub fn get_implementation(
     &self,
-    parent_name: XsdName,
+    parent_name: Option<XsdName>,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    let pure_type = self.pure_type();
+    let mut generated_impl = XsdImpl {
+      name: XsdName::new("temp"),
+      fieldname_hint: None,
+      element: XsdElement::Struct(Struct::new(&"Temp")),
+      inner: vec![],
+      implementation: vec![],
+    };
 
-    match pure_type {
-      PureType::None | PureType::Choice | PureType::Element => {
-        let mut generated_impl = XsdImpl {
-          name: Some(parent_name.clone()),
-          element: XsdElement::Struct(Struct::new(&parent_name.to_struct_name())),
-          ..XsdImpl::default()
-        };
-
-        for element in &self.elements {
-          generated_impl.merge(
-            element.get_implementation(context)?,
-            MergeSettings::default(),
-          );
-        }
-
-        for choice in &self.choices {
-          generated_impl.merge(
-            choice.get_implementation(
-              XsdName {
-                namespace: None,
-                local_name: "temp".to_string(),
-              },
-              context,
-            )?,
-            MergeSettings::default(),
-          );
-        }
-
-        for sequence in &self.sequences {
-          generated_impl.merge(
-            sequence.get_implementation(
-              XsdName {
-                namespace: None,
-                local_name: "temp".to_string(),
-              },
-              context,
-            )?,
-            MergeSettings::default(),
-          );
-        }
-
-        Ok(generated_impl)
-      }
-      PureType::Group => {
-        let mut generated_impl = XsdImpl {
-          name: Some(parent_name.clone()),
-          element: XsdElement::Struct(Struct::new(&parent_name.to_struct_name())),
-          ..Default::default()
-        };
-        for group in &self.groups {
-          generated_impl.merge(
-            group.get_implementation(
-              Some(XsdName {
-                namespace: None,
-                local_name: "temp".to_string(),
-              }),
-              context,
-            )?,
-            MergeSettings::default(),
-          );
-        }
-
-        Ok(generated_impl)
-      }
-      PureType::Sequence => todo!(),
+    for element in &self.elements {
+      generated_impl.merge(
+        element.get_implementation(context)?,
+        MergeSettings::default(),
+      );
     }
+
+    for choice in &self.choices {
+      generated_impl.merge(
+        choice.get_implementation(None, context)?,
+        MergeSettings::default(),
+      );
+    }
+
+    for sequence in &self.sequences {
+      generated_impl.merge(
+        sequence.get_implementation(None, context)?,
+        MergeSettings::default(),
+      );
+    }
+
+    for group in &self.groups {
+      generated_impl.merge(
+        group.get_implementation(None, context)?,
+        MergeSettings::default(),
+      );
+    }
+
+    Ok(generated_impl)
   }
 }

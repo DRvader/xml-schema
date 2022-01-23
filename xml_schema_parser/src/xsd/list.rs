@@ -54,7 +54,7 @@ impl List {
     parse_fn.line(format!("Ok({struct_name}(output))"));
 
     Ok(XsdImpl {
-      name: Some(name.clone()),
+      name: name.clone(),
       fieldname_hint: Some(name.to_field_name()),
       element: XsdElement::Struct(generated_struct.clone()),
       inner: vec![],

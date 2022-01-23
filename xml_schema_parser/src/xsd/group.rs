@@ -71,17 +71,17 @@ impl Group {
     match (&self.name, &parent_name, &self.refers) {
       (Some(name), _, None) => match (&self.choice, &self.sequence) {
         (None, Some(sequence)) => sequence.get_implementation(
-          XsdName {
+          Some(XsdName {
             namespace: None,
             local_name: name.clone(),
-          },
+          }),
           context,
         ),
         (Some(choice), None) => choice.get_implementation(
-          XsdName {
+          Some(XsdName {
             namespace: None,
             local_name: name.clone(),
-          },
+          }),
           context,
         ),
         _ => unreachable!("The Xsd is invalid!"),

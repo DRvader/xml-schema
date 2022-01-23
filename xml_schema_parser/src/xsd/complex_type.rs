@@ -1,5 +1,6 @@
 use super::{
-  attribute_group::AttributeGroup, choice::Choice, group::Group, XMLElementWrapper, XsdError,
+  attribute_group::AttributeGroup, choice::Choice, group::Group, xsd_context::to_field_name,
+  XMLElementWrapper, XsdError,
 };
 use crate::{
   codegen::Struct,
@@ -101,11 +102,7 @@ impl ComplexType {
       local_name: name.clone(),
     };
 
-    if context.structs.contains_key(&struct_id) {
-      return Ok(context.structs.get(&struct_id).unwrap().clone());
-    }
-
-    let fields = match (
+    let mut generated_impl = match (
       &self.complex_content,
       &self.simple_content,
       &self.group,
@@ -118,14 +115,16 @@ impl ComplexType {
         simple_content.get_implementation(struct_id, context)
       }
       (None, None, Some(group), None) => group.get_implementation(Some(struct_id), context),
-      (None, None, None, Some(sequence)) => sequence.get_implementation(struct_id, context),
+      (None, None, None, Some(sequence)) => sequence.get_implementation(Some(struct_id), context),
       (None, None, None, None) => Ok(XsdImpl {
-        name: Some(struct_id),
+        name: struct_id,
         element: XsdElement::Struct(Struct::new(&to_struct_name(&name))),
-        ..Default::default()
+        fieldname_hint: Some(to_field_name(&name)),
+        implementation: vec![],
+        inner: vec![],
       }),
       _ => unreachable!("Xsd is invalid."),
-    };
+    }?;
 
     let docs = self
       .annotation
@@ -133,18 +132,6 @@ impl ComplexType {
       .map(|annotation| annotation.get_doc())
       .unwrap_or_default();
 
-    let mut generated_impl = XsdImpl {
-      name: self.name.as_ref().map(|n| XsdName::new(n)),
-      element: XsdElement::Struct(
-        Struct::new(&to_struct_name(&name))
-          .doc(&docs.join(""))
-          .derives(vec!["Clone", "Debug", "Default", "PartialEq"])
-          .to_owned(),
-      ),
-      ..Default::default()
-    };
-
-    generated_impl.merge(fields?, MergeSettings::default());
     for attribute in &self.attributes {
       if let Some(generated) = attribute.get_implementation(context)? {
         generated_impl.merge(

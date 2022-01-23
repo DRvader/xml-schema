@@ -1,9 +1,10 @@
-use crate::codegen::{Block, Enum, Fields, Module, Struct, Type, TypeDef, Variant};
+use crate::codegen::{self, Block, Enum, Fields, Module, Struct, Type, TypeDef, Variant};
 use heck::{CamelCase, SnakeCase};
 
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::io::Cursor;
+use std::iter::FromIterator;
 use xml::namespace::Namespace;
 use xml::reader::{EventReader, XmlEvent};
 
@@ -60,7 +61,6 @@ pub fn to_field_name(name: &str) -> String {
 
 #[derive(Clone, Debug)]
 pub enum XsdElement {
-  Empty,
   Struct(Struct),
   Enum(Enum),
   Field(Field),
@@ -70,7 +70,6 @@ pub enum XsdElement {
 impl XsdElement {
   pub fn fmt(&self, f: &mut crate::codegen::Formatter) -> core::fmt::Result {
     match &self {
-      XsdElement::Empty => Ok(()),
       XsdElement::Struct(r#struct) => r#struct.fmt(f),
       XsdElement::Enum(r#enum) => r#enum.fmt(f),
       XsdElement::Type(r#type) => r#type.fmt(f),
@@ -84,7 +83,6 @@ impl XsdElement {
 
   pub fn try_get_type(&self) -> Option<Type> {
     match &self {
-      XsdElement::Empty => None,
       XsdElement::Struct(r#struct) => Some(r#struct.ty().to_owned()),
       XsdElement::Enum(r#enum) => Some(r#enum.ty().to_owned()),
       XsdElement::Type(r#type) => Some(r#type.clone()),
@@ -138,23 +136,11 @@ pub struct XsdDeserialize {
 
 #[derive(Debug, Clone)]
 pub struct XsdImpl {
-  pub name: Option<XsdName>,
+  pub name: XsdName,
   pub fieldname_hint: Option<String>,
   pub element: XsdElement,
   pub inner: Vec<XsdImpl>,
   pub implementation: Vec<Impl>,
-}
-
-impl Default for XsdImpl {
-  fn default() -> Self {
-    Self {
-      name: None,
-      fieldname_hint: None,
-      element: XsdElement::Empty,
-      inner: Default::default(),
-      implementation: Default::default(),
-    }
-  }
 }
 
 pub enum MergeType {
@@ -184,13 +170,79 @@ impl<'a> Default for MergeSettings<'a> {
 }
 
 impl XsdImpl {
+  pub fn wrap_inner(&self) -> Option<codegen::Module> {
+    if self.inner.is_empty() {
+      return None;
+    }
+
+    let mut module = codegen::Module::new(&to_field_name(&self.element.get_type().name));
+    for inner in &self.inner {
+      match &inner.element {
+        XsdElement::Struct(a) => {
+          module.push_struct(a.clone());
+        }
+        XsdElement::Enum(a) => {
+          module.push_enum(a.clone());
+        }
+        XsdElement::Field(_) => unimplemented!(),
+        XsdElement::Type(_) => {
+          unimplemented!();
+        }
+      }
+
+      for i in &inner.implementation {
+        module.push_impl(i.clone());
+      }
+
+      if let Some(r#mod) = inner.wrap_inner() {
+        module.push_module(r#mod);
+      }
+    }
+
+    Some(module)
+  }
+
   pub fn fmt(&self, f: &mut crate::codegen::Formatter<'_>) -> core::fmt::Result {
     self.element.fmt(f)?;
     for r#impl in &self.implementation {
       r#impl.fmt(f)?;
     }
 
+    if let Some(module) = self.wrap_inner() {
+      module.fmt(f)?;
+    }
+
     Ok(())
+  }
+
+  pub fn infer_type_name(&self) -> String {
+    match &self.element {
+      XsdElement::Struct(a) => match &a.fields {
+        crate::codegen::Fields::Empty => unimplemented!(),
+        crate::codegen::Fields::Tuple(tup) => {
+          tup.iter().map(|v| v.1.name.as_str()).collect::<String>()
+        }
+        crate::codegen::Fields::Named(names) => names
+          .iter()
+          .map(|f| to_struct_name(&f.name))
+          .collect::<String>(),
+      },
+      XsdElement::Enum(a) => a.variants.iter().map(|v| v.name.as_str()).collect(),
+      XsdElement::Field(_) => unreachable!(),
+      XsdElement::Type(_) => unimplemented!(),
+    }
+  }
+
+  pub fn set_type(&mut self, ty: impl Into<Type>) {
+    let ty = ty.into();
+    self.element.set_type(ty.clone());
+
+    for i in &mut self.implementation {
+      i.target = ty.clone();
+    }
+
+    self.fieldname_hint = None;
+    self.name = XsdName::new(&ty.name);
   }
 
   pub fn to_string(&self) -> Result<String, core::fmt::Error> {
@@ -321,16 +373,9 @@ impl XsdImpl {
     }
   }
 
-  pub fn merge_structs(&mut self, other: XsdImpl, _settings: MergeSettings) -> String {
-    let output;
-    self.inner.push(other);
-
-    let other = &self.inner[self.inner.len() - 1];
-
+  pub fn merge_structs(&mut self, mut other: XsdImpl, _settings: MergeSettings) {
     match &mut self.element {
-      XsdElement::Empty => unimplemented!("Cannot merge {:?} into an empty struct.", other.name),
       XsdElement::Struct(a) => match &other.element {
-        XsdElement::Empty => {}
         XsdElement::Struct(b) => {
           let field_name = to_field_name(
             other
@@ -338,8 +383,15 @@ impl XsdImpl {
               .as_ref()
               .unwrap_or_else(|| &b.ty().name),
           );
-          a.push_field(Field::new(&field_name, b.ty()));
-          output = field_name;
+          let mut ty = b.ty().clone();
+
+          other.fieldname_hint = Some(field_name.clone());
+
+          ty.prefix(&field_name);
+
+          self.inner.push(other);
+
+          a.push_field(Field::new(&field_name, ty));
         }
         XsdElement::Enum(b) => {
           let field_name = to_field_name(
@@ -348,21 +400,25 @@ impl XsdImpl {
               .as_ref()
               .unwrap_or_else(|| &b.ty().name),
           );
-          a.push_field(Field::new(&field_name, b.ty()));
-          output = field_name;
+          let mut ty = b.ty().clone();
+
+          other.fieldname_hint = Some(field_name.clone());
+
+          ty.prefix(&field_name);
+
+          self.inner.push(other);
+
+          a.push_field(Field::new(&field_name, ty));
         }
         XsdElement::Type(b) => {
           let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or(&b.name));
           a.push_field(Field::new(&field_name, b));
-          output = field_name;
         }
         XsdElement::Field(b) => {
-          output = b.name.clone();
-          a.push_field(b);
+          a.push_field(b.clone());
         }
       },
-      XsdElement::Enum(a) => match other.element {
-        XsdElement::Empty => {}
+      XsdElement::Enum(a) => match &other.element {
         XsdElement::Struct(b) => {
           let field_name = to_field_name(
             other
@@ -370,8 +426,15 @@ impl XsdImpl {
               .as_ref()
               .unwrap_or_else(|| &b.ty().name),
           );
-          a.new_variant(&field_name).tuple(b.ty());
-          output = field_name;
+          let mut ty = b.ty().clone();
+
+          other.fieldname_hint = Some(field_name.clone());
+
+          ty.prefix(&field_name);
+
+          self.inner.push(other);
+
+          a.new_variant(&field_name).tuple(ty);
         }
         XsdElement::Enum(b) => {
           let field_name = to_field_name(
@@ -380,34 +443,31 @@ impl XsdImpl {
               .as_ref()
               .unwrap_or_else(|| &b.ty().name),
           );
-          a.new_variant(&field_name).tuple(b.ty());
-          output = field_name;
+          let mut ty = b.ty().clone();
+
+          other.fieldname_hint = Some(field_name.clone());
+
+          ty.prefix(&field_name);
+
+          self.inner.push(other);
+
+          a.new_variant(&field_name).tuple(ty);
         }
         XsdElement::Type(b) => {
           let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or(&b.name));
           a.new_variant(&field_name).tuple(b);
-          output = field_name;
         }
         XsdElement::Field(b) => {
-          a.new_variant(&b.name).tuple(b.ty);
-          output = b.name.clone();
+          a.new_variant(&b.name).tuple(b.ty.clone());
         }
       },
       XsdElement::Type(_) => unimplemented!("Cannot merge into type."),
       XsdElement::Field(_) => unimplemented!("Cannot merge into field."),
     }
-
-    self.inner.extend(other.inner);
-
-    output
   }
 
   pub fn merge_fields(&mut self, other: XsdImpl, settings: MergeSettings) {
     match (&mut self.element, other.element) {
-      (XsdElement::Empty, element) => {
-        self.element = element;
-      }
-      (_, XsdElement::Empty) => {}
       (XsdElement::Struct(a), XsdElement::Struct(b)) => {
         match (&mut a.fields, b.fields) {
           (_, Fields::Empty) => {}
@@ -529,448 +589,71 @@ impl XsdContext {
             let module_namespace_mappings = BTreeMap::new();
             let xml_schema_prefix = name.prefix;
 
+            let impl_basic_type = |name: &str, ty: &str| -> (XsdName, XsdImpl) {
+              let xsd_name = XsdName {
+                namespace: None,
+                local_name: format!(
+                  "{}{}{}",
+                  xml_schema_prefix.as_deref().unwrap_or(""),
+                  if xml_schema_prefix.is_some() { ":" } else { "" },
+                  name
+                ),
+              };
+
+              let imp = XsdImpl {
+                name: xsd_name.clone(),
+                fieldname_hint: None,
+                element: XsdElement::Type(Type::new(ty)),
+                inner: vec![],
+                implementation: vec![],
+              };
+
+              (xsd_name, imp)
+            };
+
             return Ok(XsdContext {
               module_namespace_mappings,
               namespace,
               xml_schema_prefix: xml_schema_prefix.clone(),
               allow_unknown_type: false,
               groups: BTreeMap::new(),
-              structs: BTreeMap::from([
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}bool",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("bool")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}boolean",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("bool")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}positiveInteger",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("u64")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}byte",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("i8")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}unsignedByte",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("u8")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}short",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("i16")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}unsignedShort",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("u16")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}int",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("i32")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}integer",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("i32")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}unsignedInt",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("u32")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}long",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("i64")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}unsignedLong",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("u64")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}nonNegativeInteger",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("u64")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}double",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("f64")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}decimal",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("f64")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}string",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("String")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}normalizedString",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("String")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}anyURI",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("String")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}NMTOKEN",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("String")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}token",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("String")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}language",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("String")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}hexBinary",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("String")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}dateTime",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("String")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}base64Binary",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("String")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}duration",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("String")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}gYear",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("u16")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}ID",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("String")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}IDREF",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("String")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}IDREFS",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("String")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}anyType",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("String")),
-                    ..Default::default()
-                  },
-                ),
-                (
-                  XsdName {
-                    namespace: None,
-                    local_name: format!(
-                      "{}{}date",
-                      xml_schema_prefix.as_deref().unwrap_or(""),
-                      if xml_schema_prefix.is_some() { ":" } else { "" }
-                    ),
-                  },
-                  XsdImpl {
-                    element: XsdElement::Type(Type::new("chrono::Date")),
-                    ..Default::default()
-                  },
-                ),
-              ]),
+              structs: BTreeMap::from_iter(
+                [
+                  ("bool", "bool"),
+                  ("boolean", "bool"),
+                  ("positiveInteger", "u64"),
+                  ("byte", "u8"),
+                  ("unsignedByte", "u8"),
+                  ("short", "i16"),
+                  ("unsignedShort", "u16"),
+                  ("int", "i32"),
+                  ("integer", "i32"),
+                  ("unsignedInt", "u32"),
+                  ("long", "i64"),
+                  ("unsignedLong", "u64"),
+                  ("nonNegativeInteger", "u64"),
+                  ("double", "f64"),
+                  ("decimal", "f64"),
+                  ("string", "String"),
+                  ("normalizedString", "String"),
+                  ("anyURI", "String"),
+                  ("NMTOKEN", "String"),
+                  ("token", "String"),
+                  ("language", "String"),
+                  ("hexBinary", "String"),
+                  ("dateTime", "String"),
+                  ("base64Binary", "String"),
+                  ("duration", "String"),
+                  ("gYear", "u16"),
+                  ("ID", "String"),
+                  ("IDREF", "String"),
+                  ("IDREFS", "String"),
+                  ("anyType", "String"),
+                  ("date", "chrono::Date"),
+                ]
+                .into_iter()
+                .map(|(n, t)| impl_basic_type(n, t)),
+              ),
             });
           }
         }

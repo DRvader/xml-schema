@@ -117,10 +117,11 @@ impl Element {
       (None, None) => {
         if self.kind.is_none() {
           return Ok(XsdImpl {
-            name: Some(XsdName::new(&xml_name)),
-            fieldname_hint: None,
+            name: XsdName::new(&xml_name),
+            fieldname_hint: Some(to_field_name(&xml_name)),
             element: XsdElement::Struct(Struct::new(&to_struct_name(&xml_name))),
-            ..Default::default()
+            inner: vec![],
+            implementation: vec![],
           });
         } else if let Some(imp) = context
           .structs
@@ -163,14 +164,15 @@ impl Element {
       // TODO(drosen): Gen parse function for this case!
 
       XsdImpl {
-        name: Some(XsdName::new(&xml_name)),
+        name: XsdName::new(&xml_name),
         fieldname_hint: Some(initial_field_name),
         element: XsdElement::Struct(
           Struct::new(&type_name)
             .push_field(Field::new(&field_name, field_type).vis("pub").to_owned())
             .to_owned(),
         ),
-        ..Default::default()
+        inner: vec![],
+        implementation: vec![],
       }
     } else {
       let docs = self
@@ -180,9 +182,6 @@ impl Element {
 
       if let Some(docs) = docs {
         match &mut ty_impl.element {
-          XsdElement::Empty => {
-            unreachable!()
-          }
           XsdElement::Struct(str) => {
             str.doc(&docs.as_slice().join(""));
           }

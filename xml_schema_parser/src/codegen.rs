@@ -32,17 +32,17 @@ use std::{
 #[derive(Debug, Clone)]
 pub struct Scope {
   /// Scope documentation
-  docs: Option<Docs>,
+  pub docs: Option<Docs>,
 
   /// Imports
-  imports: BTreeMap<String, BTreeMap<String, Import>>,
+  pub imports: BTreeMap<String, BTreeMap<String, Import>>,
 
   /// Contents of the documentation,
-  items: Vec<Item>,
+  pub items: Vec<Item>,
 }
 
 #[derive(Debug, Clone)]
-enum Item {
+pub enum Item {
   Module(Module),
   Struct(Struct),
   Function(Function),
@@ -56,16 +56,16 @@ enum Item {
 #[derive(Debug, Clone)]
 pub struct Module {
   /// Module name
-  name: String,
+  pub name: String,
 
   /// Visibility
-  vis: Option<String>,
+  pub vis: Option<String>,
 
   /// Module documentation
-  docs: Option<Docs>,
+  pub docs: Option<Docs>,
 
   /// Contents of the module
-  scope: Scope,
+  pub scope: Scope,
 }
 
 /// Defines an enumeration.
@@ -748,7 +748,7 @@ impl Struct {
   }
 
   /// Add new types that the struct should derive.
-  pub fn derives(&mut self, name: Vec<&str>) -> &mut Self {
+  pub fn derives(&mut self, name: &[&str]) -> &mut Self {
     for n in name {
       self.type_def.derive(n);
     }
@@ -982,6 +982,14 @@ impl Enum {
   /// Set the enum documentation.
   pub fn doc(&mut self, docs: &str) -> &mut Self {
     self.type_def.doc(docs);
+    self
+  }
+
+  /// Add new types that the struct should derive.
+  pub fn derives(&mut self, name: &[&str]) -> &mut Self {
+    for n in name {
+      self.type_def.derive(n);
+    }
     self
   }
 

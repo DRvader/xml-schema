@@ -7,7 +7,7 @@ use super::{
   choice::Choice,
   group::Group,
   sequence::Sequence,
-  xsd_context::{MergeSettings, XsdElement, XsdImpl, XsdName},
+  xsd_context::{to_struct_name, MergeSettings, XsdElement, XsdImpl, XsdName},
   XMLElementWrapper, XsdError,
 };
 use crate::{
@@ -193,8 +193,8 @@ impl Restriction {
 
     let mut generated_impl = if !self.enumerations.is_empty() {
       let typename = parent_name.to_struct_name();
-      let mut generated_enum = Enum::new(&typename);
-      for derive in ["Clone", "Debug", "Default", "PartialEq"] {
+      let mut generated_enum = Enum::new(&typename).vis("pub").to_owned();
+      for derive in ["Clone", "Debug", "PartialEq"] {
         generated_enum.derive(derive);
       }
 
@@ -205,7 +205,13 @@ impl Restriction {
 
       let mut parse_match = Block::new("let output = match element.get_content()?");
       for enumeration in &self.enumerations {
-        let enum_name = enumeration.to_camel_case();
+        let enumeration = if enumeration.len() == 0 {
+          "empty"
+        } else {
+          enumeration
+        };
+
+        let enum_name = to_struct_name(enumeration);
         generated_enum.new_variant(&enum_name);
 
         parse_match.line(format!("\"{}\" => Self::{},", enumeration, enum_name));

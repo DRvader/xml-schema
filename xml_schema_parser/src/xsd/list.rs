@@ -37,7 +37,7 @@ impl List {
 
     let struct_name = name.to_struct_name();
 
-    let mut generated_struct = Struct::new(&struct_name);
+    let mut generated_struct = Struct::new(&struct_name).vis("pub").to_owned();
     generated_struct.tuple_field(format!("Vec<{}>", list_type));
     for derive in ["Clone", "Debug", "Default", "PartialEq"] {
       generated_struct.derive(derive);
@@ -46,6 +46,7 @@ impl List {
     let mut parse_fn = Function::new("parse")
       .arg("mut element", "XsdElementWrapper")
       .ret("Result<Self, XsdError>")
+      .vis("pub")
       .to_owned();
 
     parse_fn.line(format!("let output: Vec<{list_type}> = element.get_content()?.split(' ').map(|item| item.to_owned()).map(|item| item.parse().unwrap()).collect();"));

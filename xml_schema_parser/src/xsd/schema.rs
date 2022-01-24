@@ -184,7 +184,7 @@ impl Schema {
       new.clear();
       for index in &complex_type_to_run {
         let complex_type = &self.complex_type[index.0];
-        match complex_type.get_implementation(context) {
+        match complex_type.get_implementation(true, None, context) {
           Ok(temp) => {
             top_level_names.push(temp.name.clone());
             context.structs.insert(temp.name.clone(), temp);
@@ -225,6 +225,7 @@ impl Schema {
     }
 
     let mut dst = String::new();
+    dst.push_str("use xml_schema_parser::{XsdError, XMLElementWrapper};\n\n");
     let mut formatter = crate::codegen::Formatter::new(&mut dst);
     for name in top_level_names {
       context

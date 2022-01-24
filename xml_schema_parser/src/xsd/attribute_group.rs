@@ -70,7 +70,7 @@ impl AttributeGroup {
     let mut generated_struct = XsdImpl {
       name: XsdName::new(xml_name),
       fieldname_hint: Some(to_field_name(xml_name)),
-      element: XsdElement::Struct(Struct::new(&to_struct_name(xml_name))),
+      element: XsdElement::Struct(Struct::new(&to_struct_name(xml_name)).vis("pub").to_owned()),
       inner: vec![],
       implementation: vec![],
     };
@@ -96,6 +96,10 @@ impl AttributeGroup {
         attr.get_implementation(parent_name.clone(), context)?,
         MergeSettings::default(),
       );
+    }
+
+    if let Some(doc) = &self.annotation {
+      generated_struct.element.add_doc(&doc.get_doc().join(""));
     }
 
     Ok(generated_struct)

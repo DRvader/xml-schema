@@ -3,11 +3,11 @@ use super::{
   choice::Choice,
   group::Group,
   max_occurences::MaxOccurences,
-  xsd_context::{MergeSettings, XsdElement, XsdImpl, XsdName},
+  xsd_context::{infer_type_name, to_struct_name, MergeSettings, XsdElement, XsdImpl, XsdName},
   XMLElementWrapper, XsdError,
 };
 use crate::{
-  codegen::Struct,
+  codegen::{Block, Function, Impl, Struct},
   xsd::{element::Element, XsdContext},
 };
 
@@ -81,41 +81,84 @@ impl Sequence {
     parent_name: Option<XsdName>,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
+    let mut generated_impls = vec![];
+
+    for element in &self.elements {
+      generated_impls.push(element.get_implementation(context)?);
+    }
+
+    for choice in &self.choices {
+      generated_impls.push(choice.get_implementation(None, context)?);
+    }
+
+    for sequence in &self.sequences {
+      generated_impls.push(sequence.get_implementation(None, context)?);
+    }
+
+    for group in &self.groups {
+      generated_impls.push(group.get_implementation(None, context)?);
+    }
+
+    let inferred_name = infer_type_name(&generated_impls);
+
+    let xml_name = if let Some(parent_name) = parent_name.clone() {
+      parent_name
+    } else {
+      XsdName::new(&inferred_name)
+    };
+
+    let struct_name = if let Some(parent_name) = parent_name {
+      parent_name.local_name
+    } else {
+      inferred_name
+    };
+    let struct_name = to_struct_name(&struct_name);
+
     let mut generated_impl = XsdImpl {
-      name: XsdName::new("temp"),
+      name: xml_name,
       fieldname_hint: None,
-      element: XsdElement::Struct(Struct::new(&"Temp")),
+      element: XsdElement::Struct(
+        Struct::new(&struct_name)
+          .vis("pub")
+          .derives(&["Clone", "Debug", "Default", "PartialEq"])
+          .to_owned(),
+      ),
       inner: vec![],
       implementation: vec![],
     };
 
-    for element in &self.elements {
-      generated_impl.merge(
-        element.get_implementation(context)?,
-        MergeSettings::default(),
-      );
+    let mut parsable_fields = vec![];
+    for imp in generated_impls {
+      generated_impl.merge(imp, MergeSettings::default());
+      if let Some(field) = generated_impl.element.get_last_added_field() {
+        parsable_fields.push(field);
+      }
     }
 
-    for choice in &self.choices {
-      generated_impl.merge(
-        choice.get_implementation(None, context)?,
-        MergeSettings::default(),
-      );
+    let mut value = Function::new("parse")
+      .vis("pub")
+      .arg("mut element", "XMLElementWrapper")
+      .ret("Result<Self, XsdError>")
+      .to_owned();
+
+    for field in &parsable_fields {
+      value.line(format!("let {field} = {field}.parse(element)?;"));
     }
 
-    for sequence in &self.sequences {
-      generated_impl.merge(
-        sequence.get_implementation(None, context)?,
-        MergeSettings::default(),
-      );
+    let mut block = Block::new("let output = Self").after(";").to_owned();
+    for field in parsable_fields {
+      block.line(format!("{field},"));
     }
+    value.push_block(block.to_owned());
 
-    for group in &self.groups {
-      generated_impl.merge(
-        group.get_implementation(None, context)?,
-        MergeSettings::default(),
-      );
-    }
+    value.line("element.finalize(false, false)?;");
+    value.line("Ok(output)");
+
+    let struct_impl = Impl::new(generated_impl.element.get_type())
+      .push_fn(value)
+      .to_owned();
+
+    // generated_impl.implementation.push(struct_impl);
 
     Ok(generated_impl)
   }

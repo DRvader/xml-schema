@@ -7,4 +7,5 @@ extern crate quote;
 mod codegen;
 mod xsd;
 
+pub use xsd::XMLElementWrapper;
 pub use xsd::{Xsd, XsdError};

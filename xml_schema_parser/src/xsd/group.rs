@@ -1,9 +1,11 @@
+use crate::codegen::Field;
+
 use super::{
   annotation::Annotation,
   choice::Choice,
   max_occurences::MaxOccurences,
   sequence::Sequence,
-  xsd_context::{XsdContext, XsdImpl, XsdName},
+  xsd_context::{to_field_name, XsdContext, XsdElement, XsdImpl, XsdName},
   XMLElementWrapper, XsdError,
 };
 
@@ -86,20 +88,42 @@ impl Group {
         ),
         _ => unreachable!("The Xsd is invalid!"),
       },
-      (None, Some(_name), Some(refers)) => {
+      (None, _, Some(refers)) => {
         let name = XsdName {
           namespace: None,
           local_name: refers.to_string(),
         };
-        let mut inner = if let Some(imp) = context.structs.get(&name) {
-          imp.clone()
+        let inner = if let Some(imp) = context.structs.get(&name) {
+          imp
         } else {
           return Err(XsdError::XsdImplNotFound(name));
         };
 
-        inner.element.set_type(&name.local_name);
+        let field_name = if let Some(parent_name) = &parent_name {
+          to_field_name(&parent_name.local_name)
+        } else if let Some(field_hint) = &inner.fieldname_hint {
+          field_hint.clone()
+        } else {
+          to_field_name(&inner.infer_type_name())
+        };
 
-        Ok(inner)
+        let name = if let Some(parent_name) = parent_name {
+          parent_name
+        } else {
+          XsdName::new(&inner.infer_type_name())
+        };
+
+        Ok(XsdImpl {
+          name,
+          element: XsdElement::Field(
+            Field::new(&field_name, inner.element.get_type())
+              .vis("pub")
+              .to_owned(),
+          ),
+          fieldname_hint: Some(field_name.to_string()),
+          inner: vec![],
+          implementation: vec![],
+        })
       }
       _ => unreachable!("The Xsd is invalid!"),
     }

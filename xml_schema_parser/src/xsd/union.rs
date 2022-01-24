@@ -43,8 +43,10 @@ impl Union {
     parent_name: XsdName,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    let mut generated_enum = Enum::new(&parent_name.to_struct_name());
-    for derive in ["Clone", "Debug", "Default", "PartialEq"] {
+    let mut generated_enum = Enum::new(&parent_name.to_struct_name())
+      .vis("pub")
+      .to_owned();
+    for derive in ["Clone", "Debug", "PartialEq"] {
       generated_enum.derive(derive);
     }
 
@@ -75,7 +77,7 @@ impl Union {
       ));
     }
 
-    output.line("if oks.len() > 1 { return Err(XsdError::XsdGenError {{ name: element.name, msg: format!(\"{} were able to be parsed.\", oks.join(\", \")) }}); }");
+    output.line("if oks.len() > 1 { return Err(XsdError::XsdGenError { name: element.name, msg: format!(\"{} were able to be parsed.\", oks.join(\", \")) }); }");
 
     let mut match_block = Block::new(&format!(
       "match ({})",
@@ -86,7 +88,7 @@ impl Union {
     ));
     for index in 0..self.member_types.len() {
       match_block.line(&format!(
-        "({}) => Self::{}(value)",
+        "({}) => Self::{}(value),",
         (0..self.member_types.len())
           .map(|i| if i == index { "Some(value)" } else { "None" })
           .collect::<Vec<_>>()
@@ -94,17 +96,20 @@ impl Union {
         names[index]
       ));
     }
-    match_block.line(format!(
-      "({}) => return Err(XsdError::XsdGenError {{ name: element.name, msg: format!(\"No valid values could be parsed.\") }});",
+    match_block.push_block(Block::new(&format!(
+      "({}) => ",
       (0..self.member_types.len())
         .map(|_| "None")
         .collect::<Vec<_>>()
-        .join(", "))
+        .join(", "))).line("return Err(XsdError::XsdGenError { name: element.name, msg: format!(\"No valid values could be parsed.\") });").to_owned()
     );
+    match_block.line("_ => unreachable!()");
 
     output.push_block(match_block);
 
-    let mut r#impl = Impl::new(generated_enum.ty());
+    let mut r#impl = Impl::new(generated_enum.ty())
+      .impl_trait("ParseXsd")
+      .to_owned();
 
     let parse = r#impl.new_fn("parse");
     parse.arg("mut element", "XMLElementWrapper");
@@ -114,7 +119,7 @@ impl Union {
       Block::new("")
         .push_block(output)
         .to_owned()
-        .line("element.finalize(false, false)?")
+        .line("element.finalize(false, false)?;")
         .line("Ok(output)")
         .to_owned(),
     );

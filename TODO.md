@@ -1,3 +1,5 @@
+- XsdName doesn't make sense to be the type of parent_name
+
 [] Make parser namespace aware
 [] Make parser prefix aware
 [] Make generator namespace aware
@@ -11,3 +13,11 @@
 [] Turn parsing into trait to reduce boilerplate
 
 [] Make proc macro?
+
+When name is not available.
+  - If the parent-name would only be applied to a single element the parent-name is the name
+  - The type is inferred
+When ref is not available the name is both the typename and fieldname.
+When ref is available the name is the fieldname; ref is the typename
+
+New codegen system that allows me to declare variables.

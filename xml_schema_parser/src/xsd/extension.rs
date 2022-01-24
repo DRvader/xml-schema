@@ -85,7 +85,11 @@ impl Extension {
       (None, None, None) => Ok(XsdImpl {
         name: parent_name.clone(),
         fieldname_hint: Some(parent_name.to_field_name()),
-        element: XsdElement::Struct(Struct::new(&parent_name.to_struct_name())),
+        element: XsdElement::Struct(
+          Struct::new(&parent_name.to_struct_name())
+            .vis("pub")
+            .to_owned(),
+        ),
         inner: vec![],
         implementation: vec![],
       }),

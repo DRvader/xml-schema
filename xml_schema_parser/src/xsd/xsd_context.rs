@@ -46,7 +46,14 @@ impl XsdName {
 }
 
 pub fn to_struct_name(name: &str) -> String {
-  name.replace(".", "_").to_camel_case()
+  let output = name.replace(".", "_").to_camel_case();
+  if let Some(char) = output.chars().next() {
+    if char.is_numeric() {
+      return format!("_{output}");
+    }
+  }
+
+  output
 }
 
 pub fn to_field_name(name: &str) -> String {
@@ -74,6 +81,19 @@ impl XsdElement {
       XsdElement::Enum(r#enum) => r#enum.fmt(f),
       XsdElement::Type(r#type) => r#type.fmt(f),
       XsdElement::Field(_) => unreachable!("Should have packed field into an enum or struct."),
+    }
+  }
+
+  pub fn get_last_added_field(&self) -> Option<String> {
+    match self {
+      XsdElement::Struct(a) => match &a.fields {
+        crate::codegen::Fields::Tuple(a) => a.last().map(|v| v.1.name.clone()),
+        crate::codegen::Fields::Named(a) => a.last().map(|v| v.name.clone()),
+        _ => None,
+      },
+      XsdElement::Enum(a) => a.variants.last().map(|v| v.name.clone()),
+      XsdElement::Field(_) => None,
+      XsdElement::Type(_) => None,
     }
   }
 
@@ -169,13 +189,34 @@ impl<'a> Default for MergeSettings<'a> {
   }
 }
 
+pub fn infer_type_name(this: &[XsdImpl]) -> String {
+  let mut output = String::new();
+
+  for i in this {
+    if let Some(hint) = &i.fieldname_hint {
+      output.push_str(hint);
+    } else {
+      output.push_str(&i.element.get_type().name);
+    }
+  }
+
+  output
+}
+
 impl XsdImpl {
-  pub fn wrap_inner(&self) -> Option<codegen::Module> {
+  fn wrap_inner_mod(&self, existing_module: &mut Module, level: usize) {
     if self.inner.is_empty() {
-      return None;
+      return;
     }
 
-    let mut module = codegen::Module::new(&to_field_name(&self.element.get_type().name));
+    let mod_name = to_field_name(&self.element.get_type().name);
+    let module = existing_module.get_or_new_module(&mod_name);
+
+    module.import(
+      &(0..level).map(|_| "super").collect::<Vec<_>>().join("::"),
+      "*",
+    );
+
     for inner in &self.inner {
       match &inner.element {
         XsdElement::Struct(a) => {
@@ -185,21 +226,32 @@ impl XsdImpl {
           module.push_enum(a.clone());
         }
         XsdElement::Field(_) => unimplemented!(),
-        XsdElement::Type(_) => {
-          unimplemented!();
-        }
+        XsdElement::Type(_) => {}
       }
 
       for i in &inner.implementation {
         module.push_impl(i.clone());
       }
 
-      if let Some(r#mod) = inner.wrap_inner() {
-        module.push_module(r#mod);
-      }
+      inner.wrap_inner_mod(module, level + 1);
+    }
+  }
+
+  pub fn wrap_inner(&self) -> Option<codegen::Module> {
+    if self.inner.is_empty() {
+      return None;
     }
 
-    Some(module)
+    let mut top_level = Module::new("-temp");
+    self.wrap_inner_mod(&mut top_level, 1);
+
+    for i in top_level.scope.items {
+      if let codegen::Item::Module(m) = i {
+        return Some(m);
+      };
+    }
+
+    unreachable!();
   }
 
   pub fn fmt(&self, f: &mut crate::codegen::Formatter<'_>) -> core::fmt::Result {
@@ -228,21 +280,22 @@ impl XsdImpl {
           .collect::<String>(),
       },
       XsdElement::Enum(a) => a.variants.iter().map(|v| v.name.as_str()).collect(),
+      XsdElement::Type(ty) => ty.name.clone(),
       XsdElement::Field(_) => unreachable!(),
-      XsdElement::Type(_) => unimplemented!(),
     }
   }
 
-  pub fn set_type(&mut self, ty: impl Into<Type>) {
-    let ty = ty.into();
+  pub fn set_name(&mut self, name: &str) {
+    self.name = XsdName::new(name);
+
+    let ty = to_struct_name(name);
     self.element.set_type(ty.clone());
 
     for i in &mut self.implementation {
-      i.target = ty.clone();
+      i.target = ty.clone().into();
     }
 
     self.fieldname_hint = None;
-    self.name = XsdName::new(&ty.name);
   }
 
   pub fn to_string(&self) -> Result<String, core::fmt::Error> {
@@ -387,7 +440,7 @@ impl XsdImpl {
 
           other.fieldname_hint = Some(field_name.clone());
 
-          ty.prefix(&field_name);
+          ty.name = format!("{}::{}", to_field_name(&a.ty().name), ty.name);
 
           self.inner.push(other);
 
@@ -404,15 +457,16 @@ impl XsdImpl {
 
           other.fieldname_hint = Some(field_name.clone());
 
-          ty.prefix(&field_name);
+          ty.name = format!("{}::{}", to_field_name(&a.ty().name), ty.name);
 
           self.inner.push(other);
 
-          a.push_field(Field::new(&field_name, ty));
+          a.push_field(Field::new(&field_name, ty).vis("pub").to_owned());
         }
         XsdElement::Type(b) => {
-          let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or(&b.name));
-          a.push_field(Field::new(&field_name, b));
+          let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or_else(|| &b.name));
+          self.inner.extend(other.inner);
+          a.push_field(Field::new(&field_name, b).vis("pub").to_owned());
         }
         XsdElement::Field(b) => {
           a.push_field(b.clone());
@@ -430,7 +484,7 @@ impl XsdImpl {
 
           other.fieldname_hint = Some(field_name.clone());
 
-          ty.prefix(&field_name);
+          ty.name = format!("{}::{}", to_field_name(&a.ty().name), ty.name);
 
           self.inner.push(other);
 
@@ -447,15 +501,16 @@ impl XsdImpl {
 
           other.fieldname_hint = Some(field_name.clone());
 
-          ty.prefix(&field_name);
+          ty.name = format!("<{}>::{}", to_field_name(&a.ty().name), ty.name);
 
           self.inner.push(other);
 
           a.new_variant(&field_name).tuple(ty);
         }
         XsdElement::Type(b) => {
-          let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or(&b.name));
-          a.new_variant(&field_name).tuple(b);
+          let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or_else(|| &b.name));
+          self.inner.extend(other.inner);
+          a.new_variant(&field_name).tuple(b.clone());
         }
         XsdElement::Field(b) => {
           a.new_variant(&b.name).tuple(b.ty.clone());
@@ -600,6 +655,12 @@ impl XsdContext {
                 ),
               };
 
+              // let mut r#impl = Impl::new(ty).impl_trait("ParseXsd").to_owned();
+              // let func = r#impl.new_fn("parse");
+              // func.line("element.get_content()?");
+              // let func = r#impl.new_fn("parse_attribute");
+              // func.line("element.get_attribute()?");
+
               let imp = XsdImpl {
                 name: xsd_name.clone(),
                 fieldname_hint: None,
@@ -651,7 +712,6 @@ impl XsdContext {
                   ("anyType", "String"),
                   ("date", "chrono::Date"),
                 ]
-                .into_iter()
                 .map(|(n, t)| impl_basic_type(n, t)),
               ),
             });

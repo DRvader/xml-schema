@@ -5,7 +5,10 @@ use super::{
   group::Group,
   max_occurences::MaxOccurences,
   sequence::Sequence,
-  xsd_context::{to_struct_name, MergeSettings, XsdContext, XsdElement, XsdImpl, XsdName},
+  xsd_context::{
+    infer_type_name, to_field_name, to_struct_name, MergeSettings, XsdContext, XsdElement, XsdImpl,
+    XsdName,
+  },
   XMLElementWrapper, XsdError,
 };
 
@@ -46,83 +49,65 @@ impl Choice {
     parent_name: Option<XsdName>,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    let mut outer_enum = XsdImpl {
-      name: XsdName::new("temp"),
-      fieldname_hint: "temp".to_string(),
-      element: XsdElement::Enum(Enum::new(&"Temp")),
+    let mut generated_impls = vec![];
+
+    // let mut possible_enums = vec![];
+    for group in &self.groups {
+      generated_impls.push(group.get_implementation(None, context)?);
+    }
+
+    for sequence in &self.sequences {
+      generated_impls.push(sequence.get_implementation(None, context)?);
+    }
+
+    for choice in &self.choices {
+      generated_impls.push(choice.get_implementation(None, context)?);
+    }
+
+    for element in &self.elements {
+      generated_impls.push(element.get_implementation(context)?);
+    }
+
+    let inferred_name = infer_type_name(&generated_impls);
+
+    let xml_name = if let Some(parent_name) = parent_name.clone() {
+      parent_name
+    } else {
+      XsdName::new(&inferred_name)
+    };
+
+    let struct_name = if let Some(parent_name) = parent_name {
+      parent_name.local_name
+    } else {
+      inferred_name
+    };
+    let struct_name = to_struct_name(&struct_name);
+
+    let mut generated_impl = XsdImpl {
+      fieldname_hint: Some(xml_name.to_field_name()),
+      name: xml_name,
+      element: XsdElement::Enum(
+        Enum::new(&struct_name)
+          .derives(&["Clone", "Debug", "Default", "PartialEq"])
+          .vis("pub")
+          .to_owned(),
+      ),
       inner: vec![],
       implementation: vec![],
     };
 
-    let mut possible_enums = vec![];
-    for group in &self.groups {
-      outer_enum.merge_structs(
-        group.get_implementation(None, context)?,
-        MergeSettings::default(),
-      );
-
-      if let XsdElement::Enum(en) = &outer_enum.element {
-        possible_enums.push(en.variants.last().unwrap().name.clone());
-      } else {
-        unreachable!();
+    let mut variants = vec![];
+    for imp in generated_impls {
+      generated_impl.merge(imp, MergeSettings::default());
+      if let Some(field) = generated_impl.element.get_last_added_field() {
+        variants.push(field);
       }
     }
-
-    for sequence in &self.sequences {
-      outer_enum.merge(
-        sequence.get_implementation(None, context)?,
-        MergeSettings::default(),
-      );
-
-      if let XsdElement::Enum(en) = &outer_enum.element {
-        possible_enums.push(en.variants.last().unwrap().name.clone());
-      } else {
-        unreachable!();
-      }
-    }
-
-    for choice in &self.choices {
-      outer_enum.merge(
-        choice.get_implementation(None, context)?,
-        MergeSettings::default(),
-      );
-
-      if let XsdElement::Enum(en) = &outer_enum.element {
-        possible_enums.push(en.variants.last().unwrap().name.clone());
-      } else {
-        unreachable!();
-      }
-    }
-
-    for element in &self.elements {
-      outer_enum.merge(
-        element.get_implementation(context)?,
-        MergeSettings::default(),
-      );
-
-      if let XsdElement::Enum(en) = &outer_enum.element {
-        possible_enums.push(en.variants.last().unwrap().name.clone());
-      } else {
-        unreachable!();
-      }
-    }
-
-    if let Some(parent_name) = parent_name {
-      parent_name
-    } else {
-      outer_enum.set_type(outer_enum.infer_type_name());
-    }
-    imp.element.set_type(&new_type);
-    for implementation in &mut imp.implementation {
-      implementation.target = crate::codegen::Type::new(&new_type);
-    }
-
-    imp.name = XsdName::new(&new_type);
 
     let multiple = match &self.max_occurences {
       MaxOccurences::Unbounded => true,
       MaxOccurences::Number { value } => *value > 1,
-    };
+    } || self.min_occurences > 1;
 
     let option = match &self.max_occurences {
       MaxOccurences::Unbounded => false,
@@ -130,94 +115,113 @@ impl Choice {
     };
 
     let generated_impl = if multiple {
-      let mut inner_impl = Impl::new(&parent_name.to_struct_name());
-
-      inner_impl
-        .new_fn("parse")
-        .vis("pub")
-        .arg("mut element", "XMLElementWrapper")
-        .ret("Result<Self, XsdError>")
-        .push_block(
-          Block::new("")
-            .line(format!(
-              "element.check_name(\"{}\")?;",
-              parent_name.local_name
-            ))
-            .push_block(
-              Block::new(&format!(
-                "element.get_children_with(\"{}\", |child| ",
-                parent_name.local_name
-              ))
-              .line("")
-              .after(")?;")
-              .to_owned(),
-            )
-            .line("element.finalize(false, false)?;")
-            .line("Ok(output);")
-            .to_owned(),
-        );
-
-      let mut inner_enum = outer_enum;
-      match &mut inner_enum.element {
-        XsdElement::Struct(str) => {
-          str.type_def.ty.prefix("Inner");
-        }
-        XsdElement::Enum(en) => {
-          en.type_def.ty.prefix("Inner");
-        }
-        XsdElement::Type(ty) => {
-          ty.prefix("Inner");
-        }
-        _ => {}
-      }
-
-      Ok(XsdImpl {
-        name: Some(parent_name.clone()),
-        fieldname_hint: Some(parent_name.to_field_name()),
-        element: XsdElement::Struct(
-          Struct::new(&parent_name.to_struct_name())
-            .push_field(Field::new(
-              "inner",
-              inner_enum.element.get_type().wrap("Vec").to_owned(),
-            ))
-            .to_owned(),
-        ),
-        inner: vec![inner_enum],
-        implementation: vec![inner_impl],
-      })
-    } else if option {
-      let mut inner_enum = outer_enum;
-      match &mut inner_enum.element {
-        XsdElement::Struct(str) => {
-          str.type_def.ty.prefix("Inner");
-        }
-        XsdElement::Enum(en) => {
-          en.type_def.ty.prefix("Inner");
-        }
-        XsdElement::Type(ty) => {
-          ty.prefix("Inner");
-        }
-        _ => {}
-      }
-
-      Ok(XsdImpl {
-        name: Some(parent_name.clone()),
-        fieldname_hint: Some(parent_name.to_field_name()),
-        element: XsdElement::Struct(
-          Struct::new(&parent_name.to_struct_name())
-            .push_field(Field::new(
-              "inner",
-              Type::new(&inner_enum.element.get_type().wrap("Option").to_string()),
-            ))
-            .to_owned(),
-        ),
-        inner: vec![inner_enum],
+      let old_name = generated_impl.name.clone();
+      generated_impl.name.local_name = format!("inner-{}", old_name.local_name);
+      let output = XsdImpl {
+        name: old_name.clone(),
+        fieldname_hint: Some(generated_impl.fieldname_hint.clone().unwrap()),
+        element: XsdElement::Type(generated_impl.element.get_type().wrap("Vec").to_owned()),
+        inner: vec![generated_impl],
         implementation: vec![],
-      })
+      };
+      output
+    } else if option {
+      let old_name = generated_impl.name.clone();
+      generated_impl.name.local_name = format!("inner-{}", old_name.local_name);
+      let output = XsdImpl {
+        name: old_name.clone(),
+        fieldname_hint: Some(generated_impl.fieldname_hint.clone().unwrap()),
+        element: XsdElement::Type(generated_impl.element.get_type().wrap("Option").to_owned()),
+        inner: vec![generated_impl],
+        implementation: vec![],
+      };
+      output
     } else {
-      Ok(outer_enum)
+      generated_impl
     };
 
-    generated_impl
+    // let generated_impl = if multiple {
+    //   let mut inner_impl = Impl::new(&struct_name);
+
+    //   inner_impl
+    //     .new_fn("parse")
+    //     .vis("pub")
+    //     .arg("mut element", "XMLElementWrapper")
+    //     .ret("Result<Self, XsdError>")
+    //     .push_block(
+    //       Block::new("")
+    //         .line(format!("element.check_name(\"{}\")?;", struct_name))
+    //         .push_block(
+    //           Block::new(&format!(
+    //             "element.get_children_with(\"{}\", |child| ",
+    //             struct_name
+    //           ))
+    //           .line("")
+    //           .after(")?;")
+    //           .to_owned(),
+    //         )
+    //         .line("element.finalize(false, false)?;")
+    //         .line("Ok(output);")
+    //         .to_owned(),
+    //     );
+
+    //   let mut inner_enum = outer_enum;
+    //   match &mut inner_enum.element {
+    //     XsdElement::Struct(str) => {
+    //       str.type_def.ty.prefix("Inner");
+    //     }
+    //     XsdElement::Enum(en) => {
+    //       en.type_def.ty.prefix("Inner");
+    //     }
+    //     XsdElement::Type(ty) => {
+    //       ty.prefix("Inner");
+    //     }
+    //     _ => {}
+    //   }
+
+    //   Ok(XsdImpl {
+    //     name: xml_name,
+    //     fieldname_hint: Some(to_field_name(&struct_name)),
+    //     element: XsdElement::Field(Field::new(
+    //       &to_field_name(&struct_name),
+    //       inner_enum.element.get_type().wrap("Vec").to_owned(),
+    //     )),
+    //     inner: vec![inner_enum],
+    //     implementation: vec![inner_impl],
+    //   })
+    // } else if option {
+    //   let mut inner_enum = outer_enum;
+    //   match &mut inner_enum.element {
+    //     XsdElement::Struct(str) => {
+    //       str.type_def.ty.prefix("Inner");
+    //     }
+    //     XsdElement::Enum(en) => {
+    //       en.type_def.ty.prefix("Inner");
+    //     }
+    //     XsdElement::Type(ty) => {
+    //       ty.prefix("Inner");
+    //     }
+    //     _ => {}
+    //   }
+
+    //   Ok(XsdImpl {
+    //     name: xml_name,
+    //     fieldname_hint: Some(to_field_name(&struct_name)),
+    //     element: XsdElement::Struct(
+    //       Struct::new(&struct_name)
+    //         .push_field(Field::new(
+    //           "inner",
+    //           Type::new(&inner_enum.element.get_type().wrap("Option").to_string()),
+    //         ))
+    //         .to_owned(),
+    //     ),
+    //     inner: vec![inner_enum],
+    //     implementation: vec![],
+    //   })
+    // } else {
+    //   Ok(outer_enum)
+    // };
+
+    Ok(generated_impl)
   }
 }

@@ -1,5 +1,8 @@
 use super::{
-  attribute_group::AttributeGroup, choice::Choice, group::Group, xsd_context::to_field_name,
+  attribute_group::AttributeGroup,
+  choice::Choice,
+  group::Group,
+  xsd_context::{infer_type_name, to_field_name},
   XMLElementWrapper, XsdError,
 };
 use crate::{
@@ -94,55 +97,102 @@ impl ComplexType {
   }
 
   #[tracing::instrument(skip_all)]
-  pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
-    let name = self.name.clone().unwrap_or_else(|| "temp".to_string());
+  pub fn get_implementation(
+    &self,
+    parent_is_schema: bool,
+    parent_name: Option<XsdName>,
+    context: &mut XsdContext,
+  ) -> Result<XsdImpl, XsdError> {
+    let struct_id = self
+      .name
+      .as_ref()
+      .map(|v| XsdName::new(&v))
+      .or_else(|| parent_name);
 
-    let struct_id = XsdName {
-      namespace: None,
-      local_name: name.clone(),
-    };
+    let xml_name = struct_id.clone();
 
-    let mut generated_impl = match (
+    let generated_impl = match (
       &self.complex_content,
       &self.simple_content,
       &self.group,
       &self.sequence,
     ) {
       (Some(complex_content), None, None, None) => {
-        complex_content.get_implementation(struct_id, context)
+        Some(complex_content.get_implementation(struct_id.unwrap(), context)?)
       }
       (None, Some(simple_content), None, None) => {
-        simple_content.get_implementation(struct_id, context)
+        Some(simple_content.get_implementation(struct_id.unwrap(), context)?)
       }
-      (None, None, Some(group), None) => group.get_implementation(Some(struct_id), context),
-      (None, None, None, Some(sequence)) => sequence.get_implementation(Some(struct_id), context),
-      (None, None, None, None) => Ok(XsdImpl {
-        name: struct_id,
-        element: XsdElement::Struct(Struct::new(&to_struct_name(&name))),
-        fieldname_hint: Some(to_field_name(&name)),
+      (None, None, Some(group), None) => Some(group.get_implementation(struct_id, context)?),
+      (None, None, None, Some(sequence)) => Some(sequence.get_implementation(struct_id, context)?),
+      (None, None, None, None) => None,
+      _ => unreachable!("Xsd is invalid."),
+    };
+
+    let mut generated_impls = vec![];
+
+    for attribute in &self.attributes {
+      if let Some(generated) = attribute.get_implementation(context)? {
+        generated_impls.push(generated);
+      }
+    }
+
+    for g in &self.attribute_groups {
+      generated_impls.push(g.get_implementation(xml_name.clone(), context)?);
+    }
+
+    let mut generated_impl = if let Some(generated_impl) = generated_impl {
+      if !generated_impls.is_empty() || parent_is_schema {
+        if let XsdElement::Field(_) | XsdElement::Type(_) = generated_impl.element {
+          let name = xml_name.unwrap_or_else(|| XsdName::new(&infer_type_name(&generated_impls)));
+          let mut new_gen = XsdImpl {
+            name,
+            element: XsdElement::Struct(
+              Struct::new(&generated_impl.element.get_type().name)
+                .vis("pub")
+                .to_owned(),
+            ),
+            fieldname_hint: None,
+            implementation: vec![],
+            inner: vec![],
+          };
+
+          new_gen.merge(generated_impl, MergeSettings::default());
+
+          new_gen
+        } else {
+          generated_impl
+        }
+      } else {
+        generated_impl
+      }
+    } else {
+      let name = xml_name.unwrap_or_else(|| XsdName::new(&infer_type_name(&generated_impls)));
+      XsdImpl {
+        element: XsdElement::Struct(Struct::new(&name.to_struct_name()).vis("pub").to_owned()),
+        name,
+        fieldname_hint: None,
         implementation: vec![],
         inner: vec![],
-      }),
-      _ => unreachable!("Xsd is invalid."),
-    }?;
+      }
+    };
+
+    for i in generated_impls {
+      generated_impl.merge(
+        i,
+        MergeSettings {
+          conflict_prefix: Some("attr_"),
+          merge_type: crate::xsd::xsd_context::MergeType::Structs,
+        },
+      );
+    }
 
     let docs = self
       .annotation
       .as_ref()
       .map(|annotation| annotation.get_doc())
       .unwrap_or_default();
-
-    for attribute in &self.attributes {
-      if let Some(generated) = attribute.get_implementation(context)? {
-        generated_impl.merge(
-          generated,
-          MergeSettings {
-            conflict_prefix: Some("attr_"),
-            merge_type: crate::xsd::xsd_context::MergeType::Structs,
-          },
-        );
-      }
-    }
+    generated_impl.element.add_doc(&docs.join(""));
 
     Ok(generated_impl)
   }

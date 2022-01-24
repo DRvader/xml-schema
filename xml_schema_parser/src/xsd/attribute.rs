@@ -37,7 +37,7 @@ impl FromStr for Required {
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     match s {
       "optional" => Ok(Required::Optional),
-      "required" => Ok(Required::Optional),
+      "required" => Ok(Required::Required),
       err => Err(format!(
         "{} is not a valid value for optional|required",
         err
@@ -146,10 +146,7 @@ impl Attribute {
     };
 
     let generated_impl = XsdImpl {
-      element: XsdElement::Field(Field::new(
-        &to_field_name(self.name.as_ref().unwrap()),
-        rust_type,
-      )),
+      element: XsdElement::Type(rust_type),
       name: XsdName::new(self.name.as_ref().unwrap()),
       fieldname_hint: Some(to_field_name(self.name.as_ref().unwrap())),
       inner: vec![],

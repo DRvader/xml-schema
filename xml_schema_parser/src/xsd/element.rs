@@ -75,9 +75,7 @@ impl Element {
       r#final: element.try_get_attribute("final")?,
       block: element.try_get_attribute("block")?,
       min_occurences: element.try_get_attribute("minOccurs")?.unwrap_or(1),
-      max_occurences: element
-        .try_get_attribute("maxOccurs")?
-        .unwrap_or(MaxOccurences::Number { value: 1 }),
+      max_occurences: element.get_attribute_default("maxOccurs")?,
       complex_type,
       simple_type,
       annotation,
@@ -91,8 +89,8 @@ impl Element {
   fn is_multiple(&self) -> bool {
     (match &self.max_occurences {
       MaxOccurences::Unbounded => true,
-      MaxOccurences::Number { value } => *value > 0,
-    }) || self.min_occurences > 0
+      MaxOccurences::Number { value } => *value > 1,
+    }) || self.min_occurences > 1
   }
 
   fn could_be_none(&self) -> bool {
@@ -111,15 +109,21 @@ impl Element {
     // Now we will generate and return a struct which contains the data declared in the element.
     // TODO(drosen): Simplify output if element is trivial (e.g. simpleType).
 
-    let mut ty_impl = match (&self.simple_type, &self.complex_type) {
-      (None, Some(complex_type)) => complex_type.get_implementation(context)?,
+    let mut generated_struct = match (&self.simple_type, &self.complex_type) {
+      (None, Some(complex_type)) => {
+        complex_type.get_implementation(false, Some(XsdName::new(&xml_name)), context)?
+      }
       (Some(simple_type), None) => simple_type.get_implementation(context)?,
       (None, None) => {
         if self.kind.is_none() {
           return Ok(XsdImpl {
             name: XsdName::new(&xml_name),
             fieldname_hint: Some(to_field_name(&xml_name)),
-            element: XsdElement::Struct(Struct::new(&to_struct_name(&xml_name))),
+            element: XsdElement::Struct(
+              Struct::new(&to_struct_name(&xml_name))
+                .vis("pub")
+                .to_owned(),
+            ),
             inner: vec![],
             implementation: vec![],
           });
@@ -127,7 +131,13 @@ impl Element {
           .structs
           .get(&XsdName::new(self.kind.as_ref().unwrap()))
         {
-          imp.clone()
+          XsdImpl {
+            name: XsdName::new(&xml_name),
+            fieldname_hint: Some(to_field_name(&xml_name)),
+            element: XsdElement::Type(imp.element.get_type()),
+            inner: vec![],
+            implementation: vec![],
+          }
         } else {
           return Err(XsdError::XsdImplNotFound(XsdName::new(&xml_name)));
         }
@@ -140,64 +150,40 @@ impl Element {
       }
     };
 
-    let initial_field_name = to_field_name(&xml_name);
+    let field_name = to_field_name(&xml_name);
+    let mut field_type = generated_struct.element.get_type();
+
+    let docs = self
+      .annotation
+      .as_ref()
+      .map(|annotation| annotation.get_doc());
+    if let Some(docs) = docs {
+      generated_struct.element.add_doc(&docs.join(""));
+    }
 
     let generated_struct = if self.is_multiple() || self.could_be_none() {
-      let field_name = if self.is_multiple() {
-        format!("{}s", initial_field_name)
-      } else {
-        initial_field_name.clone()
-      };
-
-      let mut field_type = ty_impl.element.get_type();
-
       if self.is_multiple() {
         field_type.wrap("Vec");
       } else if self.could_be_none() {
         field_type.wrap("Option");
       }
 
-      if self.could_be_none() {
-        field_type.wrap("Option");
-      }
-
-      // TODO(drosen): Gen parse function for this case!
-
-      XsdImpl {
+      let mut output = XsdImpl {
         name: XsdName::new(&xml_name),
-        fieldname_hint: Some(initial_field_name),
-        element: XsdElement::Struct(
-          Struct::new(&type_name)
-            .push_field(Field::new(&field_name, field_type).vis("pub").to_owned())
-            .to_owned(),
-        ),
+        fieldname_hint: Some(field_name),
+        element: XsdElement::Type(field_type).to_owned(),
         inner: vec![],
         implementation: vec![],
+      };
+
+      match generated_struct.element {
+        XsdElement::Struct(_) | XsdElement::Enum(_) => output.inner.push(generated_struct),
+        _ => {}
       }
+
+      output
     } else {
-      let docs = self
-        .annotation
-        .as_ref()
-        .map(|annotation| annotation.get_doc());
-
-      if let Some(docs) = docs {
-        match &mut ty_impl.element {
-          XsdElement::Struct(str) => {
-            str.doc(&docs.as_slice().join(""));
-          }
-          XsdElement::Enum(en) => {
-            en.doc(&docs.as_slice().join(""));
-          }
-          XsdElement::Field(field) => {
-            field.doc(vec![&docs.as_slice().join("")]);
-          }
-          XsdElement::Type(_) => {
-            unreachable!()
-          }
-        }
-      }
-
-      ty_impl
+      generated_struct
     };
 
     Ok(generated_struct)

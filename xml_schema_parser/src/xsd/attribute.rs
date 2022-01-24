@@ -5,7 +5,7 @@ use super::{
   XMLElementWrapper, XsdError,
 };
 use crate::{
-  codegen::{Field, Struct, Type},
+  codegen::{Field, Impl, Struct, Type},
   xsd::{simple_type::SimpleType, XsdContext},
 };
 
@@ -144,6 +144,18 @@ impl Attribute {
     } else {
       rust_type.element.get_type()
     };
+
+    let mut r#impl = Impl::new(&rust_type);
+
+    let parse = r#impl.new_fn("parse");
+    parse.arg("mut element", "XMLElementWrapper");
+    parse.ret("Result<Self, XsdError>");
+
+    parse.line(format!(
+      "element.get_attribute(\"{}\")",
+      self.name.as_ref().unwrap()
+    ));
+    parse.line("Ok(output)");
 
     let generated_impl = XsdImpl {
       element: XsdElement::Type(rust_type),

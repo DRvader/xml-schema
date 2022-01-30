@@ -84,14 +84,14 @@ impl XsdElement {
     }
   }
 
-  pub fn get_last_added_field(&self) -> Option<String> {
+  pub fn get_last_added_field(&self) -> Option<(String, String)> {
     match self {
       XsdElement::Struct(a) => match &a.fields {
-        crate::codegen::Fields::Tuple(a) => a.last().map(|v| v.1.name.clone()),
-        crate::codegen::Fields::Named(a) => a.last().map(|v| v.name.clone()),
+        crate::codegen::Fields::Tuple(a) => a.last().map(|v| (v.1.name.clone(), v.1.name.clone())),
+        crate::codegen::Fields::Named(a) => a.last().map(|v| (v.name.clone(), v.ty.to_string())),
         _ => None,
       },
-      XsdElement::Enum(a) => a.variants.last().map(|v| v.name.clone()),
+      XsdElement::Enum(a) => a.variants.last().map(|v| (v.name.clone(), v.name.clone())),
       XsdElement::Field(_) => None,
       XsdElement::Type(_) => None,
     }
@@ -710,7 +710,7 @@ impl XsdContext {
                   ("IDREF", "String"),
                   ("IDREFS", "String"),
                   ("anyType", "String"),
-                  ("date", "chrono::Date"),
+                  ("date", "chrono::Date<chrono::Utc>"),
                 ]
                 .map(|(n, t)| impl_basic_type(n, t)),
               ),

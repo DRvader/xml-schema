@@ -88,7 +88,7 @@ impl Choice {
       name: xml_name,
       element: XsdElement::Enum(
         Enum::new(&struct_name)
-          .derives(&["Clone", "Debug", "Default", "PartialEq"])
+          .derives(&["Clone", "Debug", "PartialEq"])
           .vis("pub")
           .to_owned(),
       ),

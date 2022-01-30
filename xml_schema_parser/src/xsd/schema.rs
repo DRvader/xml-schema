@@ -225,7 +225,7 @@ impl Schema {
     }
 
     let mut dst = String::new();
-    dst.push_str("use xml_schema_parser::{XsdError, XMLElementWrapper};\n\n");
+    dst.push_str("use xml_schema_parser::{XsdError, XMLElementWrapper, XsdParse};\n\n");
     let mut formatter = crate::codegen::Formatter::new(&mut dst);
     for name in top_level_names {
       context
@@ -236,7 +236,7 @@ impl Schema {
         .unwrap();
     }
 
-    std::fs::write("tmp.log", &dst);
+    std::fs::write("../../musicxml-rs/src/musicxml_sys/musicxml.rs", &dst).unwrap();
 
     Ok(dst)
   }

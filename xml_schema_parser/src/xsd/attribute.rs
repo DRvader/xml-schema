@@ -25,7 +25,7 @@ pub struct Attribute {
   pub simple_type: Option<SimpleType>,
 }
 
-#[derive(Clone, Debug, PartialEq, YaDeserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Required {
   Optional,
   Required,
@@ -118,8 +118,32 @@ impl Attribute {
           namespace: None,
           local_name: reference.clone(),
         };
-        if let Some(str) = context.structs.get(&name) {
-          str.clone()
+        if let Some(inner) = context.structs.get(&name) {
+          let field_name = if let Some(name) = &self.name {
+            to_field_name(name)
+          } else if let Some(field_hint) = &inner.fieldname_hint {
+            field_hint.clone()
+          } else {
+            to_field_name(&inner.infer_type_name())
+          };
+
+          let name = if let Some(name) = &self.name {
+            XsdName::new(name)
+          } else {
+            XsdName::new(&inner.infer_type_name())
+          };
+
+          XsdImpl {
+            name,
+            element: XsdElement::Field(
+              Field::new(&field_name, inner.element.get_type())
+                .vis("pub")
+                .to_owned(),
+            ),
+            fieldname_hint: Some(field_name.to_string()),
+            inner: vec![],
+            implementation: vec![],
+          }
         } else {
           return Err(XsdError::XsdImplNotFound(name));
         }
@@ -129,8 +153,32 @@ impl Attribute {
           namespace: None,
           local_name: kind.clone(),
         };
-        if let Some(str) = context.structs.get(&name) {
-          str.clone()
+        if let Some(inner) = context.structs.get(&name) {
+          let field_name = if let Some(name) = &self.name {
+            to_field_name(name)
+          } else if let Some(field_hint) = &inner.fieldname_hint {
+            field_hint.clone()
+          } else {
+            to_field_name(&inner.infer_type_name())
+          };
+
+          let name = if let Some(name) = &self.name {
+            XsdName::new(name)
+          } else {
+            XsdName::new(&inner.infer_type_name())
+          };
+
+          XsdImpl {
+            name,
+            element: XsdElement::Field(
+              Field::new(&field_name, inner.element.get_type())
+                .vis("pub")
+                .to_owned(),
+            ),
+            fieldname_hint: Some(field_name.to_string()),
+            inner: vec![],
+            implementation: vec![],
+          }
         } else {
           return Err(XsdError::XsdImplNotFound(name));
         }

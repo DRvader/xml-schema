@@ -52,6 +52,8 @@ impl Union {
 
     let mut output = Block::new("let output = ").after(";").to_owned();
 
+    output.line("let mut oks = vec![];");
+
     let mut names = Vec::new();
     for (index, member) in self.member_types.iter().enumerate() {
       if let Some(imp) = context.structs.get(&XsdName::new(member)) {
@@ -77,7 +79,7 @@ impl Union {
       ));
     }
 
-    output.line("if oks.len() > 1 { return Err(XsdError::XsdGenError { name: element.name, msg: format!(\"{} were able to be parsed.\", oks.join(\", \")) }); }");
+    output.line("if oks.len() > 1 { return Err(XsdError::XsdGenError { node_name: element.name, msg: format!(\"{} were able to be parsed.\", oks.join(\", \")) }); }");
 
     let mut match_block = Block::new(&format!(
       "match ({})",
@@ -101,28 +103,22 @@ impl Union {
       (0..self.member_types.len())
         .map(|_| "None")
         .collect::<Vec<_>>()
-        .join(", "))).line("return Err(XsdError::XsdGenError { name: element.name, msg: format!(\"No valid values could be parsed.\") });").to_owned()
+        .join(", "))).line("return Err(XsdError::XsdGenError { node_name: element.name, msg: format!(\"No valid values could be parsed.\") });").to_owned()
     );
     match_block.line("_ => unreachable!()");
 
     output.push_block(match_block);
 
-    let mut r#impl = Impl::new(generated_enum.ty())
-      .impl_trait("ParseXsd")
-      .to_owned();
+    let mut r#impl = Impl::new(generated_enum.ty()).to_owned();
 
     let parse = r#impl.new_fn("parse");
     parse.arg("mut element", "XMLElementWrapper");
     parse.ret("Result<Self, XsdError>");
 
-    parse.push_block(
-      Block::new("")
-        .push_block(output)
-        .to_owned()
-        .line("element.finalize(false, false)?;")
-        .line("Ok(output)")
-        .to_owned(),
-    );
+    parse.push_block(output);
+
+    parse.line("element.finalize(false, false)?;");
+    parse.line("Ok(output)");
 
     Ok(XsdImpl {
       fieldname_hint: Some(parent_name.to_field_name()),

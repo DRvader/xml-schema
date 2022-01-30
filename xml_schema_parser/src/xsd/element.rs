@@ -1,5 +1,5 @@
 use crate::{
-  codegen::{Field, Struct},
+  codegen::{Block, Field, Function, Impl, Struct},
   xsd::{
     annotation::Annotation,
     complex_type::ComplexType,
@@ -162,26 +162,55 @@ impl Element {
     }
 
     let generated_struct = if self.is_multiple() || self.could_be_none() {
+      let old_type = field_type.to_string();
       if self.is_multiple() {
         field_type.wrap("Vec");
       } else if self.could_be_none() {
         field_type.wrap("Option");
       }
 
-      let mut output = XsdImpl {
+      let mut output_struct = XsdImpl {
         name: XsdName::new(&xml_name),
-        fieldname_hint: Some(field_name),
+        fieldname_hint: Some(field_name.clone()),
         element: XsdElement::Type(field_type).to_owned(),
         inner: vec![],
         implementation: vec![],
       };
 
+      let mut r#impl = Impl::new(output_struct.element.get_type())
+        .impl_trait("XsdParse")
+        .to_owned();
+
+      let mut parse = Function::new("parse");
+      parse.arg("element", "&mut XMLElementWrapper");
+      parse.ret("Result<Self, XsdError>");
+
+      let mut output = Block::new("let output = Self").after(";").to_owned();
+
+      if self.is_multiple() {
+        output.line(&format!(
+          "{field_name}: element.try_get_children_with({xml_name}, |v| XsdParse::parse(v))?,"
+        ));
+      } else if self.could_be_none() {
+        output.line(&format!(
+          "{field_name}: element.try_get_child_with({xml_name}, |v| XsdParse::parse(v))?,"
+        ));
+      } else {
+        output.line(&format!("{field_name}: XsdParse::parse(element)?,"));
+      }
+
+      parse.push_block(output);
+      parse.line("Ok(output)");
+      r#impl.push_fn(parse);
+
       match generated_struct.element {
-        XsdElement::Struct(_) | XsdElement::Enum(_) => output.inner.push(generated_struct),
+        XsdElement::Struct(_) | XsdElement::Enum(_) => output_struct.inner.push(generated_struct),
         _ => {}
       }
 
-      output
+      output_struct.implementation.push(r#impl);
+
+      output_struct
     } else {
       generated_struct
     };

@@ -141,12 +141,12 @@ impl Sequence {
       .ret("Result<Self, XsdError>")
       .to_owned();
 
-    for field in &parsable_fields {
-      value.line(format!("let {field} = {field}.parse(element)?;"));
+    for (field, ty) in &parsable_fields {
+      value.line(format!("let {field} = XsdParse::parse(element)?;"));
     }
 
     let mut block = Block::new("let output = Self").after(";").to_owned();
-    for field in parsable_fields {
+    for (field, _) in parsable_fields {
       block.line(format!("{field},"));
     }
     value.push_block(block.to_owned());

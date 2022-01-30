@@ -72,20 +72,41 @@ impl Group {
   ) -> Result<XsdImpl, XsdError> {
     match (&self.name, &parent_name, &self.refers) {
       (Some(name), _, None) => match (&self.choice, &self.sequence) {
-        (None, Some(sequence)) => sequence.get_implementation(
-          Some(XsdName {
-            namespace: None,
-            local_name: name.clone(),
-          }),
-          context,
-        ),
-        (Some(choice), None) => choice.get_implementation(
-          Some(XsdName {
-            namespace: None,
-            local_name: name.clone(),
-          }),
-          context,
-        ),
+        (None, Some(sequence)) => {
+          let mut seq = sequence.get_implementation(
+            Some(XsdName {
+              namespace: None,
+              local_name: name.clone(),
+            }),
+            context,
+          )?;
+          let ty = format!("Group{}", seq.element.get_type().to_string());
+          seq.element.set_type(ty.clone());
+
+          for i in &mut seq.implementation {
+            i.target = ty.clone().into();
+          }
+
+          Ok(seq)
+        }
+        (Some(choice), None) => {
+          let mut choice = choice.get_implementation(
+            Some(XsdName {
+              namespace: None,
+              local_name: name.clone(),
+            }),
+            context,
+          )?;
+
+          let ty = format!("Group{}", choice.element.get_type().to_string());
+          choice.element.set_type(ty.clone());
+
+          for i in &mut choice.implementation {
+            i.target = ty.clone().into();
+          }
+
+          Ok(choice)
+        }
         _ => unreachable!("The Xsd is invalid!"),
       },
       (None, _, Some(refers)) => {

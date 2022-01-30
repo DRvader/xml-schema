@@ -20,4 +20,5 @@ When name is not available.
 When ref is not available the name is both the typename and fieldname.
 When ref is available the name is the fieldname; ref is the typename
 
-New codegen system that allows me to declare variables.
+Rewrite system, parent names are just strings.
+XsdElementRef is a name, the XsdType and the namespace

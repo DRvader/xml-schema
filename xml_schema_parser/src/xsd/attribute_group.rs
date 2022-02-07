@@ -6,7 +6,7 @@ use crate::{
 use super::{
   annotation::Annotation,
   xsd_context::{
-    to_field_name, to_struct_name, MergeSettings, XsdContext, XsdElement, XsdImpl, XsdName,
+    to_field_name, to_struct_name, MergeSettings, XsdContext, XsdElement, XsdImpl, XsdName, XsdType,
   },
   XMLElementWrapper, XsdError,
 };
@@ -69,6 +69,7 @@ impl AttributeGroup {
         let name = XsdName {
           namespace: None,
           local_name: refers.to_string(),
+          ty: XsdType::AttributeGroup,
         };
         let inner = if let Some(imp) = context.structs.get(&name) {
           imp
@@ -87,7 +88,11 @@ impl AttributeGroup {
         let name = if let Some(parent_name) = parent_name {
           parent_name
         } else {
-          XsdName::new(&inner.infer_type_name())
+          XsdName {
+            namespace: None,
+            local_name: inner.infer_type_name(),
+            ty: XsdType::AttributeGroup,
+          }
         };
 
         Ok(XsdImpl {
@@ -109,7 +114,11 @@ impl AttributeGroup {
           .unwrap_or_else(|| &parent_name.as_ref().unwrap().local_name);
 
         let mut generated_struct = XsdImpl {
-          name: XsdName::new(xml_name),
+          name: XsdName {
+            namespace: None,
+            local_name: xml_name.to_string(),
+            ty: XsdType::AttributeGroup,
+          },
           fieldname_hint: Some(to_field_name(xml_name)),
           element: XsdElement::Struct(
             Struct::new(&format!("Group{}", to_struct_name(xml_name)))
@@ -123,7 +132,11 @@ impl AttributeGroup {
         let mut fields = vec![];
 
         if let Some(reference) = &self.reference {
-          let name = XsdName::new(reference);
+          let name = XsdName {
+            namespace: None,
+            local_name: reference.to_string(),
+            ty: XsdType::AttributeGroup,
+          };
           // We are using a reference as a base so load the reference
           if let Some(imp) = context.structs.get(&name) {
             let value = XsdImpl {

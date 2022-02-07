@@ -4,7 +4,7 @@ use crate::{
 };
 
 use super::{
-  xsd_context::{XsdElement, XsdImpl, XsdName},
+  xsd_context::{XsdElement, XsdImpl, XsdName, XsdType},
   XMLElementWrapper, XsdError,
 };
 
@@ -55,7 +55,10 @@ impl List {
     parse_fn.line(format!("Ok({struct_name}(output))"));
 
     Ok(XsdImpl {
-      name: name.clone(),
+      name: XsdName {
+        ty: XsdType::List,
+        ..name.clone()
+      },
       fieldname_hint: Some(name.to_field_name()),
       element: XsdElement::Struct(generated_struct.clone()),
       inner: vec![],
@@ -81,7 +84,14 @@ mod tests {
     };
 
     let value = list_type
-      .get_implementation(XsdName::new("parent"), &mut context)
+      .get_implementation(
+        XsdName {
+          namespace: None,
+          local_name: "parent".to_string(),
+          ty: XsdType::List,
+        },
+        &mut context,
+      )
       .unwrap()
       .to_string()
       .unwrap();

@@ -22,3 +22,5 @@ When ref is available the name is the fieldname; ref is the typename
 
 Rewrite system, parent names are just strings.
 XsdElementRef is a name, the XsdType and the namespace
+
+Fix the element lookup, figure out any easy way to search for multiple types at once.

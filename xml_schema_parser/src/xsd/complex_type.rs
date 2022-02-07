@@ -2,7 +2,7 @@ use super::{
   attribute_group::AttributeGroup,
   choice::Choice,
   group::Group,
-  xsd_context::{infer_type_name, to_field_name},
+  xsd_context::{infer_type_name, to_field_name, XsdType},
   XMLElementWrapper, XsdError,
 };
 use crate::{
@@ -106,7 +106,11 @@ impl ComplexType {
     let struct_id = self
       .name
       .as_ref()
-      .map(|v| XsdName::new(&v))
+      .map(|v| XsdName {
+        namespace: None,
+        local_name: v.clone(),
+        ty: XsdType::ComplexType,
+      })
       .or_else(|| parent_name);
 
     let xml_name = struct_id.clone();
@@ -144,7 +148,11 @@ impl ComplexType {
     let mut generated_impl = if let Some(generated_impl) = generated_impl {
       if !generated_impls.is_empty() || parent_is_schema {
         if let XsdElement::Field(_) | XsdElement::Type(_) = generated_impl.element {
-          let name = xml_name.unwrap_or_else(|| XsdName::new(&infer_type_name(&generated_impls)));
+          let name = xml_name.unwrap_or_else(|| XsdName {
+            namespace: None,
+            local_name: infer_type_name(&generated_impls),
+            ty: XsdType::ComplexType,
+          });
           let mut new_gen = XsdImpl {
             name,
             element: XsdElement::Struct(
@@ -167,7 +175,11 @@ impl ComplexType {
         generated_impl
       }
     } else {
-      let name = xml_name.unwrap_or_else(|| XsdName::new(&infer_type_name(&generated_impls)));
+      let name = xml_name.unwrap_or_else(|| XsdName {
+        namespace: None,
+        local_name: infer_type_name(&generated_impls),
+        ty: XsdType::ComplexType,
+      });
       XsdImpl {
         element: XsdElement::Struct(Struct::new(&name.to_struct_name()).vis("pub").to_owned()),
         name,

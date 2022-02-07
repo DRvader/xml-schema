@@ -7,7 +7,7 @@ use super::{
   sequence::Sequence,
   xsd_context::{
     infer_type_name, to_field_name, to_struct_name, MergeSettings, XsdContext, XsdElement, XsdImpl,
-    XsdName,
+    XsdName, XsdType,
   },
   XMLElementWrapper, XsdError,
 };
@@ -73,7 +73,11 @@ impl Choice {
     let xml_name = if let Some(parent_name) = parent_name.clone() {
       parent_name
     } else {
-      XsdName::new(&inferred_name)
+      XsdName {
+        namespace: None,
+        local_name: inferred_name.clone(),
+        ty: XsdType::Choice,
+      }
     };
 
     let struct_name = if let Some(parent_name) = parent_name {

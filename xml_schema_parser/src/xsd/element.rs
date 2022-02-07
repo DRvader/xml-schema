@@ -11,7 +11,7 @@ use crate::{
 };
 
 use super::{
-  xsd_context::{to_field_name, to_struct_name},
+  xsd_context::{to_field_name, to_struct_name, XsdType},
   XMLElementWrapper,
 };
 
@@ -110,14 +110,24 @@ impl Element {
     // TODO(drosen): Simplify output if element is trivial (e.g. simpleType).
 
     let mut generated_struct = match (&self.simple_type, &self.complex_type) {
-      (None, Some(complex_type)) => {
-        complex_type.get_implementation(false, Some(XsdName::new(&xml_name)), context)?
-      }
+      (None, Some(complex_type)) => complex_type.get_implementation(
+        false,
+        Some(XsdName {
+          namespace: None,
+          local_name: xml_name.clone(),
+          ty: XsdType::Element,
+        }),
+        context,
+      )?,
       (Some(simple_type), None) => simple_type.get_implementation(context)?,
       (None, None) => {
         if self.kind.is_none() {
           return Ok(XsdImpl {
-            name: XsdName::new(&xml_name),
+            name: XsdName {
+              namespace: None,
+              local_name: xml_name.clone(),
+              ty: XsdType::Element,
+            },
             fieldname_hint: Some(to_field_name(&xml_name)),
             element: XsdElement::Struct(
               Struct::new(&to_struct_name(&xml_name))
@@ -127,19 +137,28 @@ impl Element {
             inner: vec![],
             implementation: vec![],
           });
-        } else if let Some(imp) = context
-          .structs
-          .get(&XsdName::new(self.kind.as_ref().unwrap()))
-        {
+        } else if let Some(imp) = context.structs.get(&XsdName {
+          namespace: None,
+          local_name: self.kind.clone().unwrap(),
+          ty: XsdType::Element,
+        }) {
           XsdImpl {
-            name: XsdName::new(&xml_name),
+            name: XsdName {
+              namespace: None,
+              local_name: xml_name.clone(),
+              ty: XsdType::Element,
+            },
             fieldname_hint: Some(to_field_name(&xml_name)),
             element: XsdElement::Type(imp.element.get_type()),
             inner: vec![],
             implementation: vec![],
           }
         } else {
-          return Err(XsdError::XsdImplNotFound(XsdName::new(&xml_name)));
+          return Err(XsdError::XsdImplNotFound(XsdName {
+            namespace: None,
+            local_name: xml_name.clone(),
+            ty: XsdType::Element,
+          }));
         }
       }
       _ => {
@@ -170,7 +189,11 @@ impl Element {
       }
 
       let mut output_struct = XsdImpl {
-        name: XsdName::new(&xml_name),
+        name: XsdName {
+          namespace: None,
+          local_name: xml_name.clone(),
+          ty: XsdType::Element,
+        },
         fieldname_hint: Some(field_name.clone()),
         element: XsdElement::Type(field_type).to_owned(),
         inner: vec![],

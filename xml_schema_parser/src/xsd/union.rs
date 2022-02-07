@@ -2,7 +2,7 @@ use crate::codegen::{Block, Enum, Impl};
 
 use super::{
   simple_type::SimpleType,
-  xsd_context::{to_struct_name, XsdContext, XsdElement, XsdImpl, XsdName},
+  xsd_context::{to_struct_name, XsdContext, XsdElement, XsdImpl, XsdName, XsdType},
   XMLElementWrapper, XsdError,
 };
 
@@ -40,7 +40,7 @@ impl Union {
   #[tracing::instrument(skip_all)]
   pub fn get_implementation(
     &self,
-    parent_name: XsdName,
+    mut parent_name: XsdName,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
     let mut generated_enum = Enum::new(&parent_name.to_struct_name())
@@ -56,7 +56,11 @@ impl Union {
 
     let mut names = Vec::new();
     for (index, member) in self.member_types.iter().enumerate() {
-      if let Some(imp) = context.structs.get(&XsdName::new(member)) {
+      if let Some(imp) = context.structs.get(&XsdName {
+        namespace: None,
+        local_name: member.clone(),
+        ty: super::xsd_context::XsdType::SimpleType,
+      }) {
         let st_name = to_struct_name(&imp.element.get_type().name);
         generated_enum
           .new_variant(&st_name)
@@ -119,6 +123,8 @@ impl Union {
 
     parse.line("element.finalize(false, false)?;");
     parse.line("Ok(output)");
+
+    parent_name.ty = XsdType::Union;
 
     Ok(XsdImpl {
       fieldname_hint: Some(parent_name.to_field_name()),

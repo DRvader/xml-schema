@@ -77,6 +77,7 @@ impl Group {
             Some(XsdName {
               namespace: None,
               local_name: name.clone(),
+              ty: super::xsd_context::XsdType::Group,
             }),
             context,
           )?;
@@ -94,6 +95,7 @@ impl Group {
             Some(XsdName {
               namespace: None,
               local_name: name.clone(),
+              ty: super::xsd_context::XsdType::Group,
             }),
             context,
           )?;
@@ -113,6 +115,7 @@ impl Group {
         let name = XsdName {
           namespace: None,
           local_name: refers.to_string(),
+          ty: super::xsd_context::XsdType::Group,
         };
         let inner = if let Some(imp) = context.structs.get(&name) {
           imp
@@ -131,7 +134,11 @@ impl Group {
         let name = if let Some(parent_name) = parent_name {
           parent_name
         } else {
-          XsdName::new(&inner.infer_type_name())
+          XsdName {
+            namespace: None,
+            local_name: inner.infer_type_name(),
+            ty: super::xsd_context::XsdType::Group,
+          }
         };
 
         Ok(XsdImpl {

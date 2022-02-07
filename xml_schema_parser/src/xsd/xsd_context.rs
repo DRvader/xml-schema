@@ -13,9 +13,30 @@ use crate::codegen::{Field, Impl};
 use super::XsdError;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum XsdType {
+  Annotation,
+  AttributeGroup,
+  Attribute,
+  Choice,
+  ComplexContent,
+  ComplexType,
+  Element,
+  Extension,
+  Group,
+  Import,
+  List,
+  Restriction,
+  Sequence,
+  SimpleContent,
+  SimpleType,
+  Union,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct XsdName {
   pub namespace: Option<String>,
   pub local_name: String,
+  pub ty: XsdType,
 }
 
 impl std::fmt::Display for XsdName {
@@ -29,13 +50,6 @@ impl std::fmt::Display for XsdName {
 }
 
 impl XsdName {
-  pub fn new(name: &str) -> Self {
-    Self {
-      namespace: None,
-      local_name: name.to_string(),
-    }
-  }
-
   pub fn to_struct_name(&self) -> String {
     to_struct_name(&self.local_name)
   }
@@ -286,7 +300,11 @@ impl XsdImpl {
   }
 
   pub fn set_name(&mut self, name: &str) {
-    self.name = XsdName::new(name);
+    self.name = XsdName {
+      namespace: None,
+      local_name: name.to_string(),
+      ty: self.name.ty.clone(),
+    };
 
     let ty = to_struct_name(name);
     self.element.set_type(ty.clone());
@@ -653,6 +671,7 @@ impl XsdContext {
                   if xml_schema_prefix.is_some() { ":" } else { "" },
                   name
                 ),
+                ty: XsdType::SimpleType,
               };
 
               // let mut r#impl = Impl::new(ty).impl_trait("ParseXsd").to_owned();

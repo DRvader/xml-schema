@@ -8,7 +8,7 @@ use super::{
   attribute_group::AttributeGroup,
   choice::Choice,
   group::Group,
-  xsd_context::{MergeSettings, XsdElement, XsdImpl, XsdName},
+  xsd_context::{MergeSettings, XsdElement, XsdImpl, XsdName, XsdType},
   XMLElementWrapper, XsdError,
 };
 
@@ -102,6 +102,8 @@ impl Extension {
       }
     }
 
+    generated_impl.name.ty = XsdType::Extension;
+
     Ok(generated_impl)
   }
 }
@@ -122,7 +124,14 @@ mod tests {
         .unwrap();
 
     let value = st
-      .get_implementation(XsdName::new("test"), &mut context)
+      .get_implementation(
+        XsdName {
+          namespace: None,
+          local_name: "test".to_string(),
+          ty: crate::xsd::xsd_context::XsdType::Extension,
+        },
+        &mut context,
+      )
       .unwrap()
       .to_string()
       .unwrap();
@@ -164,7 +173,14 @@ mod tests {
         .unwrap();
 
     let value = st
-      .get_implementation(XsdName::new("test"), &mut context)
+      .get_implementation(
+        XsdName {
+          namespace: None,
+          local_name: "test".to_string(),
+          ty: crate::xsd::xsd_context::XsdType::Extension,
+        },
+        &mut context,
+      )
       .unwrap()
       .to_string()
       .unwrap();

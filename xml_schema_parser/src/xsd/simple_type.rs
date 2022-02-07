@@ -66,6 +66,7 @@ impl SimpleType {
     let name = XsdName {
       namespace: None,
       local_name: self.name.clone().unwrap_or_else(|| "temp".to_string()),
+      ty: super::xsd_context::XsdType::SimpleType,
     };
 
     let mut generated_impl = match (&self.list, &self.union, &self.restriction) {

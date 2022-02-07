@@ -180,12 +180,14 @@ impl Restriction {
     let base_type = context.structs.get(&XsdName {
       namespace: None,
       local_name: self.base.clone(),
+      ty: super::xsd_context::XsdType::SimpleType,
     });
 
     if !context.allow_unknown_type && base_type.is_none() {
       return Err(XsdError::XsdImplNotFound(XsdName {
         namespace: None,
         local_name: self.base.clone(),
+        ty: super::xsd_context::XsdType::SimpleType,
       }));
     }
 
@@ -288,12 +290,14 @@ impl Restriction {
     let base_type = context.structs.get(&XsdName {
       namespace: None,
       local_name: self.base.clone(),
+      ty: super::xsd_context::XsdType::ComplexType,
     });
 
     if !context.allow_unknown_type && base_type.is_none() {
       return Err(XsdError::XsdImplNotFound(XsdName {
         namespace: None,
         local_name: self.base.clone(),
+        ty: super::xsd_context::XsdType::ComplexType,
       }));
     }
 

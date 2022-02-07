@@ -3,7 +3,9 @@ use super::{
   choice::Choice,
   group::Group,
   max_occurences::MaxOccurences,
-  xsd_context::{infer_type_name, to_struct_name, MergeSettings, XsdElement, XsdImpl, XsdName},
+  xsd_context::{
+    infer_type_name, to_struct_name, MergeSettings, XsdElement, XsdImpl, XsdName, XsdType,
+  },
   XMLElementWrapper, XsdError,
 };
 use crate::{
@@ -101,11 +103,16 @@ impl Sequence {
 
     let inferred_name = infer_type_name(&generated_impls);
 
-    let xml_name = if let Some(parent_name) = parent_name.clone() {
+    let mut xml_name = if let Some(parent_name) = parent_name.clone() {
       parent_name
     } else {
-      XsdName::new(&inferred_name)
+      XsdName {
+        namespace: None,
+        local_name: inferred_name.clone(),
+        ty: XsdType::Sequence,
+      }
     };
+    xml_name.ty = XsdType::Sequence;
 
     let struct_name = if let Some(parent_name) = parent_name {
       parent_name.local_name

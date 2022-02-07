@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use super::{
-  xsd_context::{to_field_name, XsdElement, XsdImpl, XsdName},
+  xsd_context::{to_field_name, XsdElement, XsdImpl, XsdName, XsdType},
   XMLElementWrapper, XsdError,
 };
 use crate::{
@@ -117,6 +117,7 @@ impl Attribute {
         let name = XsdName {
           namespace: None,
           local_name: reference.clone(),
+          ty: super::xsd_context::XsdType::Attribute,
         };
         if let Some(inner) = context.structs.get(&name) {
           let field_name = if let Some(name) = &self.name {
@@ -128,9 +129,17 @@ impl Attribute {
           };
 
           let name = if let Some(name) = &self.name {
-            XsdName::new(name)
+            XsdName {
+              namespace: None,
+              local_name: name.to_string(),
+              ty: super::xsd_context::XsdType::Attribute,
+            }
           } else {
-            XsdName::new(&inner.infer_type_name())
+            XsdName {
+              namespace: None,
+              local_name: inner.infer_type_name(),
+              ty: super::xsd_context::XsdType::Attribute,
+            }
           };
 
           XsdImpl {
@@ -152,6 +161,7 @@ impl Attribute {
         let name = XsdName {
           namespace: None,
           local_name: kind.clone(),
+          ty: super::xsd_context::XsdType::SimpleType,
         };
         if let Some(inner) = context.structs.get(&name) {
           let field_name = if let Some(name) = &self.name {
@@ -163,9 +173,17 @@ impl Attribute {
           };
 
           let name = if let Some(name) = &self.name {
-            XsdName::new(name)
+            XsdName {
+              namespace: None,
+              local_name: name.to_string(),
+              ty: XsdType::Attribute,
+            }
           } else {
-            XsdName::new(&inner.infer_type_name())
+            XsdName {
+              namespace: None,
+              local_name: inner.infer_type_name(),
+              ty: XsdType::Attribute,
+            }
           };
 
           XsdImpl {
@@ -207,7 +225,11 @@ impl Attribute {
 
     let generated_impl = XsdImpl {
       element: XsdElement::Type(rust_type),
-      name: XsdName::new(self.name.as_ref().unwrap()),
+      name: XsdName {
+        namespace: None,
+        local_name: self.name.as_ref().unwrap().clone(),
+        ty: XsdType::Attribute,
+      },
       fieldname_hint: Some(to_field_name(self.name.as_ref().unwrap())),
       inner: vec![],
       implementation: vec![],

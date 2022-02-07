@@ -4,7 +4,7 @@ use crate::xsd::{
 };
 use proc_macro2::TokenStream;
 
-use super::{annotation, XMLElementWrapper, XsdError};
+use super::{annotation, xsd_context::XsdType, XMLElementWrapper, XsdError};
 
 #[derive(Clone, Default, Debug, PartialEq)]
 // #[yaserde(
@@ -72,23 +72,68 @@ impl Schema {
 
     let mut simple_type_to_run = (0..self.simple_type.len())
       .into_iter()
-      .map(|i| (i, XsdName::new("")))
+      .map(|i| {
+        (
+          i,
+          XsdName {
+            namespace: None,
+            local_name: String::new(),
+            ty: XsdType::SimpleType,
+          },
+        )
+      })
       .collect::<Vec<_>>();
     let mut attr_group_to_run = (0..self.attribute_group.len())
       .into_iter()
-      .map(|i| (i, XsdName::new("")))
+      .map(|i| {
+        (
+          i,
+          XsdName {
+            namespace: None,
+            local_name: String::new(),
+            ty: XsdType::AttributeGroup,
+          },
+        )
+      })
       .collect::<Vec<_>>();
     let mut group_to_run = (0..self.groups.len())
       .into_iter()
-      .map(|i| (i, XsdName::new("")))
+      .map(|i| {
+        (
+          i,
+          XsdName {
+            namespace: None,
+            local_name: String::new(),
+            ty: XsdType::Group,
+          },
+        )
+      })
       .collect::<Vec<_>>();
     let mut element_to_run = (0..self.elements.len())
       .into_iter()
-      .map(|i| (i, XsdName::new("")))
+      .map(|i| {
+        (
+          i,
+          XsdName {
+            namespace: None,
+            local_name: String::new(),
+            ty: XsdType::Element,
+          },
+        )
+      })
       .collect::<Vec<_>>();
     let mut complex_type_to_run = (0..self.complex_type.len())
       .into_iter()
-      .map(|i| (i, XsdName::new("")))
+      .map(|i| {
+        (
+          i,
+          XsdName {
+            namespace: None,
+            local_name: String::new(),
+            ty: XsdType::ComplexType,
+          },
+        )
+      })
       .collect::<Vec<_>>();
 
     let mut new = vec![];

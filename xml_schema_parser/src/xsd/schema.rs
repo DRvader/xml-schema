@@ -80,6 +80,7 @@ impl Schema {
             local_name: String::new(),
             ty: XsdType::SimpleType,
           },
+          0,
         )
       })
       .collect::<Vec<_>>();
@@ -93,6 +94,7 @@ impl Schema {
             local_name: String::new(),
             ty: XsdType::AttributeGroup,
           },
+          0,
         )
       })
       .collect::<Vec<_>>();
@@ -106,6 +108,7 @@ impl Schema {
             local_name: String::new(),
             ty: XsdType::Group,
           },
+          0,
         )
       })
       .collect::<Vec<_>>();
@@ -119,6 +122,7 @@ impl Schema {
             local_name: String::new(),
             ty: XsdType::Element,
           },
+          0,
         )
       })
       .collect::<Vec<_>>();
@@ -132,6 +136,7 @@ impl Schema {
             local_name: String::new(),
             ty: XsdType::ComplexType,
           },
+          0,
         )
       })
       .collect::<Vec<_>>();
@@ -152,7 +157,7 @@ impl Schema {
           }
           Err(ty) => match ty {
             XsdError::XsdImplNotFound(name) => {
-              new.push((index.0, name));
+              new.push((index.0, name, index.2 + 1));
             }
             _ => return Err(ty),
           },
@@ -173,7 +178,7 @@ impl Schema {
           }
           Err(ty) => match ty {
             XsdError::XsdImplNotFound(name) => {
-              new.push((index.0, name));
+              new.push((index.0, name, index.2 + 1));
             }
             _ => return Err(ty),
           },
@@ -194,7 +199,7 @@ impl Schema {
           }
           Err(ty) => match ty {
             XsdError::XsdImplNotFound(name) => {
-              new.push((index.0, name));
+              new.push((index.0, name, index.2 + 1));
             }
             _ => return Err(ty),
           },
@@ -215,7 +220,7 @@ impl Schema {
           }
           Err(ty) => match ty {
             XsdError::XsdImplNotFound(name) => {
-              new.push((index.0, name));
+              new.push((index.0, name, index.2 + 1));
             }
             _ => return Err(ty),
           },
@@ -236,7 +241,7 @@ impl Schema {
           }
           Err(ty) => match ty {
             XsdError::XsdImplNotFound(name) => {
-              new.push((index.0, name));
+              new.push((index.0, name, index.2 + 1));
             }
             _ => return Err(ty),
           },
@@ -249,20 +254,20 @@ impl Schema {
     }
 
     let mut error = String::new();
-    for (_, v) in simple_type_to_run {
-      error.push_str(&format!("\nsimple_type::{}", v));
+    for (_, v, c) in simple_type_to_run {
+      error.push_str(&format!("\nsimple_type::{v} [{c}]"));
     }
-    for (_, v) in attr_group_to_run {
-      error.push_str(&format!("\nattribute_group::{}", v));
+    for (_, v, c) in attr_group_to_run {
+      error.push_str(&format!("\nattribute_group::{v} [{c}]"));
     }
-    for (_, v) in group_to_run {
-      error.push_str(&format!("\ngroup::{}", v));
+    for (_, v, c) in group_to_run {
+      error.push_str(&format!("\ngroup::{v} [{c}]"));
     }
-    for (_, v) in element_to_run {
-      error.push_str(&format!("\nelement::{}", v));
+    for (_, v, c) in element_to_run {
+      error.push_str(&format!("\nelement::{v} [{c}]"));
     }
-    for (_, v) in complex_type_to_run {
-      error.push_str(&format!("\ncomplex_type::{}", v));
+    for (_, v, c) in complex_type_to_run {
+      error.push_str(&format!("\ncomplex_type::{v} [{c}]"));
     }
 
     if !error.is_empty() {

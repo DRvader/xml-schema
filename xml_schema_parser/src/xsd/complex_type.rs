@@ -206,6 +206,8 @@ impl ComplexType {
       .unwrap_or_default();
     generated_impl.element.add_doc(&docs.join(""));
 
+    generated_impl.name.ty = XsdType::ComplexType;
+
     Ok(generated_impl)
   }
 }

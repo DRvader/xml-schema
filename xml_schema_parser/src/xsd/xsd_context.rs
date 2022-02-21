@@ -12,7 +12,7 @@ use crate::codegen::{Field, Impl};
 
 use super::XsdError;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum XsdType {
   Annotation,
   AttributeGroup,
@@ -636,6 +636,12 @@ impl XsdImpl {
   }
 }
 
+pub enum SearchResult<'a> {
+  MultipleMatches,
+  NoMatches,
+  SingleMatch(&'a XsdImpl),
+}
+
 #[derive(Clone, Debug)]
 pub struct XsdContext {
   module_namespace_mappings: BTreeMap<String, String>,
@@ -744,6 +750,29 @@ impl XsdContext {
     Err(XsdError::XsdParseError(
       "Bad XML Schema, unable to found schema element.".to_string(),
     ))
+  }
+
+  pub fn multi_search(
+    &self,
+    namespace: Option<String>,
+    name: String,
+    types: &[XsdType],
+  ) -> SearchResult {
+    let mut output = SearchResult::NoMatches;
+    for ty in types {
+      if let Some(result) = self.structs.get(&XsdName {
+        namespace: namespace.clone(),
+        local_name: name.clone(),
+        ty: *ty,
+      }) {
+        if let SearchResult::SingleMatch(_) = output {
+          return SearchResult::MultipleMatches;
+        }
+        output = SearchResult::SingleMatch(result);
+      }
+    }
+
+    output
   }
 
   pub fn with_module_namespace_mappings(

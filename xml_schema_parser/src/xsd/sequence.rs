@@ -167,6 +167,8 @@ impl Sequence {
 
     // generated_impl.implementation.push(struct_impl);
 
+    generated_impl.name.ty = XsdType::Sequence;
+
     Ok(generated_impl)
   }
 }

@@ -118,7 +118,7 @@ impl Choice {
       MaxOccurences::Number { value } => *value == 1 && self.min_occurences == 0,
     };
 
-    let generated_impl = if multiple {
+    let mut generated_impl = if multiple {
       let old_name = generated_impl.name.clone();
       generated_impl.name.local_name = format!("inner-{}", old_name.local_name);
       let output = XsdImpl {
@@ -225,6 +225,8 @@ impl Choice {
     // } else {
     //   Ok(outer_enum)
     // };
+
+    generated_impl.name.ty = XsdType::Choice;
 
     Ok(generated_impl)
   }

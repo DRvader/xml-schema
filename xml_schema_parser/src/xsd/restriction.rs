@@ -7,7 +7,7 @@ use super::{
   choice::Choice,
   group::Group,
   sequence::Sequence,
-  xsd_context::{to_struct_name, MergeSettings, XsdElement, XsdImpl, XsdName},
+  xsd_context::{to_struct_name, MergeSettings, XsdElement, XsdImpl, XsdName, XsdType},
   XMLElementWrapper, XsdError,
 };
 use crate::{
@@ -336,7 +336,7 @@ impl Restriction {
     parent_type: RestrictionParentType,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    match parent_type {
+    let mut gen = match parent_type {
       RestrictionParentType::SimpleType => {
         self.get_simple_implementation(parent_name, context, false)
       }
@@ -344,6 +344,10 @@ impl Restriction {
         self.get_simple_implementation(parent_name, context, true)
       }
       RestrictionParentType::SimpleContent => self.get_complex_implementation(parent_name, context),
-    }
+    }?;
+
+    gen.name.ty = XsdType::Restriction;
+
+    Ok(gen)
   }
 }

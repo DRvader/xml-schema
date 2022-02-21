@@ -3,7 +3,9 @@ use crate::xsd::{
 };
 
 use super::{
-  annotation::Annotation, restriction::RestrictionParentType, xsd_context::XsdImpl,
+  annotation::Annotation,
+  restriction::RestrictionParentType,
+  xsd_context::{XsdImpl, XsdType},
   XMLElementWrapper, XsdError,
 };
 
@@ -83,6 +85,7 @@ impl SimpleType {
     }
 
     generated_impl.name = name;
+    generated_impl.name.ty = XsdType::SimpleType;
 
     Ok(generated_impl)
   }

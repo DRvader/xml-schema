@@ -5,7 +5,7 @@ use super::{
   choice::Choice,
   max_occurences::MaxOccurences,
   sequence::Sequence,
-  xsd_context::{to_field_name, XsdContext, XsdElement, XsdImpl, XsdName},
+  xsd_context::{to_field_name, XsdContext, XsdElement, XsdImpl, XsdName, XsdType},
   XMLElementWrapper, XsdError,
 };
 
@@ -70,14 +70,14 @@ impl Group {
     parent_name: Option<XsdName>,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    match (&self.name, &parent_name, &self.refers) {
+    let mut gen = match (&self.name, &parent_name, &self.refers) {
       (Some(name), _, None) => match (&self.choice, &self.sequence) {
         (None, Some(sequence)) => {
           let mut seq = sequence.get_implementation(
             Some(XsdName {
               namespace: None,
               local_name: name.clone(),
-              ty: super::xsd_context::XsdType::Group,
+              ty: super::xsd_context::XsdType::Sequence,
             }),
             context,
           )?;
@@ -88,14 +88,14 @@ impl Group {
             i.target = ty.clone().into();
           }
 
-          Ok(seq)
+          seq
         }
         (Some(choice), None) => {
           let mut choice = choice.get_implementation(
             Some(XsdName {
               namespace: None,
               local_name: name.clone(),
-              ty: super::xsd_context::XsdType::Group,
+              ty: super::xsd_context::XsdType::Choice,
             }),
             context,
           )?;
@@ -107,7 +107,9 @@ impl Group {
             i.target = ty.clone().into();
           }
 
-          Ok(choice)
+          choice.name.ty = XsdType::Group;
+
+          choice
         }
         _ => unreachable!("The Xsd is invalid!"),
       },
@@ -131,7 +133,7 @@ impl Group {
           to_field_name(&inner.infer_type_name())
         };
 
-        let name = if let Some(parent_name) = parent_name {
+        let mut name = if let Some(parent_name) = parent_name {
           parent_name
         } else {
           XsdName {
@@ -141,7 +143,9 @@ impl Group {
           }
         };
 
-        Ok(XsdImpl {
+        name.ty = super::xsd_context::XsdType::Group;
+
+        XsdImpl {
           name,
           element: XsdElement::Field(
             Field::new(&field_name, inner.element.get_type())
@@ -151,9 +155,13 @@ impl Group {
           fieldname_hint: Some(field_name.to_string()),
           inner: vec![],
           implementation: vec![],
-        })
+        }
       }
       _ => unreachable!("The Xsd is invalid!"),
-    }
+    };
+
+    gen.name.ty = XsdType::Group;
+
+    Ok(gen)
   }
 }

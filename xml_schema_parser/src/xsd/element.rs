@@ -137,28 +137,38 @@ impl Element {
             inner: vec![],
             implementation: vec![],
           });
-        } else if let Some(imp) = context.structs.get(&XsdName {
-          namespace: None,
-          local_name: self.kind.clone().unwrap(),
-          ty: XsdType::Element,
-        }) {
-          XsdImpl {
-            name: XsdName {
-              namespace: None,
-              local_name: xml_name.clone(),
-              ty: XsdType::Element,
-            },
-            fieldname_hint: Some(to_field_name(&xml_name)),
-            element: XsdElement::Type(imp.element.get_type()),
-            inner: vec![],
-            implementation: vec![],
-          }
         } else {
-          return Err(XsdError::XsdImplNotFound(XsdName {
-            namespace: None,
-            local_name: xml_name.clone(),
-            ty: XsdType::Element,
-          }));
+          let imp = context.multi_search(
+            None,
+            self.kind.clone().unwrap(),
+            &[XsdType::SimpleType, XsdType::ComplexType],
+          );
+          match imp {
+            super::xsd_context::SearchResult::SingleMatch(imp) => XsdImpl {
+              name: XsdName {
+                namespace: None,
+                local_name: xml_name.clone(),
+                ty: XsdType::Element,
+              },
+              fieldname_hint: Some(to_field_name(&xml_name)),
+              element: XsdElement::Type(imp.element.get_type()),
+              inner: vec![],
+              implementation: vec![],
+            },
+            super::xsd_context::SearchResult::MultipleMatches => {
+              return Err(XsdError::XsdParseError(format!(
+                "Found both a simple and complex type named {}",
+                self.kind.as_ref().unwrap()
+              )));
+            }
+            super::xsd_context::SearchResult::NoMatches => {
+              return Err(XsdError::XsdImplNotFound(XsdName {
+                namespace: None,
+                local_name: xml_name.clone(),
+                ty: XsdType::Element,
+              }));
+            }
+          }
         }
       }
       _ => {
@@ -180,7 +190,7 @@ impl Element {
       generated_struct.element.add_doc(&docs.join(""));
     }
 
-    let generated_struct = if self.is_multiple() || self.could_be_none() {
+    let mut generated_struct = if self.is_multiple() || self.could_be_none() {
       let old_type = field_type.to_string();
       if self.is_multiple() {
         field_type.wrap("Vec");
@@ -237,6 +247,8 @@ impl Element {
     } else {
       generated_struct
     };
+
+    generated_struct.name.ty = XsdType::Element;
 
     Ok(generated_struct)
   }

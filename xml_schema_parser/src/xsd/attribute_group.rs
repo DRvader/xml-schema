@@ -64,7 +64,7 @@ impl AttributeGroup {
     // TODO(drosen): We know that both name and reference cannot be some,
     //               but we have no handler for what happens if the parent
     //               name is None.
-    match (&self.name, &self.reference) {
+    let generated_impl = match (&self.name, &self.reference) {
       (None, Some(refers)) => {
         let name = XsdName {
           namespace: None,
@@ -198,6 +198,13 @@ impl AttributeGroup {
         Ok(generated_struct)
       }
       _ => unreachable!("The Xsd is invalid!"),
+    };
+
+    if let Ok(mut gen) = generated_impl {
+      gen.name.ty = XsdType::AttributeGroup;
+      Ok(gen)
+    } else {
+      generated_impl
     }
   }
 }

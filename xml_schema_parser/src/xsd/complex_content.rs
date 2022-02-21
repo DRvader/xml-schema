@@ -2,7 +2,7 @@ use crate::xsd::{extension::Extension, xsd_context::XsdContext};
 
 use super::{
   restriction::{Restriction, RestrictionParentType},
-  xsd_context::{XsdImpl, XsdName},
+  xsd_context::{XsdImpl, XsdName, XsdType},
   XMLElementWrapper, XsdError,
 };
 
@@ -35,7 +35,7 @@ impl ComplexContent {
     parent_name: XsdName,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    match (&self.extension, &self.restriction) {
+    let mut gen = match (&self.extension, &self.restriction) {
       (None, Some(restriction)) => {
         restriction.get_implementation(parent_name, RestrictionParentType::ComplexContent, context)
       }
@@ -43,6 +43,10 @@ impl ComplexContent {
       _ => {
         unimplemented!("The source xsd is invalid.")
       }
-    }
+    }?;
+
+    gen.name.ty = XsdType::ComplexContent;
+
+    Ok(gen)
   }
 }

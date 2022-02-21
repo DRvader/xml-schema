@@ -24,6 +24,7 @@ pub struct Schema {
   pub attributes: Vec<attribute::Attribute>,
   pub attribute_group: Vec<attribute_group::AttributeGroup>,
   pub groups: Vec<group::Group>,
+  pub extra: Vec<(String, String)>,
 }
 
 impl Schema {
@@ -58,6 +59,7 @@ impl Schema {
       attributes,
       attribute_group,
       groups,
+      extra: element.get_remaining_attributes(),
     };
 
     element.finalize(false, false)?;
@@ -65,8 +67,12 @@ impl Schema {
     Ok(output)
   }
 
-  pub fn generate(&self, context: &mut XsdContext) -> Result<String, XsdError> {
+  pub fn fill_context(&self, context: &mut XsdContext) -> Result<Vec<XsdName>, XsdError> {
     // let namespace_definition = generate_namespace_definition(target_prefix, &self.target_namespace);
+
+    for import in &self.imports {
+      import.get_implementation(context)?;
+    }
 
     let mut top_level_names = vec![];
 
@@ -273,6 +279,12 @@ impl Schema {
     if !error.is_empty() {
       return Err(XsdError::XsdParseError(format!("COULD NOT FIND:{}", error)));
     }
+
+    Ok(top_level_names)
+  }
+
+  pub fn generate(&self, context: &mut XsdContext) -> Result<String, XsdError> {
+    let top_level_names = self.fill_context(context)?;
 
     let mut dst = String::new();
     dst.push_str("use xml_schema_parser::{XsdError, XMLElementWrapper, XsdParse};\n\n");

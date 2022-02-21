@@ -147,6 +147,7 @@ mod tests {
       base: "xs:string".to_string(),
       attributes: vec![
         Attribute {
+          annotation: None,
           name: Some("attribute_1".to_string()),
           kind: Some("xs:string".to_string()),
           default: None,
@@ -156,6 +157,7 @@ mod tests {
           simple_type: None,
         },
         Attribute {
+          annotation: None,
           name: Some("attribute_2".to_string()),
           kind: Some("xs:boolean".to_string()),
           default: None,

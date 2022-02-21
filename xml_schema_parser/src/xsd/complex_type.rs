@@ -142,7 +142,7 @@ impl ComplexType {
     }
 
     for g in &self.attribute_groups {
-      generated_impls.push(g.get_implementation(xml_name.clone(), context)?);
+      generated_impls.push(g.get_implementation(None, context)?);
     }
 
     let mut generated_impl = if let Some(generated_impl) = generated_impl {

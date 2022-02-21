@@ -82,7 +82,7 @@ impl AttributeGroup {
         } else if let Some(field_hint) = &inner.fieldname_hint {
           field_hint.clone()
         } else {
-          to_field_name(&inner.infer_type_name())
+          to_field_name(refers)
         };
 
         let name = if let Some(parent_name) = parent_name {

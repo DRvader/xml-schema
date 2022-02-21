@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use super::{
+  annotation::Annotation,
   xsd_context::{to_field_name, XsdElement, XsdImpl, XsdName, XsdType},
   XMLElementWrapper, XsdError,
 };
@@ -16,6 +17,7 @@ use crate::{
 //   namespace = "xs: http://www.w3.org/2001/XMLSchema"
 // )]
 pub struct Attribute {
+  pub annotation: Option<Annotation>,
   pub name: Option<String>,
   pub kind: Option<String>,
   pub default: Option<String>,
@@ -88,6 +90,7 @@ impl Attribute {
     }
 
     let output = Self {
+      annotation: element.try_get_child_with("annotation", Annotation::parse)?,
       name,
       default: element.try_get_attribute("default")?,
       fixed: element.try_get_attribute("fixed")?,
@@ -223,7 +226,7 @@ impl Attribute {
     ));
     parse.line("Ok(output)");
 
-    let generated_impl = XsdImpl {
+    let mut generated_impl = XsdImpl {
       element: XsdElement::Type(rust_type),
       name: XsdName {
         namespace: None,
@@ -234,6 +237,13 @@ impl Attribute {
       inner: vec![],
       implementation: vec![],
     };
+
+    let docs = self
+      .annotation
+      .as_ref()
+      .map(|annotation| annotation.get_doc())
+      .unwrap_or_default();
+    generated_impl.element.add_doc(&docs.join(""));
 
     Ok(Some(generated_impl))
   }
@@ -251,6 +261,7 @@ mod tests {
   #[test]
   fn string_attribute() {
     let attribute = Attribute {
+      annotation: None,
       name: Some("language".to_string()),
       kind: Some("xs:string".to_string()),
       default: None,
@@ -280,6 +291,7 @@ mod tests {
   #[test]
   fn optional_string_attribute() {
     let attribute = Attribute {
+      annotation: None,
       name: Some("language".to_string()),
       kind: Some("xs:string".to_string()),
       default: None,
@@ -309,6 +321,7 @@ mod tests {
   #[test]
   fn type_attribute() {
     let attribute = Attribute {
+      annotation: None,
       name: Some("type".to_string()),
       kind: Some("xs:string".to_string()),
       default: None,
@@ -338,6 +351,7 @@ mod tests {
   #[test]
   fn reference_type_attribute() {
     let attribute = Attribute {
+      annotation: None,
       name: Some("type".to_string()),
       kind: None,
       default: None,
@@ -368,6 +382,7 @@ mod tests {
   #[should_panic]
   fn bad_type_attribute() {
     let attribute = Attribute {
+      annotation: None,
       name: Some("type".to_string()),
       default: None,
       fixed: None,
@@ -387,6 +402,7 @@ mod tests {
   #[test]
   fn attribute_without_name() {
     let attribute = Attribute {
+      annotation: None,
       name: None,
       kind: Some("xs:string".to_string()),
       default: None,

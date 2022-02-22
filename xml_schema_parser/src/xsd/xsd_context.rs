@@ -646,7 +646,7 @@ pub enum SearchResult<'a> {
 pub struct XsdContext {
   module_namespace_mappings: BTreeMap<String, String>,
   pub namespace: Namespace,
-  xml_schema_prefix: Option<String>,
+  pub xml_schema_prefix: Option<String>,
   pub groups: BTreeMap<XsdName, Vec<Field>>,
   pub structs: BTreeMap<XsdName, XsdImpl>,
   pub allow_unknown_type: bool,

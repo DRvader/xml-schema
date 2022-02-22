@@ -67,7 +67,7 @@ impl AttributeGroup {
     let generated_impl = match (&self.name, &self.reference) {
       (None, Some(refers)) => {
         let name = XsdName {
-          namespace: None,
+          namespace: context.xml_schema_prefix.clone(),
           local_name: refers.to_string(),
           ty: XsdType::AttributeGroup,
         };
@@ -156,11 +156,9 @@ impl AttributeGroup {
         }
 
         for attr in &self.attributes {
-          if let Some(attr) = attr.get_implementation(context)? {
-            generated_struct.merge(attr, MergeSettings::default());
-            if let Some(field) = generated_struct.element.get_last_added_field() {
-              fields.push(field);
-            }
+          generated_struct.merge(attr.get_implementation(context)?, MergeSettings::ATTRIBUTE);
+          if let Some(field) = generated_struct.element.get_last_added_field() {
+            fields.push(field);
           }
         }
 

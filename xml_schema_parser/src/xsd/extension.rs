@@ -97,9 +97,10 @@ impl Extension {
     }?;
 
     for attribute in &self.attributes {
-      if let Some(attribute) = attribute.get_implementation(context)? {
-        generated_impl.merge(attribute, MergeSettings::ATTRIBUTE);
-      }
+      generated_impl.merge(
+        attribute.get_implementation(context)?,
+        MergeSettings::ATTRIBUTE,
+      );
     }
 
     generated_impl.name.ty = XsdType::Extension;

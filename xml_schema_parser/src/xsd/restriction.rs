@@ -266,9 +266,10 @@ impl Restriction {
 
     if allow_attributes {
       for attribute in &self.attributes {
-        if let Some(attribute) = attribute.get_implementation(context)? {
-          generated_impl.merge(attribute, MergeSettings::default());
-        }
+        generated_impl.merge(
+          attribute.get_implementation(context)?,
+          MergeSettings::ATTRIBUTE,
+        );
       }
 
       for group in &self.attribute_groups {

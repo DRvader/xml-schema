@@ -106,11 +106,7 @@ impl Attribute {
   }
 
   #[tracing::instrument(skip_all)]
-  pub fn get_implementation(&self, context: &mut XsdContext) -> Result<Option<XsdImpl>, XsdError> {
-    if self.name.is_none() {
-      return Ok(None);
-    }
-
+  pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
     let rust_type = match (
       self.reference.as_ref(),
       self.kind.as_ref(),
@@ -245,7 +241,7 @@ impl Attribute {
       .unwrap_or_default();
     generated_impl.element.add_doc(&docs.join(""));
 
-    Ok(Some(generated_impl))
+    Ok(generated_impl)
   }
 }
 
@@ -278,7 +274,6 @@ mod tests {
     let value = attribute
       .get_implementation(&mut context)
       .unwrap()
-      .unwrap()
       .to_string()
       .unwrap();
     let implementation = quote!(#value).to_string();
@@ -307,7 +302,6 @@ mod tests {
 
     let value = attribute
       .get_implementation(&mut context)
-      .unwrap()
       .unwrap()
       .to_string()
       .unwrap();
@@ -338,7 +332,6 @@ mod tests {
     let value = attribute
       .get_implementation(&mut context)
       .unwrap()
-      .unwrap()
       .to_string()
       .unwrap();
     let implementation = quote!(#value).to_string();
@@ -367,7 +360,6 @@ mod tests {
 
     let value = attribute
       .get_implementation(&mut context)
-      .unwrap()
       .unwrap()
       .to_string()
       .unwrap();
@@ -418,7 +410,6 @@ mod tests {
 
     let value = attribute
       .get_implementation(&mut context)
-      .unwrap()
       .unwrap()
       .to_string()
       .unwrap();

@@ -19,7 +19,7 @@ use super::{
 // )]
 pub struct AttributeGroup {
   pub name: Option<String>,
-  pub reference: Option<String>,
+  pub reference: Option<XsdName>,
   pub annotation: Option<Annotation>,
   pub attributes: Vec<Attribute>,
   pub attribute_groups: Vec<AttributeGroup>,
@@ -30,7 +30,9 @@ impl AttributeGroup {
     element.check_name("attributeGroup")?;
 
     let name = element.try_get_attribute("name")?;
-    let reference = element.try_get_attribute("ref")?;
+    let reference = element
+      .try_get_attribute("ref")?
+      .map(|v: String| XsdName::new(&v, XsdType::AttributeGroup));
 
     if name.is_some() && reference.is_some() {
       return Err(XsdError::XsdParseError(format!(
@@ -82,7 +84,7 @@ impl AttributeGroup {
         } else if let Some(field_hint) = &inner.fieldname_hint {
           field_hint.clone()
         } else {
-          to_field_name(refers)
+          refers.to_field_name()
         };
 
         let name = if let Some(parent_name) = parent_name {

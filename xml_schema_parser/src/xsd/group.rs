@@ -14,7 +14,7 @@ use super::{
 pub struct Group {
   pub id: Option<String>,
   pub name: Option<String>,
-  pub refers: Option<String>,
+  pub refers: Option<XsdName>,
   pub min_occurences: u64,
   pub max_occurences: MaxOccurences,
   pub annotation: Option<Annotation>,
@@ -27,7 +27,9 @@ impl Group {
     element.check_name("group")?;
 
     let name = element.try_get_attribute("name")?;
-    let refers = element.try_get_attribute("ref")?;
+    let refers = element
+      .try_get_attribute("ref")?
+      .map(|v: String| XsdName::new(&v, XsdType::Group));
 
     let sequence = element.try_get_child_with("sequence", Sequence::parse)?;
     let choice = element.try_get_child_with("choice", Choice::parse)?;
@@ -114,15 +116,10 @@ impl Group {
         _ => unreachable!("The Xsd is invalid!"),
       },
       (None, _, Some(refers)) => {
-        let name = XsdName {
-          namespace: None,
-          local_name: refers.to_string(),
-          ty: super::xsd_context::XsdType::Group,
-        };
-        let inner = if let Some(imp) = context.structs.get(&name) {
+        let inner = if let Some(imp) = context.structs.get(refers) {
           imp
         } else {
-          return Err(XsdError::XsdImplNotFound(name));
+          return Err(XsdError::XsdImplNotFound(refers.clone()));
         };
 
         let field_name = if let Some(parent_name) = &parent_name {

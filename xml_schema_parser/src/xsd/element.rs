@@ -19,8 +19,8 @@ use super::{
 // #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Element {
   pub name: Option<String>,
-  pub kind: Option<String>,
-  pub refers: Option<String>,
+  pub kind: Option<XsdName>,
+  pub refers: Option<XsdName>,
   pub min_occurences: u64,
   pub r#final: Option<String>,
   pub block: Option<String>,
@@ -42,7 +42,9 @@ impl Element {
     element.check_name("element")?;
 
     let name = element.try_get_attribute("name")?;
-    let refers = element.try_get_attribute("ref")?;
+    let refers = element
+      .try_get_attribute("ref")?
+      .map(|v: String| XsdName::new(&v, XsdType::Element));
 
     if parent_is_schema && name.is_none() {
       return Err(XsdError::XsdParseError(
@@ -70,7 +72,9 @@ impl Element {
 
     let output = Ok(Self {
       name,
-      kind: element.try_get_attribute("type")?,
+      kind: element
+        .try_get_attribute("type")?
+        .map(|v: String| XsdName::new(&v, XsdType::SimpleType)),
       refers,
       r#final: element.try_get_attribute("final")?,
       block: element.try_get_attribute("block")?,
@@ -139,8 +143,8 @@ impl Element {
           });
         } else {
           let imp = context.multi_search(
-            None,
-            self.kind.clone().unwrap(),
+            self.kind.as_ref().unwrap().namespace.clone(),
+            self.kind.as_ref().unwrap().local_name.clone(),
             &[XsdType::SimpleType, XsdType::ComplexType],
           );
           match imp {
@@ -267,7 +271,7 @@ mod tests {
   fn extern_type() {
     let element = Element {
       name: Some("volume".to_string()),
-      kind: Some("books:volume-type".to_string()),
+      kind: Some(XsdName::new("books:volume-type", XsdType::SimpleType)),
       refers: None,
       min_occurences: 1,
       max_occurences: MaxOccurences::Number { value: 1 },
@@ -304,7 +308,7 @@ mod tests {
   fn xs_string_element() {
     let element = Element {
       name: Some("volume".to_string()),
-      kind: Some("xs:string".to_string()),
+      kind: Some(XsdName::new("xs:string", XsdType::SimpleType)),
       refers: None,
       min_occurences: 1,
       max_occurences: MaxOccurences::Number { value: 1 },

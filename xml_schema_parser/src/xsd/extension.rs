@@ -12,14 +12,14 @@ use super::{
   XMLElementWrapper, XsdError,
 };
 
-#[derive(Clone, Default, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 // #[yaserde(
 //   root = "extension",
 //   prefix = "xs",
 //   namespace = "xs: http://www.w3.org/2001/XMLSchema"
 // )]
 pub struct Extension {
-  pub base: String,
+  pub base: XsdName,
   pub attributes: Vec<Attribute>,
   pub attribute_groups: Vec<AttributeGroup>,
   pub sequence: Option<Sequence>,
@@ -58,7 +58,10 @@ impl Extension {
     }
 
     let output = Self {
-      base: element.get_attribute("base")?,
+      base: XsdName::new(
+        &element.get_attribute::<String>("base")?,
+        XsdType::SimpleType,
+      ),
       sequence: element.try_get_child_with("sequence", Sequence::parse)?,
       group,
       choice,
@@ -116,8 +119,13 @@ mod tests {
   #[test]
   fn extension() {
     let st = Extension {
-      base: "xs:string".to_string(),
-      ..Default::default()
+      base: XsdName::new("xs:string", XsdType::SimpleType),
+      attributes: vec![],
+      attribute_groups: vec![],
+      sequence: None,
+      group: None,
+      choice: None,
+      annotation: None,
     };
 
     let mut context =
@@ -145,12 +153,12 @@ mod tests {
     use crate::xsd::attribute::Required;
 
     let st = Extension {
-      base: "xs:string".to_string(),
+      base: XsdName::new("xs:string", XsdType::SimpleType),
       attributes: vec![
         Attribute {
           annotation: None,
           name: Some("attribute_1".to_string()),
-          kind: Some("xs:string".to_string()),
+          kind: Some(XsdName::new("xs:string", XsdType::SimpleType)),
           default: None,
           fixed: None,
           reference: None,
@@ -160,7 +168,7 @@ mod tests {
         Attribute {
           annotation: None,
           name: Some("attribute_2".to_string()),
-          kind: Some("xs:boolean".to_string()),
+          kind: Some(XsdName::new("xs:boolean", XsdType::SimpleType)),
           default: None,
           fixed: None,
           reference: None,
@@ -168,7 +176,11 @@ mod tests {
           simple_type: None,
         },
       ],
-      ..Default::default()
+      attribute_groups: vec![],
+      sequence: None,
+      group: None,
+      choice: None,
+      annotation: None,
     };
 
     let mut context =

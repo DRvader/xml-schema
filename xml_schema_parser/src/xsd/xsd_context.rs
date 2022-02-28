@@ -50,6 +50,22 @@ impl std::fmt::Display for XsdName {
 }
 
 impl XsdName {
+  pub fn new(name: &str, ty: XsdType) -> Self {
+    if let Some((lhs, rhs)) = name.split_once(':') {
+      Self {
+        namespace: Some(lhs.to_string()),
+        local_name: rhs.to_string(),
+        ty,
+      }
+    } else {
+      Self {
+        namespace: None,
+        local_name: name.to_string(),
+        ty,
+      }
+    }
+  }
+
   pub fn to_struct_name(&self) -> String {
     to_struct_name(&self.local_name)
   }

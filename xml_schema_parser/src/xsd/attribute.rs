@@ -19,11 +19,11 @@ use crate::{
 pub struct Attribute {
   pub annotation: Option<Annotation>,
   pub name: Option<String>,
-  pub kind: Option<String>,
+  pub kind: Option<XsdName>,
   pub default: Option<String>,
   pub fixed: Option<String>,
   pub required: Required,
-  pub reference: Option<String>,
+  pub reference: Option<XsdName>,
   pub simple_type: Option<SimpleType>,
 }
 
@@ -59,7 +59,9 @@ impl Attribute {
     element.check_name("attribute")?;
 
     let name = element.try_get_attribute("name")?;
-    let reference = element.try_get_attribute("ref")?;
+    let reference = element
+      .try_get_attribute("ref")?
+      .map(|v: String| XsdName::new(&v, XsdType::Attribute));
 
     if name.is_some() && reference.is_some() {
       return Err(XsdError::XsdParseError(format!(
@@ -68,7 +70,9 @@ impl Attribute {
       )));
     }
 
-    let kind = element.try_get_attribute("type")?;
+    let kind = element
+      .try_get_attribute("type")?
+      .map(|v: String| XsdName::new(&v, XsdType::SimpleType));
 
     let simple_type =
       element.try_get_child_with("simpleType", |child| SimpleType::parse(child, false))?;
@@ -113,12 +117,7 @@ impl Attribute {
       self.simple_type.as_ref(),
     ) {
       (Some(reference), None, None) => {
-        let name = XsdName {
-          namespace: None,
-          local_name: reference.clone(),
-          ty: super::xsd_context::XsdType::Attribute,
-        };
-        if let Some(inner) = context.structs.get(&name) {
+        if let Some(inner) = context.structs.get(&reference) {
           let field_name = if let Some(name) = &self.name {
             to_field_name(name)
           } else if let Some(field_hint) = &inner.fieldname_hint {
@@ -153,16 +152,11 @@ impl Attribute {
             implementation: vec![],
           }
         } else {
-          return Err(XsdError::XsdImplNotFound(name));
+          return Err(XsdError::XsdImplNotFound(reference.clone()));
         }
       }
       (None, Some(kind), None) => {
-        let name = XsdName {
-          namespace: None,
-          local_name: kind.clone(),
-          ty: super::xsd_context::XsdType::SimpleType,
-        };
-        if let Some(inner) = context.structs.get(&name) {
+        if let Some(inner) = context.structs.get(kind) {
           let field_name = if let Some(name) = &self.name {
             to_field_name(name)
           } else if let Some(field_hint) = &inner.fieldname_hint {
@@ -197,7 +191,7 @@ impl Attribute {
             implementation: vec![],
           }
         } else {
-          return Err(XsdError::XsdImplNotFound(name));
+          return Err(XsdError::XsdImplNotFound(kind.clone()));
         }
       }
       (None, None, Some(simple_type)) => simple_type.get_implementation(context)?,
@@ -259,7 +253,7 @@ mod tests {
     let attribute = Attribute {
       annotation: None,
       name: Some("language".to_string()),
-      kind: Some("xs:string".to_string()),
+      kind: Some(XsdName::new("xs:string", XsdType::SimpleType)),
       default: None,
       fixed: None,
       reference: None,
@@ -288,7 +282,7 @@ mod tests {
     let attribute = Attribute {
       annotation: None,
       name: Some("language".to_string()),
-      kind: Some("xs:string".to_string()),
+      kind: Some(XsdName::new("xs:string", XsdType::SimpleType)),
       default: None,
       fixed: None,
       reference: None,
@@ -317,7 +311,7 @@ mod tests {
     let attribute = Attribute {
       annotation: None,
       name: Some("type".to_string()),
-      kind: Some("xs:string".to_string()),
+      kind: Some(XsdName::new("xs:string", XsdType::SimpleType)),
       default: None,
       fixed: None,
       reference: None,
@@ -349,7 +343,7 @@ mod tests {
       kind: None,
       default: None,
       fixed: None,
-      reference: Some("MyType".to_string()),
+      reference: Some(XsdName::new("MyType", XsdType::Attribute)),
       required: Required::Optional,
       simple_type: None,
     };
@@ -396,7 +390,7 @@ mod tests {
     let attribute = Attribute {
       annotation: None,
       name: None,
-      kind: Some("xs:string".to_string()),
+      kind: Some(XsdName::new("xs:string", XsdType::SimpleType)),
       default: None,
       fixed: None,
       reference: None,

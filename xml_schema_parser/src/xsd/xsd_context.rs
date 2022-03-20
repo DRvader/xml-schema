@@ -66,6 +66,22 @@ impl XsdName {
     }
   }
 
+  pub fn new_namespace(name: &str, ty: XsdType, namespace: Option<&str>) -> Self {
+    if let Some((lhs, rhs)) = name.split_once(':') {
+      Self {
+        namespace: Some(lhs.to_string()),
+        local_name: rhs.to_string(),
+        ty,
+      }
+    } else {
+      Self {
+        namespace: namespace.map(|s| s.to_string()),
+        local_name: name.to_string(),
+        ty,
+      }
+    }
+  }
+
   pub fn to_struct_name(&self) -> String {
     to_struct_name(&self.local_name)
   }
@@ -660,12 +676,9 @@ pub enum SearchResult<'a> {
 
 #[derive(Clone, Debug)]
 pub struct XsdContext {
-  module_namespace_mappings: BTreeMap<String, String>,
   pub namespace: Namespace,
   pub xml_schema_prefix: Option<String>,
-  pub groups: BTreeMap<XsdName, Vec<Field>>,
-  pub structs: BTreeMap<XsdName, XsdImpl>,
-  pub allow_unknown_type: bool,
+  structs: BTreeMap<XsdName, XsdImpl>,
 }
 
 impl XsdContext {
@@ -681,18 +694,11 @@ impl XsdContext {
           if name.namespace == Some("http://www.w3.org/2001/XMLSchema".to_string())
             && name.local_name == "schema"
           {
-            let module_namespace_mappings = BTreeMap::new();
-            let xml_schema_prefix = name.prefix;
-
+            let namespace_uri = &name.namespace.unwrap();
             let impl_basic_type = |name: &str, ty: &str| -> (XsdName, XsdImpl) {
               let xsd_name = XsdName {
-                namespace: None,
-                local_name: format!(
-                  "{}{}{}",
-                  xml_schema_prefix.as_deref().unwrap_or(""),
-                  if xml_schema_prefix.is_some() { ":" } else { "" },
-                  name
-                ),
+                namespace: Some(namespace_uri.clone()),
+                local_name: name.to_string(),
                 ty: XsdType::SimpleType,
               };
 
@@ -714,11 +720,8 @@ impl XsdContext {
             };
 
             return Ok(XsdContext {
-              module_namespace_mappings,
               namespace,
-              xml_schema_prefix: xml_schema_prefix.clone(),
-              allow_unknown_type: false,
-              groups: BTreeMap::new(),
+              xml_schema_prefix: None,
               structs: BTreeMap::from_iter(
                 [
                   ("bool", "bool"),
@@ -752,6 +755,7 @@ impl XsdContext {
                   ("IDREFS", "String"),
                   ("anyType", "String"),
                   ("date", "chrono::Date<chrono::Utc>"),
+                  ("NCName", "String"),
                 ]
                 .map(|(n, t)| impl_basic_type(n, t)),
               ),
@@ -768,6 +772,51 @@ impl XsdContext {
     ))
   }
 
+  fn resolve_namespace(&self, namespace: Option<&str>) -> Option<String> {
+    if let Some(ns) = namespace {
+      if let Some(ns) = self.namespace.get(ns).map(|v| v.to_string()) {
+        Some(ns)
+      } else {
+        namespace.map(|v| v.to_string())
+      }
+    } else {
+      namespace.map(|v| v.to_string())
+    }
+  }
+
+  pub fn remove_impl(&mut self, name: &XsdName) -> Option<XsdImpl> {
+    let namespace = self.resolve_namespace(name.namespace.as_ref().map(|v| v.as_str()));
+
+    self.structs.remove(&XsdName {
+      namespace: namespace.clone(),
+      local_name: name.local_name.clone(),
+      ty: name.ty.clone(),
+    })
+  }
+
+  pub fn insert_impl(&mut self, name: XsdName, value: XsdImpl) {
+    let namespace = self.resolve_namespace(name.namespace.as_ref().map(|v| v.as_str()));
+
+    self.structs.insert(
+      XsdName {
+        namespace: namespace.clone(),
+        local_name: name.local_name.clone(),
+        ty: name.ty.clone(),
+      },
+      value,
+    );
+  }
+
+  pub fn search(&self, name: &XsdName) -> Option<&XsdImpl> {
+    let namespace = self.resolve_namespace(name.namespace.as_ref().map(|v| v.as_str()));
+
+    self.structs.get(&XsdName {
+      namespace: namespace.clone(),
+      local_name: name.local_name.clone(),
+      ty: name.ty.clone(),
+    })
+  }
+
   pub fn multi_search(
     &self,
     namespace: Option<String>,
@@ -776,7 +825,7 @@ impl XsdContext {
   ) -> SearchResult {
     let mut output = SearchResult::NoMatches;
     for ty in types {
-      if let Some(result) = self.structs.get(&XsdName {
+      if let Some(result) = self.search(&XsdName {
         namespace: namespace.clone(),
         local_name: name.clone(),
         ty: *ty,
@@ -791,14 +840,6 @@ impl XsdContext {
     output
   }
 
-  pub fn with_module_namespace_mappings(
-    mut self,
-    module_namespace_mappings: &BTreeMap<String, String>,
-  ) -> Self {
-    self.module_namespace_mappings = module_namespace_mappings.clone();
-    self
-  }
-
   pub fn has_xml_schema_prefix(&self) -> bool {
     self.xml_schema_prefix.is_some()
   }
@@ -806,46 +847,6 @@ impl XsdContext {
   pub fn match_xml_schema_prefix(&self, value: &str) -> bool {
     self.xml_schema_prefix == Some(value.to_string())
   }
-
-  pub fn get_module(&self, prefix: &str) -> Option<String> {
-    self
-      .namespace
-      .get(prefix)
-      .map(|namespace| {
-        self
-          .module_namespace_mappings
-          .get(namespace)
-          .map(|module| module.to_owned())
-      })
-      .unwrap_or_else(|| None)
-  }
-}
-
-#[test]
-fn get_module() {
-  let context = XsdContext::new(
-    r#"
-    <xs:schema
-      xmlns:xs="http://www.w3.org/2001/XMLSchema"
-      xmlns:example="http://example.com"
-      >
-    </xs:schema>
-  "#,
-  )
-  .unwrap();
-
-  let mut mapping = BTreeMap::new();
-  mapping.insert(
-    "http://example.com".to_string(),
-    "crate::example".to_string(),
-  );
-  let context = context.with_module_namespace_mappings(&mapping);
-
-  assert_eq!(
-    context.get_module("example"),
-    Some("crate::example".to_string())
-  );
-  assert_eq!(context.get_module("other"), None);
 }
 
 #[test]

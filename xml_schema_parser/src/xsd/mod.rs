@@ -13,7 +13,6 @@ mod list;
 mod max_occurences;
 mod qualification;
 mod restriction;
-mod rust_types_mapping;
 mod schema;
 mod sequence;
 mod simple_content;
@@ -21,14 +20,14 @@ mod simple_type;
 mod union;
 mod xsd_context;
 
-use std::collections::BTreeMap;
 use std::fs;
 use std::str::FromStr;
 use thiserror::Error;
+use xml::namespace::{NS_XML_PREFIX, NS_XML_URI};
 use xmltree::{Element, XMLNode};
 use xsd_context::XsdContext;
 
-use self::xsd_context::XsdName;
+use self::xsd_context::{XsdName, XsdType};
 
 #[derive(Error, Debug)]
 pub enum XsdError {
@@ -50,18 +49,29 @@ pub enum XsdError {
   Infalible(#[from] std::convert::Infallible),
 }
 
-pub struct XMLElementWrapper(Element);
+pub struct XMLElementWrapper {
+  element: Element,
+  default_namespace: Option<String>,
+}
 
 impl XMLElementWrapper {
   fn name(&self) -> &str {
-    &self.0.name
+    &self.element.name
+  }
+
+  pub fn new_name(&self, name: &str, ty: XsdType) -> XsdName {
+    XsdName::new_namespace(
+      name,
+      ty,
+      self.default_namespace.as_ref().map(|s| s.as_str()),
+    )
   }
 
   fn check_name(&self, name: &str) -> Result<(), XsdError> {
-    if self.0.name != name {
+    if self.element.name != name {
       Err(XsdError::XsdParseError(format!(
         "Unexpected element name {} expected {}",
-        name, self.0.name
+        name, self.element.name
       )))
     } else {
       Ok(())
@@ -70,8 +80,11 @@ impl XMLElementWrapper {
 
   fn get_children(&mut self, name: &str) -> Vec<XMLElementWrapper> {
     let mut output = Vec::new();
-    while let Some(child) = self.0.take_child(name) {
-      output.push(XMLElementWrapper(child));
+    while let Some(child) = self.element.take_child(name) {
+      output.push(XMLElementWrapper {
+        element: child,
+        default_namespace: self.default_namespace.clone(),
+      });
     }
 
     output
@@ -123,11 +136,11 @@ impl XMLElementWrapper {
   }
 
   fn has_child(&self, name: &str) -> bool {
-    self.0.get_child(name).is_some()
+    self.element.get_child(name).is_some()
   }
 
   fn has_attr(&self, name: &str) -> bool {
-    self.0.attributes.contains_key(name)
+    self.element.attributes.contains_key(name)
   }
 
   fn get_children_with<T>(
@@ -162,13 +175,13 @@ impl XMLElementWrapper {
   where
     <T as FromStr>::Err: ToString,
   {
-    let value = self.0.attributes.remove(name);
+    let value = self.element.attributes.remove(name);
     if let Some(value) = value {
       Ok(Some(value.parse::<T>().map_err(|e| {
         XsdError::XsdParseError(format!(
           "Error parsing {} in {}: {}",
           name,
-          self.0.name,
+          self.element.name,
           e.to_string()
         ))
       })?))
@@ -198,19 +211,19 @@ impl XMLElementWrapper {
   }
 
   fn get_remaining_attributes(&mut self) -> Vec<(String, String)> {
-    self.0.attributes.drain().collect()
+    self.element.attributes.drain().collect()
   }
 
   fn try_get_content<T: FromStr>(&mut self) -> Result<Option<T>, XsdError>
   where
     <T as FromStr>::Err: ToString,
   {
-    let value = self.0.get_text();
+    let value = self.element.get_text();
     if let Some(value) = value {
       Ok(Some(value.parse::<T>().map_err(|e| {
         XsdError::XsdParseError(format!(
           "Error parsing node text in {}: {}",
-          self.0.name,
+          self.element.name,
           e.to_string()
         ))
       })?))
@@ -227,7 +240,7 @@ impl XMLElementWrapper {
       Some(output) => Ok(output),
       None => Err(XsdError::XsdParseError(format!(
         "no text found in {}",
-        self.0.name
+        self.element.name
       ))),
     }
   }
@@ -248,7 +261,7 @@ impl XMLElementWrapper {
     allow_extra_children: bool,
   ) -> Result<(), XsdError> {
     let child_errs = self
-      .0
+      .element
       .children
       .into_iter()
       .filter_map(|v| {
@@ -262,7 +275,7 @@ impl XMLElementWrapper {
       .collect::<Vec<_>>()
       .join(", ");
     let attr_errs = self
-      .0
+      .element
       .attributes
       .into_iter()
       .map(|v| v.0)
@@ -275,7 +288,7 @@ impl XMLElementWrapper {
       Ok(())
     } else {
       let mut text = String::new();
-      text.push_str(&format!("Unused nodes found in {}; ", self.0.name));
+      text.push_str(&format!("Unused nodes found in {}; ", self.element.name));
 
       let mut include_space = false;
       if !child_errs.is_empty() && !allow_extra_children {
@@ -301,23 +314,27 @@ pub struct Xsd {
 }
 
 impl Xsd {
-  pub fn new(
-    content: &str,
-    module_namespace_mappings: &BTreeMap<String, String>,
-  ) -> Result<Self, XsdError> {
-    let context = XsdContext::new(content)?;
-    let context = context.with_module_namespace_mappings(module_namespace_mappings);
-    let schema = schema::Schema::parse(XMLElementWrapper(xmltree::Element::parse(
-      content.as_bytes(),
-    )?))?;
+  pub fn new(content: &str) -> Result<Self, XsdError> {
+    let mut context = XsdContext::new(content)?;
+    let schema = schema::Schema::parse(XMLElementWrapper {
+      element: xmltree::Element::parse(content.as_bytes())?,
+      default_namespace: None,
+    })?;
+
+    context.namespace.put(NS_XML_PREFIX, NS_XML_URI);
+
+    for (key, value) in &schema.extra {
+      if let Some((lhs, rhs)) = key.split_once(':') {
+        if lhs == "xmlns" {
+          context.namespace.put(value.to_string(), rhs.to_string());
+        }
+      }
+    }
 
     Ok(Xsd { context, schema })
   }
 
-  pub fn new_from_file(
-    source: &str,
-    module_namespace_mappings: &BTreeMap<String, String>,
-  ) -> Result<Self, XsdError> {
+  pub fn new_from_file(source: &str) -> Result<Self, XsdError> {
     let content = if source.starts_with("http://") || source.starts_with("https://") {
       tracing::info!("Load HTTP schema {}", source);
       reqwest::blocking::get(source)?.text()?
@@ -335,7 +352,7 @@ impl Xsd {
       content
     };
 
-    Xsd::new(&content, module_namespace_mappings)
+    Xsd::new(&content)
   }
 
   pub fn generate(&mut self, _target_prefix: &Option<String>) -> Result<String, XsdError> {

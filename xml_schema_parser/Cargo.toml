@@ -2,7 +2,7 @@
 name = "xml-schema-parser"
 version = "0.0.7"
 description = "Structure generator from XSD source file"
-edition = "2018"
+edition = "2021"
 
 [lib]
 name = "xml_schema_parser"

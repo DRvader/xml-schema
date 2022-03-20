@@ -13,7 +13,7 @@ use super::{
 // #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Group {
   pub id: Option<String>,
-  pub name: Option<String>,
+  pub name: Option<XsdName>,
   pub refers: Option<XsdName>,
   pub min_occurences: u64,
   pub max_occurences: MaxOccurences,
@@ -26,7 +26,9 @@ impl Group {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
     element.check_name("group")?;
 
-    let name = element.try_get_attribute("name")?;
+    let name = element
+      .try_get_attribute("name")?
+      .map(|v: String| element.new_name(&v, XsdType::Group));
     let refers = element
       .try_get_attribute("ref")?
       .map(|v: String| XsdName::new(&v, XsdType::Group));
@@ -77,8 +79,8 @@ impl Group {
         (None, Some(sequence)) => {
           let mut seq = sequence.get_implementation(
             Some(XsdName {
-              namespace: None,
-              local_name: name.clone(),
+              namespace: name.namespace.clone(),
+              local_name: name.local_name.clone(),
               ty: super::xsd_context::XsdType::Sequence,
             }),
             context,
@@ -95,8 +97,8 @@ impl Group {
         (Some(choice), None) => {
           let mut choice = choice.get_implementation(
             Some(XsdName {
-              namespace: None,
-              local_name: name.clone(),
+              namespace: name.namespace.clone(),
+              local_name: name.local_name.clone(),
               ty: super::xsd_context::XsdType::Choice,
             }),
             context,
@@ -116,7 +118,7 @@ impl Group {
         _ => unreachable!("The Xsd is invalid!"),
       },
       (None, _, Some(refers)) => {
-        let inner = if let Some(imp) = context.structs.get(refers) {
+        let inner = if let Some(imp) = context.search(refers) {
           imp
         } else {
           return Err(XsdError::XsdImplNotFound(refers.clone()));

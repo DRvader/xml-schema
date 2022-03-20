@@ -11,10 +11,9 @@ use super::{
   XMLElementWrapper, XsdError,
 };
 use crate::{
-  codegen::{Block, Enum, Function, Impl, Struct, Type},
+  codegen::{Block, Enum, Function, Impl, Struct},
   xsd::XsdContext,
 };
-use heck::CamelCase;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Whitespace {
@@ -49,10 +48,10 @@ impl FromStr for Whitespace {
 
 // TODO(drosen): Actually implement these checks on the input
 
-#[derive(Clone, Default, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 // #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Restriction {
-  pub base: String,
+  pub base: XsdName,
   pub min_inclusive: Option<i64>,
   pub max_inclusive: Option<i64>,
   pub min_exclusive: Option<i64>,
@@ -132,8 +131,9 @@ impl Restriction {
       }
     }
 
+    let base: String = element.get_attribute("base")?;
     let output = Self {
-      base: element.get_attribute("base")?,
+      base: element.new_name(&base, XsdType::SimpleType),
       annotation,
       min_inclusive: element
         .try_get_child_with("minInclusive", |mut child| child.get_attribute("value"))?,
@@ -177,18 +177,10 @@ impl Restriction {
     context: &mut XsdContext,
     allow_attributes: bool,
   ) -> Result<XsdImpl, XsdError> {
-    let base_type = context.structs.get(&XsdName {
-      namespace: None,
-      local_name: self.base.clone(),
-      ty: super::xsd_context::XsdType::SimpleType,
-    });
+    let base_type = context.search(&self.base);
 
-    if !context.allow_unknown_type && base_type.is_none() {
-      return Err(XsdError::XsdImplNotFound(XsdName {
-        namespace: None,
-        local_name: self.base.clone(),
-        ty: super::xsd_context::XsdType::SimpleType,
-      }));
+    if base_type.is_none() {
+      return Err(XsdError::XsdImplNotFound(self.base.clone()));
     }
 
     let base_type = base_type.unwrap();
@@ -288,18 +280,10 @@ impl Restriction {
     parent_name: XsdName,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    let base_type = context.structs.get(&XsdName {
-      namespace: None,
-      local_name: self.base.clone(),
-      ty: super::xsd_context::XsdType::ComplexType,
-    });
+    let base_type = context.search(&self.base);
 
-    if !context.allow_unknown_type && base_type.is_none() {
-      return Err(XsdError::XsdImplNotFound(XsdName {
-        namespace: None,
-        local_name: self.base.clone(),
-        ty: super::xsd_context::XsdType::ComplexType,
-      }));
+    if base_type.is_none() {
+      return Err(XsdError::XsdImplNotFound(self.base.clone()));
     }
 
     let mut base_type = base_type.unwrap().clone();

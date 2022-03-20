@@ -1,6 +1,6 @@
 use crate::{
-  codegen::{Body, Field, Function, Impl, Struct},
-  xsd::{rust_types_mapping::RustTypesMapping, XsdContext},
+  codegen::{Function, Impl, Struct},
+  xsd::XsdContext,
 };
 
 use super::{
@@ -8,18 +8,20 @@ use super::{
   XMLElementWrapper, XsdError,
 };
 
-#[derive(Clone, Default, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 // #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct List {
-  pub item_type: String,
+  pub item_type: XsdName,
 }
 
 impl List {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
     element.check_name("list")?;
 
+    let item_type: String = element.get_attribute("itemType")?;
+
     let output = Self {
-      item_type: element.get_attribute("itemType")?,
+      item_type: element.new_name(&item_type, XsdType::SimpleType),
     };
 
     element.finalize(false, false)?;
@@ -33,9 +35,14 @@ impl List {
     name: XsdName,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    let list_type = RustTypesMapping::get(context, &self.item_type);
-
     let struct_name = name.to_struct_name();
+    let inner = if let Some(imp) = context.search(&self.item_type) {
+      imp
+    } else {
+      return Err(XsdError::XsdImplNotFound(self.item_type.clone()));
+    };
+
+    let list_type = inner.element.get_type().to_string();
 
     let mut generated_struct = Struct::new(&struct_name).vis("pub").to_owned();
     generated_struct.tuple_field(format!("Vec<{}>", list_type));
@@ -80,7 +87,7 @@ mod tests {
         .unwrap();
 
     let list_type = List {
-      item_type: "xs:string".to_string(),
+      item_type: XsdName::new("xs:string", XsdType::SimpleType),
     };
 
     let value = list_type

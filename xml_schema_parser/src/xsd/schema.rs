@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::xsd::{
   attribute, attribute_group, complex_type, element, group, import, qualification, simple_type,
   xsd_context::XsdName, XsdContext,
@@ -9,44 +11,6 @@ use super::{
   xsd_context::{XsdImpl, XsdType},
   XMLElementWrapper, XsdError,
 };
-
-fn parse_type(
-  to_run: Vec<(usize, XsdName, i32)>,
-  top_level_names: &mut Vec<XsdName>,
-  context: &mut XsdContext,
-  namespace_filter: Option<&str>,
-  mut parse_fn: impl FnMut(&mut XsdContext, usize) -> Result<XsdImpl, XsdError>,
-) -> Result<Vec<(usize, XsdName, i32)>, XsdError> {
-  let mut new = vec![];
-  for index in to_run {
-    match parse_fn(context, index.0) {
-      Ok(temp) => {
-        let mut include_type = false;
-        if let Some(filter) = namespace_filter {
-          if let Some(namespace) = &temp.name.namespace {
-            if namespace == filter {
-              include_type = true;
-            }
-          }
-        } else {
-          include_type = true;
-        }
-        if include_type {
-          top_level_names.push(temp.name.clone());
-        }
-        context.structs.insert(temp.name.clone(), temp);
-      }
-      Err(ty) => match ty {
-        XsdError::XsdImplNotFound(name) => {
-          new.push((index.0, name, index.2 + 1));
-        }
-        _ => return Err(ty),
-      },
-    }
-  }
-
-  Ok(new)
-}
 
 #[derive(Clone, Default, Debug, PartialEq)]
 // #[yaserde(
@@ -73,6 +37,10 @@ impl Schema {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
     element.check_name("schema")?;
 
+    let target_namespace: Option<String> = element.try_get_attribute("targetNamespace")?;
+
+    element.default_namespace = target_namespace.clone();
+
     let annotations = element.get_children_with("annotation", annotation::Annotation::parse)?;
     let imports = element.get_children_with("import", import::Import::parse)?;
     let elements =
@@ -90,7 +58,7 @@ impl Schema {
     let groups = element.get_children_with("group", group::Group::parse)?;
 
     let output = Self {
-      target_namespace: element.try_get_attribute("targetNamespace")?,
+      target_namespace,
       element_form_default: element.get_attribute_default("elementFormDefault")?,
       attribute_form_default: element.get_attribute_default("attributeFormDefault")?,
       annotations,
@@ -116,168 +84,154 @@ impl Schema {
   ) -> Result<Vec<XsdName>, XsdError> {
     // let namespace_definition = generate_namespace_definition(target_prefix, &self.target_namespace);
 
-    for import in &self.imports {
-      import.get_implementation(context)?;
-    }
+    context.xml_schema_prefix = self.target_namespace.clone();
 
     let mut top_level_names = vec![];
 
-    let mut simple_type_to_run = (0..self.simple_type.len())
-      .into_iter()
-      .map(|i| {
-        (
-          i,
-          XsdName {
-            namespace: None,
-            local_name: String::new(),
-            ty: XsdType::SimpleType,
-          },
-          0,
-        )
-      })
-      .collect::<Vec<_>>();
-    let mut attr_group_to_run = (0..self.attribute_group.len())
-      .into_iter()
-      .map(|i| {
-        (
-          i,
-          XsdName {
-            namespace: None,
-            local_name: String::new(),
-            ty: XsdType::AttributeGroup,
-          },
-          0,
-        )
-      })
-      .collect::<Vec<_>>();
-    let mut group_to_run = (0..self.groups.len())
-      .into_iter()
-      .map(|i| {
-        (
-          i,
-          XsdName {
-            namespace: None,
-            local_name: String::new(),
-            ty: XsdType::Group,
-          },
-          0,
-        )
-      })
-      .collect::<Vec<_>>();
-    let mut element_to_run = (0..self.elements.len())
-      .into_iter()
-      .map(|i| {
-        (
-          i,
-          XsdName {
-            namespace: None,
-            local_name: String::new(),
-            ty: XsdType::Element,
-          },
-          0,
-        )
-      })
-      .collect::<Vec<_>>();
-    let mut complex_type_to_run = (0..self.complex_type.len())
-      .into_iter()
-      .map(|i| {
-        (
-          i,
-          XsdName {
-            namespace: None,
-            local_name: String::new(),
-            ty: XsdType::ComplexType,
-          },
-          0,
-        )
-      })
-      .collect::<Vec<_>>();
+    let mut to_run = BTreeMap::new();
+
+    for (index, ty) in self.imports.iter().enumerate() {
+      to_run.insert(
+        XsdName {
+          namespace: None,
+          local_name: ty
+            .schema_location
+            .as_ref()
+            .unwrap_or_else(|| ty.namespace.as_ref().unwrap())
+            .clone(),
+          ty: XsdType::Import,
+        },
+        (Some(index), 0),
+      );
+    }
+
+    for (index, _) in self.annotations.iter().enumerate() {
+      to_run.insert(
+        XsdName {
+          namespace: None,
+          local_name: index.to_string(),
+          ty: XsdType::Annotation,
+        },
+        (Some(index), 0),
+      );
+    }
+
+    for (index, ty) in self.elements.iter().enumerate() {
+      to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
+    }
+
+    for (index, ty) in self.simple_type.iter().enumerate() {
+      to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
+    }
+
+    for (index, ty) in self.complex_type.iter().enumerate() {
+      to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
+    }
+
+    for (index, ty) in self.simple_type.iter().enumerate() {
+      to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
+    }
+
+    for (index, ty) in self.attributes.iter().enumerate() {
+      to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
+    }
+
+    for (index, ty) in self.attribute_group.iter().enumerate() {
+      to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
+    }
+
+    for (index, ty) in self.groups.iter().enumerate() {
+      to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
+    }
+
+    let mut next_to_run = BTreeMap::new();
 
     let mut changed = true;
     while changed {
       changed = false;
 
-      let initial_len = simple_type_to_run.len();
-      simple_type_to_run = parse_type(
-        simple_type_to_run,
-        &mut top_level_names,
-        context,
-        namespace_filter,
-        |context, index| self.simple_type[index].get_implementation(context),
-      )?;
-      if simple_type_to_run.len() != initial_len {
-        changed = true;
+      for (type_to_run, (index, error)) in &to_run {
+        if let Some(index) = index {
+          let result = match &type_to_run.ty {
+            XsdType::Import => {
+              self.imports[*index].get_implementation(context)?;
+              None
+            }
+            XsdType::Annotation => {
+              self.annotations[*index].get_doc();
+              None
+            }
+            XsdType::Element => Some(self.elements[*index].get_implementation(context)),
+            XsdType::SimpleType => Some(self.simple_type[*index].get_implementation(context)),
+            XsdType::ComplexType => {
+              Some(self.complex_type[*index].get_implementation(true, None, context))
+            }
+            XsdType::Attribute => Some(self.attributes[*index].get_implementation(context)),
+            XsdType::AttributeGroup => {
+              Some(self.attribute_group[*index].get_implementation(None, context))
+            }
+            XsdType::Group => Some(self.groups[*index].get_implementation(None, context)),
+            ty => unreachable!("Unexpected top-level type {ty:?}"),
+          };
+          if let Some(result) = result {
+            match result {
+              Ok(temp) => {
+                changed = true;
+                let mut include_type = false;
+                if let Some(filter) = namespace_filter {
+                  if let Some(namespace) = &temp.name.namespace {
+                    if namespace == filter {
+                      include_type = true;
+                    }
+                  }
+                } else {
+                  include_type = true;
+                }
+                if include_type {
+                  top_level_names.push(temp.name.clone());
+                }
+                context.insert_impl(temp.name.clone(), temp);
+              }
+              Err(ty) => match ty {
+                XsdError::XsdImplNotFound(name) => {
+                  if &name != type_to_run {
+                    next_to_run.insert(type_to_run.clone(), (Some(*index), *error + 1));
+                  }
+
+                  let curr = to_run
+                    .get(&name)
+                    .map(|v| (v.0, v.1 + 1))
+                    .unwrap_or_else(|| (None, 0));
+                  next_to_run.insert(name, curr);
+                }
+                _ => return Err(ty),
+              },
+            }
+          }
+        }
       }
 
-      let initial_len = attr_group_to_run.len();
-      attr_group_to_run = parse_type(
-        attr_group_to_run,
-        &mut top_level_names,
-        context,
-        namespace_filter,
-        |context, index| self.attribute_group[index].get_implementation(None, context),
-      )?;
-      if attr_group_to_run.len() != initial_len {
-        changed = true;
-      }
-
-      let initial_len = group_to_run.len();
-      group_to_run = parse_type(
-        group_to_run,
-        &mut top_level_names,
-        context,
-        namespace_filter,
-        |context, index| self.groups[index].get_implementation(None, context),
-      )?;
-      if group_to_run.len() != initial_len {
-        changed = true;
-      }
-
-      let initial_len = element_to_run.len();
-      element_to_run = parse_type(
-        element_to_run,
-        &mut top_level_names,
-        context,
-        namespace_filter,
-        |context, index| self.elements[index].get_implementation(context),
-      )?;
-      if element_to_run.len() != initial_len {
-        changed = true;
-      }
-
-      let initial_len = complex_type_to_run.len();
-      complex_type_to_run = parse_type(
-        complex_type_to_run,
-        &mut top_level_names,
-        context,
-        namespace_filter,
-        |context, index| self.complex_type[index].get_implementation(true, None, context),
-      )?;
-      if complex_type_to_run.len() != initial_len {
-        changed = true;
-      }
+      std::mem::swap(&mut to_run, &mut next_to_run);
+      next_to_run.clear();
     }
 
-    let mut error = String::new();
-    for (_, v, c) in simple_type_to_run {
-      error.push_str(&format!("\nsimple_type::{v} [{c}]"));
-    }
-    for (_, v, c) in attr_group_to_run {
-      error.push_str(&format!("\nattribute_group::{v} [{c}]"));
-    }
-    for (_, v, c) in group_to_run {
-      error.push_str(&format!("\ngroup::{v} [{c}]"));
-    }
-    for (_, v, c) in element_to_run {
-      error.push_str(&format!("\nelement::{v} [{c}]"));
-    }
-    for (_, v, c) in complex_type_to_run {
-      error.push_str(&format!("\ncomplex_type::{v} [{c}]"));
+    let mut error_msg = String::new();
+    for (name, (index, error)) in to_run {
+      error_msg.push_str(&format!(
+        "\n[{:?}] {}{name} [{error}]",
+        name.ty,
+        if index.is_some() { "*" } else { "" }
+      ));
     }
 
-    if !error.is_empty() {
-      return Err(XsdError::XsdParseError(format!("COULD NOT FIND:{}", error)));
+    if !error_msg.is_empty() {
+      return Err(XsdError::XsdParseError(format!(
+        "COULD NOT FIND:{}",
+        error_msg
+      )));
     }
+
+    dbg!(&top_level_names);
 
     Ok(top_level_names)
   }
@@ -289,12 +243,7 @@ impl Schema {
     dst.push_str("use xml_schema_parser::{XsdError, XMLElementWrapper, XsdParse};\n\n");
     let mut formatter = crate::codegen::Formatter::new(&mut dst);
     for name in top_level_names {
-      context
-        .structs
-        .get(&name)
-        .unwrap()
-        .fmt(&mut formatter)
-        .unwrap();
+      context.search(&name).unwrap().fmt(&mut formatter).unwrap();
     }
 
     std::fs::write("../../musicxml-rs/src/musicxml_sys/musicxml.rs", &dst).unwrap();

@@ -1,13 +1,11 @@
 use crate::{
-  codegen::{Block, Field, Function, Impl, Struct},
+  codegen::{Block, Field, Impl, Struct},
   xsd::attribute::Attribute,
 };
 
 use super::{
   annotation::Annotation,
-  xsd_context::{
-    to_field_name, to_struct_name, MergeSettings, XsdContext, XsdElement, XsdImpl, XsdName, XsdType,
-  },
+  xsd_context::{to_field_name, MergeSettings, XsdContext, XsdElement, XsdImpl, XsdName, XsdType},
   XMLElementWrapper, XsdError,
 };
 
@@ -18,7 +16,7 @@ use super::{
 //   namespace = "xs: http://www.w3.org/2001/XMLSchema"
 // )]
 pub struct AttributeGroup {
-  pub name: Option<String>,
+  pub name: Option<XsdName>,
   pub reference: Option<XsdName>,
   pub annotation: Option<Annotation>,
   pub attributes: Vec<Attribute>,
@@ -29,10 +27,12 @@ impl AttributeGroup {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
     element.check_name("attributeGroup")?;
 
-    let name = element.try_get_attribute("name")?;
+    let name = element
+      .try_get_attribute("name")?
+      .map(|v: String| element.new_name(&v, XsdType::AttributeGroup));
     let reference = element
       .try_get_attribute("ref")?
-      .map(|v: String| XsdName::new(&v, XsdType::AttributeGroup));
+      .map(|v: String| element.new_name(&v, XsdType::AttributeGroup));
 
     if name.is_some() && reference.is_some() {
       return Err(XsdError::XsdParseError(format!(
@@ -68,15 +68,10 @@ impl AttributeGroup {
     //               name is None.
     let generated_impl = match (&self.name, &self.reference) {
       (None, Some(refers)) => {
-        let name = XsdName {
-          namespace: context.xml_schema_prefix.clone(),
-          local_name: refers.to_string(),
-          ty: XsdType::AttributeGroup,
-        };
-        let inner = if let Some(imp) = context.structs.get(&name) {
+        let inner = if let Some(imp) = context.search(refers) {
           imp
         } else {
-          return Err(XsdError::XsdImplNotFound(name));
+          return Err(XsdError::XsdImplNotFound(refers.clone()));
         };
 
         let field_name = if let Some(parent_name) = &parent_name {
@@ -112,18 +107,15 @@ impl AttributeGroup {
       (_, None) => {
         let xml_name = self
           .name
-          .as_ref()
-          .unwrap_or_else(|| &parent_name.as_ref().unwrap().local_name);
+          .clone()
+          .unwrap_or_else(|| parent_name.as_ref().unwrap().clone())
+          .clone();
 
         let mut generated_struct = XsdImpl {
-          name: XsdName {
-            namespace: None,
-            local_name: xml_name.to_string(),
-            ty: XsdType::AttributeGroup,
-          },
-          fieldname_hint: Some(to_field_name(xml_name)),
+          name: xml_name.clone(),
+          fieldname_hint: Some(xml_name.to_field_name()),
           element: XsdElement::Struct(
-            Struct::new(&format!("Group{}", to_struct_name(xml_name)))
+            Struct::new(&format!("Group{}", xml_name.to_struct_name()))
               .vis("pub")
               .to_owned(),
           ),
@@ -134,16 +126,11 @@ impl AttributeGroup {
         let mut fields = vec![];
 
         if let Some(reference) = &self.reference {
-          let name = XsdName {
-            namespace: None,
-            local_name: reference.to_string(),
-            ty: XsdType::AttributeGroup,
-          };
           // We are using a reference as a base so load the reference
-          if let Some(imp) = context.structs.get(&name) {
+          if let Some(imp) = context.search(&reference) {
             let value = XsdImpl {
-              name: name.clone(),
-              fieldname_hint: Some(name.to_field_name()),
+              name: reference.clone(),
+              fieldname_hint: Some(reference.to_field_name()),
               element: XsdElement::Type(imp.element.get_type()),
               inner: vec![],
               implementation: vec![],
@@ -153,7 +140,7 @@ impl AttributeGroup {
               fields.push(field);
             }
           } else {
-            return Err(XsdError::XsdImplNotFound(name));
+            return Err(XsdError::XsdImplNotFound(reference.clone()));
           }
         }
 

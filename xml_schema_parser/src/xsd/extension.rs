@@ -81,7 +81,39 @@ impl Extension {
     parent_name: XsdName,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    let mut generated_impl = match (&self.group, &self.sequence, &self.choice) {
+    let generated_impl = context.multi_search(
+      self.base.namespace.clone(),
+      self.base.local_name.clone(),
+      &[XsdType::SimpleType, XsdType::ComplexType],
+    );
+    let base_impl = match generated_impl {
+      super::xsd_context::SearchResult::SingleMatch(imp) => imp.clone(),
+      super::xsd_context::SearchResult::MultipleMatches => {
+        return Err(XsdError::XsdParseError(format!(
+          "Found both a simple and complex type named {}",
+          self.base
+        )));
+      }
+      super::xsd_context::SearchResult::NoMatches => {
+        return Err(XsdError::XsdImplNotFound(self.base.clone()));
+      }
+    };
+
+    let mut generated_impl = XsdImpl {
+      name: parent_name.clone(),
+      fieldname_hint: Some(parent_name.to_field_name()),
+      element: XsdElement::Struct(
+        Struct::new(&parent_name.to_struct_name())
+          .vis("pub")
+          .to_owned(),
+      ),
+      inner: vec![],
+      implementation: vec![],
+    };
+
+    generated_impl.merge(base_impl, MergeSettings::default());
+
+    let to_merge_impl = match (&self.group, &self.sequence, &self.choice) {
       (None, None, Some(choice)) => choice.get_implementation(Some(parent_name), context),
       (None, Some(sequence), None) => sequence.get_implementation(Some(parent_name), context),
       (Some(group), None, None) => group.get_implementation(Some(parent_name), context),
@@ -98,6 +130,8 @@ impl Extension {
       }),
       _ => unreachable!("Error parsing {}, Invalid XSD!", &parent_name.local_name),
     }?;
+
+    generated_impl.merge(to_merge_impl, MergeSettings::default());
 
     for attribute in &self.attributes {
       generated_impl.merge(
@@ -157,7 +191,7 @@ mod tests {
       attributes: vec![
         Attribute {
           annotation: None,
-          name: Some("attribute_1".to_string()),
+          name: Some(XsdName::new("attribute_1", XsdType::Attribute)),
           kind: Some(XsdName::new("xs:string", XsdType::SimpleType)),
           default: None,
           fixed: None,
@@ -167,7 +201,7 @@ mod tests {
         },
         Attribute {
           annotation: None,
-          name: Some("attribute_2".to_string()),
+          name: Some(XsdName::new("attribute_2", XsdType::Attribute)),
           kind: Some(XsdName::new("xs:boolean", XsdType::SimpleType)),
           default: None,
           fixed: None,

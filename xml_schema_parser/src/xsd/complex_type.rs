@@ -1,22 +1,17 @@
 use super::{
+  annotation::Annotation,
+  attribute::Attribute,
   attribute_group::AttributeGroup,
   choice::Choice,
+  complex_content::ComplexContent,
   group::Group,
-  xsd_context::{infer_type_name, to_field_name, XsdType},
-  XMLElementWrapper, XsdError,
+  sequence::Sequence,
+  simple_content::SimpleContent,
+  xsd_context::{infer_type_name, XsdType},
+  xsd_context::{MergeSettings, XsdElement, XsdImpl, XsdName},
+  XMLElementWrapper, XsdContext, XsdError,
 };
-use crate::{
-  codegen::Struct,
-  xsd::{
-    annotation::Annotation,
-    attribute::Attribute,
-    complex_content::ComplexContent,
-    sequence::Sequence,
-    simple_content::SimpleContent,
-    xsd_context::{to_struct_name, MergeSettings, XsdElement, XsdImpl, XsdName},
-    XsdContext,
-  },
-};
+use crate::codegen::Struct;
 
 #[derive(Clone, Default, Debug, PartialEq)]
 // #[yaserde(
@@ -25,7 +20,7 @@ use crate::{
 //   namespace = "xs: http://www.w3.org/2001/XMLSchema"
 // )]
 pub struct ComplexType {
-  pub name: Option<String>,
+  pub name: Option<XsdName>,
   pub attributes: Vec<Attribute>,
   pub attribute_groups: Vec<AttributeGroup>,
   pub choice: Option<Choice>,
@@ -80,7 +75,9 @@ impl ComplexType {
     }
 
     let output = Self {
-      name: element.try_get_attribute("name")?,
+      name: element
+        .try_get_attribute("name")?
+        .map(|v: String| element.new_name(&v, XsdType::ComplexType)),
       choice,
       group,
       sequence,
@@ -107,8 +104,8 @@ impl ComplexType {
       .name
       .as_ref()
       .map(|v| XsdName {
-        namespace: None,
-        local_name: v.clone(),
+        namespace: v.namespace.clone(),
+        local_name: v.local_name.clone(),
         ty: XsdType::ComplexType,
       })
       .or_else(|| parent_name);

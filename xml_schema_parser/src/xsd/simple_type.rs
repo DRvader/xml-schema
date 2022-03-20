@@ -12,7 +12,7 @@ use super::{
 #[derive(Clone, Default, Debug, PartialEq)]
 // #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct SimpleType {
-  pub name: Option<String>,
+  pub name: Option<XsdName>,
   pub annotation: Option<Annotation>,
   pub restriction: Option<Restriction>,
   pub list: Option<List>,
@@ -36,7 +36,9 @@ impl SimpleType {
       )));
     }
 
-    let name = element.try_get_attribute("name")?;
+    let name = element
+      .try_get_attribute("name")?
+      .map(|v: String| element.new_name(&v, XsdType::SimpleType));
 
     if parent_is_schema && name.is_none() {
       return Err(XsdError::XsdParseError(format!(
@@ -65,11 +67,10 @@ impl SimpleType {
 
   #[tracing::instrument(skip_all)]
   pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
-    let name = XsdName {
-      namespace: None,
-      local_name: self.name.clone().unwrap_or_else(|| "temp".to_string()),
-      ty: super::xsd_context::XsdType::SimpleType,
-    };
+    let name = self
+      .name
+      .clone()
+      .unwrap_or_else(|| XsdName::new("anon", XsdType::SimpleType));
 
     let mut generated_impl = match (&self.list, &self.union, &self.restriction) {
       (None, None, Some(restriction)) => {
@@ -101,7 +102,7 @@ mod tests {
   #[test]
   fn simple_type() {
     let st = SimpleType {
-      name: Some("test".to_string()),
+      name: Some(XsdName::new("test", XsdType::SimpleType)),
       annotation: None,
       restriction: None,
       list: None,

@@ -12,7 +12,7 @@ fn musicxml() -> Result<(), XsdError> {
   // )
   // .unwrap();
 
-  let mut xsd = Xsd::new_from_file("../musicxml.xsd", &BTreeMap::new())?;
+  let mut xsd = Xsd::new_from_file("../musicxml.xsd")?;
   let output = xsd.generate(&None);
 
   match output {
@@ -24,9 +24,11 @@ fn musicxml() -> Result<(), XsdError> {
       output => return Err(output),
     },
     Ok(output) => {
-      dbg!(output);
+      // dbg!(output);
     }
   }
+
+  panic!();
 
   Ok(())
 }

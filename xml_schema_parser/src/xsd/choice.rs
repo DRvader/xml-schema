@@ -1,4 +1,4 @@
-use crate::codegen::{Block, Enum, Field, Impl, Struct, Type};
+use crate::codegen::Enum;
 
 use super::{
   element::Element,
@@ -6,8 +6,8 @@ use super::{
   max_occurences::MaxOccurences,
   sequence::Sequence,
   xsd_context::{
-    infer_type_name, to_field_name, to_struct_name, MergeSettings, XsdContext, XsdElement, XsdImpl,
-    XsdName, XsdType,
+    infer_type_name, to_struct_name, MergeSettings, XsdContext, XsdElement, XsdImpl, XsdName,
+    XsdType,
   },
   XMLElementWrapper, XsdError,
 };

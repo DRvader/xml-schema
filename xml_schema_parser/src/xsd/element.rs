@@ -1,5 +1,5 @@
 use crate::{
-  codegen::{Block, Field, Function, Impl, Struct},
+  codegen::{Block, Function, Impl, Struct},
   xsd::{
     annotation::Annotation,
     complex_type::ComplexType,
@@ -10,15 +10,12 @@ use crate::{
   },
 };
 
-use super::{
-  xsd_context::{to_field_name, to_struct_name, XsdType},
-  XMLElementWrapper,
-};
+use super::{xsd_context::XsdType, XMLElementWrapper};
 
 #[derive(Clone, Default, Debug, PartialEq)]
 // #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Element {
-  pub name: Option<String>,
+  pub name: Option<XsdName>,
   pub kind: Option<XsdName>,
   pub refers: Option<XsdName>,
   pub min_occurences: u64,
@@ -41,7 +38,9 @@ impl Element {
   pub fn parse(mut element: XMLElementWrapper, parent_is_schema: bool) -> Result<Self, XsdError> {
     element.check_name("element")?;
 
-    let name = element.try_get_attribute("name")?;
+    let name = element
+      .try_get_attribute("name")?
+      .map(|v: String| element.new_name(&v, XsdType::Element));
     let refers = element
       .try_get_attribute("ref")?
       .map(|v: String| XsdName::new(&v, XsdType::Element));
@@ -107,34 +106,26 @@ impl Element {
   #[tracing::instrument(skip_all)]
   pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
     // We either have a named (such as a schema decl) or an anonymous element.
-    let xml_name = self.name.clone().unwrap_or_else(|| "anon".to_string());
-    let type_name = to_struct_name(&xml_name);
+    let xml_name = self
+      .name
+      .clone()
+      .unwrap_or_else(|| XsdName::new_namespace("anon", XsdType::Element, None));
 
     // Now we will generate and return a struct which contains the data declared in the element.
     // TODO(drosen): Simplify output if element is trivial (e.g. simpleType).
 
     let mut generated_struct = match (&self.simple_type, &self.complex_type) {
-      (None, Some(complex_type)) => complex_type.get_implementation(
-        false,
-        Some(XsdName {
-          namespace: None,
-          local_name: xml_name.clone(),
-          ty: XsdType::Element,
-        }),
-        context,
-      )?,
+      (None, Some(complex_type)) => {
+        complex_type.get_implementation(false, Some(xml_name.clone()), context)?
+      }
       (Some(simple_type), None) => simple_type.get_implementation(context)?,
       (None, None) => {
         if self.kind.is_none() {
           return Ok(XsdImpl {
-            name: XsdName {
-              namespace: None,
-              local_name: xml_name.clone(),
-              ty: XsdType::Element,
-            },
-            fieldname_hint: Some(to_field_name(&xml_name)),
+            name: xml_name.clone(),
+            fieldname_hint: Some(xml_name.to_field_name()),
             element: XsdElement::Struct(
-              Struct::new(&to_struct_name(&xml_name))
+              Struct::new(&xml_name.to_struct_name())
                 .vis("pub")
                 .to_owned(),
             ),
@@ -149,12 +140,8 @@ impl Element {
           );
           match imp {
             super::xsd_context::SearchResult::SingleMatch(imp) => XsdImpl {
-              name: XsdName {
-                namespace: None,
-                local_name: xml_name.clone(),
-                ty: XsdType::Element,
-              },
-              fieldname_hint: Some(to_field_name(&xml_name)),
+              name: xml_name.clone(),
+              fieldname_hint: Some(xml_name.to_field_name()),
               element: XsdElement::Type(imp.element.get_type()),
               inner: vec![],
               implementation: vec![],
@@ -166,24 +153,20 @@ impl Element {
               )));
             }
             super::xsd_context::SearchResult::NoMatches => {
-              return Err(XsdError::XsdImplNotFound(XsdName {
-                namespace: None,
-                local_name: xml_name.clone(),
-                ty: XsdType::Element,
-              }));
+              return Err(XsdError::XsdImplNotFound(xml_name.clone()));
             }
           }
         }
       }
       _ => {
         return Err(XsdError::XsdGenError {
-          node_name: xml_name,
+          node_name: xml_name.to_string(),
           msg: "Found both simple and complex type in element.".to_string(),
         })
       }
     };
 
-    let field_name = to_field_name(&xml_name);
+    let field_name = xml_name.to_field_name();
     let mut field_type = generated_struct.element.get_type();
 
     let docs = self
@@ -195,7 +178,6 @@ impl Element {
     }
 
     let mut generated_struct = if self.is_multiple() || self.could_be_none() {
-      let old_type = field_type.to_string();
       if self.is_multiple() {
         field_type.wrap("Vec");
       } else if self.could_be_none() {
@@ -203,11 +185,7 @@ impl Element {
       }
 
       let mut output_struct = XsdImpl {
-        name: XsdName {
-          namespace: None,
-          local_name: xml_name.clone(),
-          ty: XsdType::Element,
-        },
+        name: xml_name.clone(),
         fieldname_hint: Some(field_name.clone()),
         element: XsdElement::Type(field_type).to_owned(),
         inner: vec![],
@@ -270,7 +248,7 @@ mod tests {
   #[test]
   fn extern_type() {
     let element = Element {
-      name: Some("volume".to_string()),
+      name: Some(XsdName::new("volume", XsdType::Element)),
       kind: Some(XsdName::new("books:volume-type", XsdType::SimpleType)),
       refers: None,
       min_occurences: 1,
@@ -307,7 +285,7 @@ mod tests {
   #[test]
   fn xs_string_element() {
     let element = Element {
-      name: Some("volume".to_string()),
+      name: Some(XsdName::new("volume", XsdType::Element)),
       kind: Some(XsdName::new("xs:string", XsdType::SimpleType)),
       refers: None,
       min_occurences: 1,

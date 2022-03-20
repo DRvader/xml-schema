@@ -6,7 +6,7 @@ use super::{
   XMLElementWrapper, XsdError,
 };
 use crate::{
-  codegen::{Field, Impl, Struct, Type},
+  codegen::{Field, Impl, Type},
   xsd::{simple_type::SimpleType, XsdContext},
 };
 
@@ -18,7 +18,7 @@ use crate::{
 // )]
 pub struct Attribute {
   pub annotation: Option<Annotation>,
-  pub name: Option<String>,
+  pub name: Option<XsdName>,
   pub kind: Option<XsdName>,
   pub default: Option<String>,
   pub fixed: Option<String>,
@@ -58,10 +58,12 @@ impl Attribute {
   pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
     element.check_name("attribute")?;
 
-    let name = element.try_get_attribute("name")?;
+    let name = element
+      .try_get_attribute("name")?
+      .map(|v: String| element.new_name(&v, XsdType::Attribute));
     let reference = element
       .try_get_attribute("ref")?
-      .map(|v: String| XsdName::new(&v, XsdType::Attribute));
+      .map(|v: String| element.new_name(&v, XsdType::Attribute));
 
     if name.is_some() && reference.is_some() {
       return Err(XsdError::XsdParseError(format!(
@@ -117,9 +119,9 @@ impl Attribute {
       self.simple_type.as_ref(),
     ) {
       (Some(reference), None, None) => {
-        if let Some(inner) = context.structs.get(&reference) {
+        if let Some(inner) = context.search(&reference) {
           let field_name = if let Some(name) = &self.name {
-            to_field_name(name)
+            name.to_field_name()
           } else if let Some(field_hint) = &inner.fieldname_hint {
             field_hint.clone()
           } else {
@@ -127,14 +129,10 @@ impl Attribute {
           };
 
           let name = if let Some(name) = &self.name {
-            XsdName {
-              namespace: None,
-              local_name: name.to_string(),
-              ty: super::xsd_context::XsdType::Attribute,
-            }
+            name.clone()
           } else {
             XsdName {
-              namespace: None,
+              namespace: reference.namespace.clone(),
               local_name: inner.infer_type_name(),
               ty: super::xsd_context::XsdType::Attribute,
             }
@@ -156,9 +154,9 @@ impl Attribute {
         }
       }
       (None, Some(kind), None) => {
-        if let Some(inner) = context.structs.get(kind) {
+        if let Some(inner) = context.search(kind) {
           let field_name = if let Some(name) = &self.name {
-            to_field_name(name)
+            name.to_field_name()
           } else if let Some(field_hint) = &inner.fieldname_hint {
             field_hint.clone()
           } else {
@@ -166,14 +164,10 @@ impl Attribute {
           };
 
           let name = if let Some(name) = &self.name {
-            XsdName {
-              namespace: None,
-              local_name: name.to_string(),
-              ty: XsdType::Attribute,
-            }
+            name.clone()
           } else {
             XsdName {
-              namespace: None,
+              namespace: kind.namespace.clone(),
               local_name: inner.infer_type_name(),
               ty: XsdType::Attribute,
             }
@@ -206,24 +200,23 @@ impl Attribute {
 
     let mut r#impl = Impl::new(&rust_type);
 
-    let parse = r#impl.new_fn("parse");
-    parse.arg("mut element", "XMLElementWrapper");
-    parse.ret("Result<Self, XsdError>");
+    // let parse = r#impl.new_fn("parse");
+    // parse.arg("mut element", "XMLElementWrapper");
+    // parse.ret("Result<Self, XsdError>");
 
-    parse.line(format!(
-      "element.get_attribute(\"{}\")",
-      self.name.as_ref().unwrap()
-    ));
-    parse.line("Ok(output)");
+    // parse.line(format!(
+    //   "element.get_attribute(\"{}\")",
+    //   self.name.as_ref().unwrap()
+    // ));
+    // parse.line("Ok(output)");
 
     let mut generated_impl = XsdImpl {
       element: XsdElement::Type(rust_type),
-      name: XsdName {
-        namespace: None,
-        local_name: self.name.as_ref().unwrap().clone(),
-        ty: XsdType::Attribute,
-      },
-      fieldname_hint: Some(to_field_name(self.name.as_ref().unwrap())),
+      name: self
+        .name
+        .clone()
+        .unwrap_or_else(|| self.reference.clone().unwrap()),
+      fieldname_hint: self.name.as_ref().map(|v| v.to_field_name()),
       inner: vec![],
       implementation: vec![],
     };
@@ -252,7 +245,7 @@ mod tests {
   fn string_attribute() {
     let attribute = Attribute {
       annotation: None,
-      name: Some("language".to_string()),
+      name: Some(XsdName::new("language", XsdType::Attribute)),
       kind: Some(XsdName::new("xs:string", XsdType::SimpleType)),
       default: None,
       fixed: None,
@@ -281,7 +274,7 @@ mod tests {
   fn optional_string_attribute() {
     let attribute = Attribute {
       annotation: None,
-      name: Some("language".to_string()),
+      name: Some(XsdName::new("language", XsdType::Attribute)),
       kind: Some(XsdName::new("xs:string", XsdType::SimpleType)),
       default: None,
       fixed: None,
@@ -310,7 +303,7 @@ mod tests {
   fn type_attribute() {
     let attribute = Attribute {
       annotation: None,
-      name: Some("type".to_string()),
+      name: Some(XsdName::new("language", XsdType::Attribute)),
       kind: Some(XsdName::new("xs:string", XsdType::SimpleType)),
       default: None,
       fixed: None,
@@ -339,7 +332,7 @@ mod tests {
   fn reference_type_attribute() {
     let attribute = Attribute {
       annotation: None,
-      name: Some("type".to_string()),
+      name: Some(XsdName::new("language", XsdType::Attribute)),
       kind: None,
       default: None,
       fixed: None,
@@ -369,7 +362,7 @@ mod tests {
   fn bad_type_attribute() {
     let attribute = Attribute {
       annotation: None,
-      name: Some("type".to_string()),
+      name: Some(XsdName::new("type", XsdType::Attribute)),
       default: None,
       fixed: None,
       kind: None,

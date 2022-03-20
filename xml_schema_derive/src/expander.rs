@@ -9,7 +9,7 @@ pub fn expand_derive(ast: &syn::DeriveInput) -> Result<TokenStream, XsdError> {
 
   info!("{:?}", attributes);
 
-  let mut xsd = Xsd::new_from_file(&attributes.source, &attributes.module_namespace_mappings)?;
+  let mut xsd = Xsd::new_from_file(&attributes.source)?;
   let value = xsd.generate(&attributes.target_prefix)?;
   let generated = quote!(#value);
 

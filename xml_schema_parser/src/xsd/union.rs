@@ -9,7 +9,7 @@ use super::{
 #[derive(Clone, Default, Debug, PartialEq)]
 // #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Union {
-  pub member_types: Vec<String>,
+  pub member_types: Vec<XsdName>,
   pub simple_types: Vec<SimpleType>,
 }
 
@@ -22,7 +22,7 @@ impl Union {
 
     if let Some(member_types) = member_types {
       for member in member_types.split_whitespace() {
-        members.push(member.to_string());
+        members.push(element.new_name(member, XsdType::SimpleType));
       }
     }
 
@@ -56,11 +56,7 @@ impl Union {
 
     let mut names = Vec::new();
     for (index, member) in self.member_types.iter().enumerate() {
-      if let Some(imp) = context.structs.get(&XsdName {
-        namespace: None,
-        local_name: member.clone(),
-        ty: super::xsd_context::XsdType::SimpleType,
-      }) {
+      if let Some(imp) = context.search(&member) {
         let st_name = to_struct_name(&imp.element.get_type().name);
         generated_enum
           .new_variant(&st_name)

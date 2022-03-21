@@ -99,19 +99,26 @@ impl Extension {
       }
     };
 
+    dbg!(&base_impl.element.get_type());
+
     let mut generated_impl = XsdImpl {
       name: parent_name.clone(),
       fieldname_hint: Some(parent_name.to_field_name()),
       element: XsdElement::Struct(
         Struct::new(&parent_name.to_struct_name())
           .vis("pub")
+          .field(
+            &base_impl
+              .fieldname_hint
+              .clone()
+              .unwrap_or_else(|| base_impl.infer_type_name()),
+            base_impl.element.get_type(),
+          )
           .to_owned(),
       ),
       inner: vec![],
       implementation: vec![],
     };
-
-    generated_impl.merge(base_impl, MergeSettings::default());
 
     let to_merge_impl = match (&self.group, &self.sequence, &self.choice) {
       (None, None, Some(choice)) => choice.get_implementation(Some(parent_name), context),

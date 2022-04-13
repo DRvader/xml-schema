@@ -190,19 +190,26 @@ impl Schema {
                 if include_type {
                   top_level_names.push(temp.name.clone());
                 }
+
+                // It's possible that a type was missed earlier in the loop and
+                // added to the need to run queue. If we found it now, we can just remove it.
+                next_to_run.remove(&temp.name);
+
                 context.insert_impl(temp.name.clone(), temp);
               }
               Err(ty) => match ty {
                 XsdError::XsdImplNotFound(name) => {
-                  if &name != type_to_run {
-                    next_to_run.insert(type_to_run.clone(), (Some(*index), *error + 1));
-                  }
-
                   let curr = to_run
                     .get(&name)
                     .map(|v| (v.0, v.1 + 1))
                     .unwrap_or_else(|| (None, 0));
                   next_to_run.insert(name, curr);
+
+                  let curr = to_run
+                    .get(type_to_run)
+                    .map(|v| (v.0, v.1 + 1))
+                    .unwrap_or_else(|| (None, 0));
+                  next_to_run.insert(type_to_run.clone(), curr);
                 }
                 _ => return Err(ty),
               },
@@ -231,8 +238,6 @@ impl Schema {
       )));
     }
 
-    dbg!(&top_level_names);
-
     Ok(top_level_names)
   }
 
@@ -246,7 +251,7 @@ impl Schema {
       context.search(&name).unwrap().fmt(&mut formatter).unwrap();
     }
 
-    std::fs::write("../../musicxml-rs/src/musicxml_sys/musicxml.rs", &dst).unwrap();
+    std::fs::write("../musicxml-rs/src/musicxml_sys/musicxml.rs", &dst).unwrap();
 
     Ok(dst)
   }

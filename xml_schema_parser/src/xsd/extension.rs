@@ -8,7 +8,7 @@ use super::{
   attribute_group::AttributeGroup,
   choice::Choice,
   group::Group,
-  xsd_context::{MergeSettings, XsdElement, XsdImpl, XsdName, XsdType},
+  xsd_context::{to_field_name, MergeSettings, XsdElement, XsdImpl, XsdName, XsdType},
   XMLElementWrapper, XsdError,
 };
 
@@ -87,7 +87,7 @@ impl Extension {
       &[XsdType::SimpleType, XsdType::ComplexType],
     );
     let base_impl = match generated_impl {
-      super::xsd_context::SearchResult::SingleMatch(imp) => imp.clone(),
+      super::xsd_context::SearchResult::SingleMatch(imp) => imp,
       super::xsd_context::SearchResult::MultipleMatches => {
         return Err(XsdError::XsdParseError(format!(
           "Found both a simple and complex type named {}",
@@ -99,8 +99,6 @@ impl Extension {
       }
     };
 
-    dbg!(&base_impl.element.get_type());
-
     let mut generated_impl = XsdImpl {
       name: parent_name.clone(),
       fieldname_hint: Some(parent_name.to_field_name()),
@@ -111,7 +109,7 @@ impl Extension {
             &base_impl
               .fieldname_hint
               .clone()
-              .unwrap_or_else(|| base_impl.infer_type_name()),
+              .unwrap_or_else(|| to_field_name(&base_impl.element.get_type().name)),
             base_impl.element.get_type(),
           )
           .to_owned(),
@@ -121,29 +119,28 @@ impl Extension {
     };
 
     let to_merge_impl = match (&self.group, &self.sequence, &self.choice) {
-      (None, None, Some(choice)) => choice.get_implementation(Some(parent_name), context),
-      (None, Some(sequence), None) => sequence.get_implementation(Some(parent_name), context),
-      (Some(group), None, None) => group.get_implementation(Some(parent_name), context),
-      (None, None, None) => Ok(XsdImpl {
-        name: parent_name.clone(),
-        fieldname_hint: Some(parent_name.to_field_name()),
-        element: XsdElement::Struct(
-          Struct::new(&parent_name.to_struct_name())
-            .vis("pub")
-            .to_owned(),
-        ),
-        inner: vec![],
-        implementation: vec![],
-      }),
+      (None, None, Some(choice)) => Some(choice.get_implementation(Some(parent_name), context)),
+      (None, Some(sequence), None) => Some(sequence.get_implementation(Some(parent_name), context)),
+      (Some(group), None, None) => Some(group.get_implementation(Some(parent_name), context)),
+      (None, None, None) => None,
       _ => unreachable!("Error parsing {}, Invalid XSD!", &parent_name.local_name),
-    }?;
+    };
 
-    generated_impl.merge(to_merge_impl, MergeSettings::default());
+    if let Some(to_merge_impl) = to_merge_impl {
+      generated_impl.merge(to_merge_impl?, MergeSettings::default());
+    }
 
     for attribute in &self.attributes {
       generated_impl.merge(
         attribute.get_implementation(context)?,
         MergeSettings::ATTRIBUTE,
+      );
+    }
+
+    for attribute in &self.attribute_groups {
+      generated_impl.merge(
+        attribute.get_implementation(None, context)?,
+        MergeSettings::default(),
       );
     }
 

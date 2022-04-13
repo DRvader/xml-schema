@@ -678,7 +678,7 @@ pub enum SearchResult<'a> {
 pub struct XsdContext {
   pub namespace: Namespace,
   pub xml_schema_prefix: Option<String>,
-  structs: BTreeMap<XsdName, XsdImpl>,
+  pub structs: BTreeMap<XsdName, XsdImpl>,
 }
 
 impl XsdContext {

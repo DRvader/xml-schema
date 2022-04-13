@@ -112,20 +112,32 @@ impl ComplexType {
 
     let xml_name = struct_id.clone();
 
-    let generated_impl = match (
+    let mut generated_impl = XsdImpl {
+      name: struct_id.clone().unwrap(),
+      element: XsdElement::Struct(
+        Struct::new(&struct_id.unwrap().to_struct_name())
+          .vis("pub")
+          .to_owned(),
+      ),
+      fieldname_hint: None,
+      implementation: vec![],
+      inner: vec![],
+    };
+
+    let inner_impl = match (
       &self.complex_content,
       &self.simple_content,
       &self.group,
       &self.sequence,
     ) {
       (Some(complex_content), None, None, None) => {
-        Some(complex_content.get_implementation(struct_id.unwrap(), context)?)
+        Some(complex_content.get_implementation(xml_name.unwrap(), context)?)
       }
       (None, Some(simple_content), None, None) => {
-        Some(simple_content.get_implementation(struct_id.unwrap(), context)?)
+        Some(simple_content.get_implementation(xml_name.unwrap(), context)?)
       }
-      (None, None, Some(group), None) => Some(group.get_implementation(struct_id, context)?),
-      (None, None, None, Some(sequence)) => Some(sequence.get_implementation(struct_id, context)?),
+      (None, None, Some(group), None) => Some(group.get_implementation(xml_name, context)?),
+      (None, None, None, Some(sequence)) => Some(sequence.get_implementation(xml_name, context)?),
       (None, None, None, None) => None,
       _ => unreachable!("Xsd is invalid."),
     };
@@ -140,49 +152,9 @@ impl ComplexType {
       generated_impls.push(g.get_implementation(None, context)?);
     }
 
-    let mut generated_impl = if let Some(generated_impl) = generated_impl {
-      if !generated_impls.is_empty() || parent_is_schema {
-        if let XsdElement::Field(_) | XsdElement::Type(_) = generated_impl.element {
-          let name = xml_name.unwrap_or_else(|| XsdName {
-            namespace: None,
-            local_name: infer_type_name(&generated_impls),
-            ty: XsdType::ComplexType,
-          });
-          let mut new_gen = XsdImpl {
-            name,
-            element: XsdElement::Struct(
-              Struct::new(&generated_impl.element.get_type().name)
-                .vis("pub")
-                .to_owned(),
-            ),
-            fieldname_hint: None,
-            implementation: vec![],
-            inner: vec![],
-          };
-
-          new_gen.merge(generated_impl, MergeSettings::default());
-
-          new_gen
-        } else {
-          generated_impl
-        }
-      } else {
-        generated_impl
-      }
-    } else {
-      let name = xml_name.unwrap_or_else(|| XsdName {
-        namespace: None,
-        local_name: infer_type_name(&generated_impls),
-        ty: XsdType::ComplexType,
-      });
-      XsdImpl {
-        element: XsdElement::Struct(Struct::new(&name.to_struct_name()).vis("pub").to_owned()),
-        name,
-        fieldname_hint: None,
-        implementation: vec![],
-        inner: vec![],
-      }
-    };
+    if let Some(inner_impl) = inner_impl {
+      generated_impl.merge(inner_impl, MergeSettings::default());
+    }
 
     for i in generated_impls {
       generated_impl.merge(

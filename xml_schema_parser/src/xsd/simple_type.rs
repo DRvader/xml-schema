@@ -66,11 +66,16 @@ impl SimpleType {
   }
 
   #[tracing::instrument(skip_all)]
-  pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
-    let name = self
-      .name
-      .clone()
-      .unwrap_or_else(|| XsdName::new("anon", XsdType::SimpleType));
+  pub fn get_implementation(
+    &self,
+    parent_name: Option<XsdName>,
+    context: &mut XsdContext,
+  ) -> Result<XsdImpl, XsdError> {
+    let name = self.name.clone().unwrap_or_else(|| {
+      let mut parent = parent_name.unwrap();
+      parent.ty = XsdType::SimpleType;
+      parent
+    });
 
     let mut generated_impl = match (&self.list, &self.union, &self.restriction) {
       (None, None, Some(restriction)) => {
@@ -114,7 +119,7 @@ mod tests {
         .unwrap();
 
     let value = st
-      .get_implementation(&mut context)
+      .get_implementation(None, &mut context)
       .unwrap()
       .to_string()
       .unwrap();

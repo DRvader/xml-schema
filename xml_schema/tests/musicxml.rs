@@ -12,7 +12,7 @@ fn musicxml() -> Result<(), XsdError> {
   // )
   // .unwrap();
 
-  let mut xsd = Xsd::new_from_file("../musicxml.xsd")?;
+  let mut xsd = Xsd::new_from_file("../xlink.xsd")?;
   let output = xsd.generate(&None);
 
   match output {
@@ -24,7 +24,7 @@ fn musicxml() -> Result<(), XsdError> {
       output => return Err(output),
     },
     Ok(output) => {
-      // dbg!(output);
+      dbg!(output);
     }
   }
 

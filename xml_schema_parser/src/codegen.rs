@@ -721,8 +721,8 @@ impl Struct {
   }
 
   /// Add a generic to the struct.
-  pub fn generic(&mut self, name: &str) -> &mut Self {
-    self.type_def.ty.generic(name);
+  pub fn generic(mut self, name: &str) -> Self {
+    self.type_def.ty = self.type_def.ty.generic(name);
     self
   }
 
@@ -839,14 +839,14 @@ impl Trait {
   }
 
   /// Set the trait visibility.
-  pub fn vis(&mut self, vis: &str) -> &mut Self {
+  pub fn vis(mut self, vis: &str) -> Self {
     self.type_def.vis(vis);
     self
   }
 
   /// Add a generic to the trait
-  pub fn generic(&mut self, name: &str) -> &mut Self {
-    self.type_def.ty.generic(name);
+  pub fn generic(mut self, name: &str) -> Self {
+    self.type_def.ty = self.type_def.ty.generic(name);
     self
   }
 
@@ -965,8 +965,8 @@ impl Enum {
   }
 
   /// Add a generic to the enum.
-  pub fn generic(&mut self, name: &str) -> &mut Self {
-    self.type_def.ty.generic(name);
+  pub fn generic(mut self, name: &str) -> Self {
+    self.type_def.ty = self.type_def.ty.generic(name);
     self
   }
 
@@ -1084,13 +1084,13 @@ impl Type {
     }
   }
 
-  pub fn prefix(&mut self, prefix: &str) -> &mut Self {
+  pub fn prefix(mut self, prefix: &str) -> Self {
     self.name = format!("{}{}", prefix, self.name);
 
     self
   }
 
-  pub fn wrap(&mut self, ty: &str) -> &mut Self {
+  pub fn wrap(mut self, ty: &str) -> Self {
     self.generics = vec![self.clone()];
     self.name = ty.to_string();
 
@@ -1098,7 +1098,7 @@ impl Type {
   }
 
   /// Add a generic to the type.
-  pub fn generic<T>(&mut self, ty: T) -> &mut Self
+  pub fn generic<T>(mut self, ty: T) -> Self
   where
     T: Into<Type>,
   {
@@ -1551,22 +1551,22 @@ impl Impl {
   /// Add a generic to the impl block.
   ///
   /// This adds the generic for the block (`impl<T>`) and not the target type.
-  pub fn generic(&mut self, name: &str) -> &mut Self {
+  pub fn generic(mut self, name: &str) -> Self {
     self.generics.push(name.to_string());
     self
   }
 
   /// Add a generic to the target type.
-  pub fn target_generic<T>(&mut self, ty: T) -> &mut Self
+  pub fn target_generic<T>(mut self, ty: T) -> Self
   where
     T: Into<Type>,
   {
-    self.target.generic(ty);
+    self.target = self.target.generic(ty);
     self
   }
 
   /// Set the trait that the impl block is implementing.
-  pub fn impl_trait<T>(&mut self, ty: T) -> &mut Self
+  pub fn impl_trait<T>(mut self, ty: T) -> Self
   where
     T: Into<Type>,
   {
@@ -1608,14 +1608,8 @@ impl Impl {
     self
   }
 
-  /// Push a new function definition, returning a mutable reference to it.
-  pub fn new_fn(&mut self, name: &str) -> &mut Function {
-    self.push_fn(Function::new(name));
-    self.fns.last_mut().unwrap()
-  }
-
   /// Push a function definition.
-  pub fn push_fn(&mut self, item: Function) -> &mut Self {
+  pub fn push_fn(mut self, item: Function) -> Self {
     self.fns.push(item);
     self
   }
@@ -1703,43 +1697,43 @@ impl Function {
   }
 
   /// Set the function documentation.
-  pub fn doc(&mut self, docs: &str) -> &mut Self {
+  pub fn doc(mut self, docs: &str) -> Self {
     self.docs = Some(Docs::new(docs));
     self
   }
 
   /// Specify lint attribute to supress a warning or error.
-  pub fn allow(&mut self, allow: &str) -> &mut Self {
+  pub fn allow(mut self, allow: &str) -> Self {
     self.allow = Some(allow.to_string());
     self
   }
 
   /// Set the function visibility.
-  pub fn vis(&mut self, vis: &str) -> &mut Self {
+  pub fn vis(mut self, vis: &str) -> Self {
     self.vis = Some(vis.to_string());
     self
   }
 
   /// Set whether this function is async or not
-  pub fn set_async(&mut self, r#async: bool) -> &mut Self {
+  pub fn set_async(mut self, r#async: bool) -> Self {
     self.r#async = r#async;
     self
   }
 
   /// Add a generic to the function.
-  pub fn generic(&mut self, name: &str) -> &mut Self {
+  pub fn generic(mut self, name: &str) -> Self {
     self.generics.push(name.to_string());
     self
   }
 
   /// Add `self` as a function argument.
-  pub fn arg_self(&mut self) -> &mut Self {
+  pub fn arg_self(mut self) -> Self {
     self.arg_self = Some("self".to_string());
     self
   }
 
   /// Add `&self` as a function argument.
-  pub fn arg_ref_self(&mut self) -> &mut Self {
+  pub fn arg_ref_self(mut self) -> Self {
     self.arg_self = Some("&self".to_string());
     self
   }
@@ -1751,7 +1745,7 @@ impl Function {
   }
 
   /// Add a function argument.
-  pub fn arg<T>(&mut self, name: &str, ty: T) -> &mut Self
+  pub fn arg<T>(mut self, name: &str, ty: T) -> Self
   where
     T: Into<Type>,
   {
@@ -1770,7 +1764,7 @@ impl Function {
   }
 
   /// Set the function return type.
-  pub fn ret<T>(&mut self, ty: T) -> &mut Self
+  pub fn ret<T>(mut self, ty: T) -> Self
   where
     T: Into<Type>,
   {
@@ -1791,7 +1785,7 @@ impl Function {
   }
 
   /// Push a line to the function implementation.
-  pub fn line<T>(&mut self, line: T) -> &mut Self
+  pub fn line<T>(mut self, line: T) -> Self
   where
     T: ToString,
   {
@@ -1833,7 +1827,7 @@ impl Function {
   }
 
   /// Push a block to the function implementation
-  pub fn push_block(&mut self, block: Block) -> &mut Self {
+  pub fn push_block(mut self, block: Block) -> Self {
     self.body.get_or_insert(vec![]).push(Body::Block(block));
 
     self
@@ -1931,7 +1925,7 @@ impl Block {
   }
 
   /// Push a line to the code block.
-  pub fn line<T>(&mut self, line: T) -> &mut Self
+  pub fn line<T>(mut self, line: T) -> Self
   where
     T: ToString,
   {
@@ -1940,13 +1934,13 @@ impl Block {
   }
 
   /// Push a nested block to this block.
-  pub fn push_block(&mut self, block: Block) -> &mut Self {
+  pub fn push_block(mut self, block: Block) -> Self {
     self.body.push(Body::Block(block));
     self
   }
 
   /// Add a snippet after the block.
-  pub fn after(&mut self, after: &str) -> &mut Self {
+  pub fn after(mut self, after: &str) -> Self {
     self.after = Some(after.to_string());
     self
   }

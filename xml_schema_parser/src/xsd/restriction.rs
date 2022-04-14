@@ -197,7 +197,8 @@ impl Restriction {
         .ret(format!("Result<{}, XsdError>", &typename))
         .to_owned();
 
-      let mut parse_match = Block::new("let output = match element.get_content()?");
+      let mut parse_match =
+        Block::new("let output = match element.get_content::<String>()?.as_str()");
       for enumeration in &self.enumerations {
         let enumeration = if enumeration.len() == 0 {
           "empty"
@@ -208,13 +209,22 @@ impl Restriction {
         let enum_name = to_struct_name(enumeration);
         generated_enum.new_variant(&enum_name);
 
-        parse_match.line(format!("\"{}\" => Self::{},", enumeration, enum_name));
+        parse_match = parse_match.line(format!("\"{}\" => Self::{},", enumeration, enum_name));
       }
-      parse_match.after(";");
-      value.push_block(parse_match);
-
-      value.line("element.finalize(false, false)?;");
-      value.line("Ok(output)");
+      parse_match = parse_match
+        .push_block(
+          Block::new("value => ").push_block(
+            Block::new("return Err(XsdError::XsdGenError")
+              .line("node_name: element.name().to_string(),")
+              .line("msg: format!(\"Invalid xml node found unexpected content {value}.\"),")
+              .after(")"),
+          ),
+        )
+        .after(";");
+      value = value
+        .push_block(parse_match)
+        .line("element.finalize(false, false)?;")
+        .line("Ok(output)");
 
       let enum_impl = Impl::new(generated_enum.ty()).push_fn(value).to_owned();
 
@@ -232,14 +242,13 @@ impl Restriction {
         generated_struct.derive(derive);
       }
 
-      let mut value = Function::new("parse")
+      let value = Function::new("parse")
         .arg("mut element", "XMLElementWrapper")
         .ret(format!("Result<{}, XsdError>", &typename))
-        .to_owned();
-
-      value.line("let output = Self(element.get_content()?);");
-      value.line("element.finalize(false, false)?;");
-      value.line("Ok(output)");
+        .vis("pub")
+        .line("let output = Self(element.get_content()?);")
+        .line("element.finalize(false, false)?;")
+        .line("Ok(output)");
 
       let struct_impl = Impl::new(generated_struct.ty()).push_fn(value).to_owned();
 

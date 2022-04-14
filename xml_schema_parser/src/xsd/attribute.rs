@@ -113,21 +113,13 @@ impl Attribute {
 
   #[tracing::instrument(skip_all)]
   pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
-    let rust_type = match (
+    let mut generated_impl = match (
       self.reference.as_ref(),
       self.kind.as_ref(),
       self.simple_type.as_ref(),
     ) {
       (Some(reference), None, None) => {
         if let Some(inner) = context.search(&reference) {
-          let field_name = if let Some(name) = &self.name {
-            name.to_field_name()
-          } else if let Some(field_hint) = &inner.fieldname_hint {
-            field_hint.clone()
-          } else {
-            to_field_name(&inner.infer_type_name())
-          };
-
           let name = if let Some(name) = &self.name {
             name.clone()
           } else {
@@ -139,13 +131,9 @@ impl Attribute {
           };
 
           XsdImpl {
-            name,
-            element: XsdElement::Field(
-              Field::new(&field_name, inner.element.get_type())
-                .vis("pub")
-                .to_owned(),
-            ),
-            fieldname_hint: Some(field_name.to_string()),
+            name: name.clone(),
+            element: XsdElement::Type(inner.element.get_type()),
+            fieldname_hint: Some(name.to_field_name()),
             inner: vec![],
             implementation: vec![],
           }
@@ -155,32 +143,23 @@ impl Attribute {
       }
       (None, Some(kind), None) => {
         if let Some(inner) = context.search(kind) {
-          let field_name = if let Some(name) = &self.name {
-            name.to_field_name()
-          } else if let Some(field_hint) = &inner.fieldname_hint {
-            field_hint.clone()
-          } else {
-            to_field_name(&inner.infer_type_name())
-          };
-
           let name = if let Some(name) = &self.name {
             name.clone()
           } else {
             XsdName {
-              namespace: kind.namespace.clone(),
-              local_name: inner.infer_type_name(),
-              ty: XsdType::Attribute,
+              namespace: context.xml_schema_prefix.clone(),
+              local_name: inner.name.local_name.clone(),
+              ty: super::xsd_context::XsdType::Attribute,
             }
           };
 
           XsdImpl {
-            name,
-            element: XsdElement::Field(
-              Field::new(&field_name, inner.element.get_type())
-                .vis("pub")
-                .to_owned(),
+            name: name.clone(),
+            element: XsdElement::TypeAlias(
+              Type::new(&name.to_struct_name()),
+              inner.element.get_type(),
             ),
-            fieldname_hint: Some(field_name.to_string()),
+            fieldname_hint: Some(name.to_field_name()),
             inner: vec![],
             implementation: vec![],
           }
@@ -188,14 +167,37 @@ impl Attribute {
           return Err(XsdError::XsdImplNotFound(kind.clone()));
         }
       }
-      (None, None, Some(simple_type)) => simple_type.get_implementation(context)?,
+      (None, None, Some(simple_type)) => {
+        let inner = simple_type.get_implementation(self.name.clone(), context)?;
+
+        let name = if let Some(name) = &self.name {
+          name.clone()
+        } else {
+          XsdName {
+            namespace: context.xml_schema_prefix.clone(),
+            local_name: inner.name.local_name.clone(),
+            ty: super::xsd_context::XsdType::Attribute,
+          }
+        };
+
+        XsdImpl {
+          name: name.clone(),
+          element: XsdElement::TypeAlias(
+            Type::new(&name.to_struct_name()),
+            inner.element.get_type().path(&name.to_field_name()),
+          ),
+          fieldname_hint: Some(name.to_field_name()),
+          inner: vec![inner],
+          implementation: vec![],
+        }
+      }
       (_, _, _) => panic!("Not implemented Rust type for: {:?}", self),
     };
 
     let rust_type = if self.required == Required::Optional {
-      Type::new(&format!("Option<{}>", rust_type.element.get_type().name))
+      generated_impl.element.get_type().wrap("Option")
     } else {
-      rust_type.element.get_type()
+      generated_impl.element.get_type()
     };
 
     let mut r#impl = Impl::new(&rust_type);
@@ -209,17 +211,6 @@ impl Attribute {
     //   self.name.as_ref().unwrap()
     // ));
     // parse.line("Ok(output)");
-
-    let mut generated_impl = XsdImpl {
-      element: XsdElement::Type(rust_type),
-      name: self
-        .name
-        .clone()
-        .unwrap_or_else(|| self.reference.clone().unwrap()),
-      fieldname_hint: self.name.as_ref().map(|v| v.to_field_name()),
-      inner: vec![],
-      implementation: vec![],
-    };
 
     let docs = self
       .annotation

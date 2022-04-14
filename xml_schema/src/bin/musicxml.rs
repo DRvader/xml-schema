@@ -11,7 +11,7 @@ fn main() -> Result<(), XsdError> {
   // )
   // .unwrap();
 
-  let mut xsd = Xsd::new_from_file("./musicxml.xsd")?;
+  let mut xsd = Xsd::new_from_file("./xml.xsd")?;
   let output = xsd.generate(&None);
 
   match output {
@@ -26,8 +26,6 @@ fn main() -> Result<(), XsdError> {
       // dbg!(output);
     }
   }
-
-  panic!();
 
   Ok(())
 }

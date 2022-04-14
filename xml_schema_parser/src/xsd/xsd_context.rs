@@ -2,7 +2,7 @@ use crate::codegen::{self, Block, Enum, Fields, Module, Struct, Type, TypeDef, V
 use heck::{CamelCase, SnakeCase};
 
 use std::collections::BTreeMap;
-use std::fmt::Debug;
+use std::fmt::{Debug, Write};
 use std::io::Cursor;
 use std::iter::FromIterator;
 use xml::namespace::Namespace;
@@ -118,6 +118,7 @@ pub enum XsdElement {
   Enum(Enum),
   Field(Field),
   Type(Type),
+  TypeAlias(Type, Type),
 }
 
 impl XsdElement {
@@ -125,8 +126,16 @@ impl XsdElement {
     match &self {
       XsdElement::Struct(r#struct) => r#struct.fmt(f),
       XsdElement::Enum(r#enum) => r#enum.fmt(f),
-      XsdElement::Type(r#type) => r#type.fmt(f),
+      XsdElement::TypeAlias(alias, r#type) => {
+        write!(f, "pub type ")?;
+        alias.fmt(f)?;
+        write!(f, " = ")?;
+        r#type.fmt(f)?;
+        writeln!(f, ";")?;
+        Ok(())
+      }
       XsdElement::Field(_) => unreachable!("Should have packed field into an enum or struct."),
+      _ => Ok(()),
     }
   }
 
@@ -140,6 +149,7 @@ impl XsdElement {
       XsdElement::Enum(a) => a.variants.last().map(|v| (v.name.clone(), v.name.clone())),
       XsdElement::Field(_) => None,
       XsdElement::Type(_) => None,
+      XsdElement::TypeAlias(_, _) => None,
     }
   }
 
@@ -151,7 +161,7 @@ impl XsdElement {
     match &self {
       XsdElement::Struct(r#struct) => Some(r#struct.ty().to_owned()),
       XsdElement::Enum(r#enum) => Some(r#enum.ty().to_owned()),
-      XsdElement::Type(r#type) => Some(r#type.clone()),
+      XsdElement::Type(r#type) | XsdElement::TypeAlias(r#type, _) => Some(r#type.clone()),
       XsdElement::Field(field) => Some(field.ty.clone()),
     }
   }
@@ -273,6 +283,7 @@ impl XsdImpl {
         }
         XsdElement::Field(_) => unimplemented!(),
         XsdElement::Type(_) => {}
+        XsdElement::TypeAlias(..) => {}
       }
 
       for i in &inner.implementation {
@@ -326,7 +337,7 @@ impl XsdImpl {
           .collect::<String>(),
       },
       XsdElement::Enum(a) => a.variants.iter().map(|v| v.name.as_str()).collect(),
-      XsdElement::Type(ty) => ty.name.clone(),
+      XsdElement::Type(ty) | XsdElement::TypeAlias(ty, _) => ty.name.clone(),
       XsdElement::Field(_) => unreachable!(),
     }
   }
@@ -513,7 +524,7 @@ impl XsdImpl {
 
           a.push_field(Field::new(&field_name, ty).vis("pub").to_owned());
         }
-        XsdElement::Type(b) => {
+        XsdElement::Type(b) | XsdElement::TypeAlias(b, _) => {
           let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or_else(|| &b.name));
           self.inner.extend(other.inner);
           a.push_field(Field::new(&field_name, b).vis("pub").to_owned());
@@ -557,7 +568,7 @@ impl XsdImpl {
 
           a.new_variant(&field_name).tuple(ty);
         }
-        XsdElement::Type(b) => {
+        XsdElement::Type(b) | XsdElement::TypeAlias(b, _) => {
           let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or_else(|| &b.name));
           self.inner.extend(other.inner);
           a.new_variant(&field_name).tuple(b.clone());
@@ -567,6 +578,7 @@ impl XsdImpl {
         }
       },
       XsdElement::Type(_) => unimplemented!("Cannot merge into type."),
+      XsdElement::TypeAlias(..) => unimplemented!("Cannot merge into type alias."),
       XsdElement::Field(_) => unimplemented!("Cannot merge into field."),
     }
   }

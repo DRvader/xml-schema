@@ -50,16 +50,10 @@ impl List {
       generated_struct.derive(derive);
     }
 
-    let mut parse_fn = Function::new("parse")
+    let parse_fn = Function::new("parse")
       .arg("mut element", "XsdElementWrapper")
       .ret("Result<Self, XsdError>")
-      .vis("pub")
-      .to_owned();
-
-    parse_fn.line(format!("let output: Vec<{list_type}> = element.get_content()?.split(' ').map(|item| item.to_owned()).map(|item| item.parse().unwrap()).collect();"));
-
-    parse_fn.line("element.finalize(false, false)?;");
-    parse_fn.line(format!("Ok({struct_name}(output))"));
+      .vis("pub").line(format!("let output: Vec<{list_type}> = element.get_content()?.split(' ').map(|item| item.to_owned()).map(|item| item.parse().unwrap()).collect();")).line("element.finalize(false, false)?;").line(format!("Ok({struct_name}(output))"));
 
     Ok(XsdImpl {
       name: XsdName {

@@ -149,17 +149,17 @@ impl Sequence {
       .to_owned();
 
     for (field, ty) in &parsable_fields {
-      value.line(format!("let {field} = XsdParse::parse(element)?;"));
+      value = value.line(format!("let {field} = XsdParse::parse(element)?;"));
     }
 
     let mut block = Block::new("let output = Self").after(";").to_owned();
     for (field, _) in parsable_fields {
-      block.line(format!("{field},"));
+      block = block.line(format!("{field},"));
     }
-    value.push_block(block.to_owned());
+    value = value.push_block(block);
 
-    value.line("element.finalize(false, false)?;");
-    value.line("Ok(output)");
+    value = value.line("element.finalize(false, false)?;");
+    value = value.line("Ok(output)");
 
     let struct_impl = Impl::new(generated_impl.element.get_type())
       .push_fn(value)

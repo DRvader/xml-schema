@@ -1,5 +1,5 @@
 use crate::{
-  codegen::{Block, Field, Impl, Struct},
+  codegen::{Block, Field, Function, Impl, Struct},
   xsd::attribute::Attribute,
 };
 
@@ -115,7 +115,7 @@ impl AttributeGroup {
           name: xml_name.clone(),
           fieldname_hint: Some(xml_name.to_field_name()),
           element: XsdElement::Struct(
-            Struct::new(&format!("Group{}", xml_name.to_struct_name()))
+            Struct::new(&xml_name.to_struct_name())
               .vis("pub")
               .to_owned(),
           ),
@@ -167,18 +167,21 @@ impl AttributeGroup {
 
         let mut r#impl = Impl::new(generated_struct.element.get_type());
 
-        let parse = r#impl.impl_trait("XsdParse").new_fn("parse");
-        parse.arg("mut element", "XMLElementWrapper");
-        parse.ret("Result<Self, XsdError>");
+        let mut parse = Function::new("parse")
+          .arg("mut element", "XMLElementWrapper")
+          .ret("Result<Self, XsdError>");
 
         let mut block = Block::new("let output = Self").after(";").to_owned();
         for (field, ty) in fields {
-          block.line(&format!("{}: XsdParse::parse(element)?,", field));
+          block = block.line(&format!("{}: XsdParse::parse(element)?,", field));
         }
 
-        parse.push_block(block);
-        parse.line("element.finalize(false, false)?;");
-        parse.line("Ok(output);");
+        r#impl = r#impl.impl_trait("XsdParse").push_fn(
+          parse
+            .push_block(block)
+            .line("element.finalize(false, false)?;")
+            .line("Ok(output)"),
+        );
 
         generated_struct.implementation.push(r#impl);
 

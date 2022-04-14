@@ -55,7 +55,7 @@ pub struct XMLElementWrapper {
 }
 
 impl XMLElementWrapper {
-  fn name(&self) -> &str {
+  pub fn name(&self) -> &str {
     &self.element.name
   }
 
@@ -151,7 +151,7 @@ impl XMLElementWrapper {
     self.get_children_with_filter(name, |child| func(child).map(Some))
   }
 
-  fn get_child_with<T>(
+  pub fn get_child_with<T>(
     &mut self,
     name: &str,
     func: impl FnOnce(XMLElementWrapper) -> Result<T, XsdError>,
@@ -159,7 +159,7 @@ impl XMLElementWrapper {
     func(self.get_child(name)?)
   }
 
-  fn try_get_child_with<T>(
+  pub fn try_get_child_with<T>(
     &mut self,
     name: &str,
     func: impl FnOnce(XMLElementWrapper) -> Result<T, XsdError>,
@@ -171,7 +171,7 @@ impl XMLElementWrapper {
     }
   }
 
-  fn try_get_attribute<T: FromStr>(&mut self, name: &str) -> Result<Option<T>, XsdError>
+  pub fn try_get_attribute<T: FromStr>(&mut self, name: &str) -> Result<Option<T>, XsdError>
   where
     <T as FromStr>::Err: ToString,
   {
@@ -190,7 +190,7 @@ impl XMLElementWrapper {
     }
   }
 
-  fn get_attribute<T: FromStr>(&mut self, name: &str) -> Result<T, XsdError>
+  pub fn get_attribute<T: FromStr>(&mut self, name: &str) -> Result<T, XsdError>
   where
     <T as FromStr>::Err: ToString,
   {
@@ -214,7 +214,7 @@ impl XMLElementWrapper {
     self.element.attributes.drain().collect()
   }
 
-  fn try_get_content<T: FromStr>(&mut self) -> Result<Option<T>, XsdError>
+  pub fn try_get_content<T: FromStr>(&mut self) -> Result<Option<T>, XsdError>
   where
     <T as FromStr>::Err: ToString,
   {
@@ -232,7 +232,7 @@ impl XMLElementWrapper {
     }
   }
 
-  fn get_content<T: FromStr>(&mut self) -> Result<T, XsdError>
+  pub fn get_content<T: FromStr>(&mut self) -> Result<T, XsdError>
   where
     <T as FromStr>::Err: ToString,
   {
@@ -255,7 +255,7 @@ impl XMLElementWrapper {
     }
   }
 
-  fn finalize(
+  pub fn finalize(
     self,
     allow_extra_attributes: bool,
     allow_extra_children: bool,

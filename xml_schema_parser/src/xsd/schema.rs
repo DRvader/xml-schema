@@ -162,7 +162,7 @@ impl Schema {
               None
             }
             XsdType::Element => Some(self.elements[*index].get_implementation(context)),
-            XsdType::SimpleType => Some(self.simple_type[*index].get_implementation(context)),
+            XsdType::SimpleType => Some(self.simple_type[*index].get_implementation(None, context)),
             XsdType::ComplexType => {
               Some(self.complex_type[*index].get_implementation(true, None, context))
             }

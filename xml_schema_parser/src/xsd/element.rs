@@ -106,10 +106,7 @@ impl Element {
   #[tracing::instrument(skip_all)]
   pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
     // We either have a named (such as a schema decl) or an anonymous element.
-    let xml_name = self
-      .name
-      .clone()
-      .unwrap_or_else(|| XsdName::new_namespace("anon", XsdType::Element, None));
+    let xml_name = self.name.clone().unwrap();
 
     // Now we will generate and return a struct which contains the data declared in the element.
     // TODO(drosen): Simplify output if element is trivial (e.g. simpleType).
@@ -118,7 +115,9 @@ impl Element {
       (None, Some(complex_type)) => {
         complex_type.get_implementation(false, Some(xml_name.clone()), context)?
       }
-      (Some(simple_type), None) => simple_type.get_implementation(context)?,
+      (Some(simple_type), None) => {
+        simple_type.get_implementation(Some(xml_name.clone()), context)?
+      }
       (None, None) => {
         if self.kind.is_none() {
           return Ok(XsdImpl {
@@ -167,7 +166,7 @@ impl Element {
     };
 
     let field_name = xml_name.to_field_name();
-    let mut field_type = generated_struct.element.get_type();
+    let field_type = generated_struct.element.get_type();
 
     let docs = self
       .annotation
@@ -178,11 +177,13 @@ impl Element {
     }
 
     let mut generated_struct = if self.is_multiple() || self.could_be_none() {
-      if self.is_multiple() {
-        field_type.wrap("Vec");
+      let field_type = if self.is_multiple() {
+        field_type.wrap("Vec")
       } else if self.could_be_none() {
-        field_type.wrap("Option");
-      }
+        field_type.wrap("Option")
+      } else {
+        field_type
+      };
 
       let mut output_struct = XsdImpl {
         name: xml_name.clone(),
@@ -196,27 +197,26 @@ impl Element {
         .impl_trait("XsdParse")
         .to_owned();
 
-      let mut parse = Function::new("parse");
-      parse.arg("element", "&mut XMLElementWrapper");
-      parse.ret("Result<Self, XsdError>");
+      let mut parse = Function::new("parse")
+        .arg("element", "&mut XMLElementWrapper")
+        .ret("Result<Self, XsdError>");
 
-      let mut output = Block::new("let output = Self").after(";").to_owned();
+      let output = Block::new("let output = Self").after(";").to_owned();
 
-      if self.is_multiple() {
+      let output = if self.is_multiple() {
         output.line(&format!(
           "{field_name}: element.try_get_children_with({xml_name}, |v| XsdParse::parse(v))?,"
-        ));
+        ))
       } else if self.could_be_none() {
         output.line(&format!(
           "{field_name}: element.try_get_child_with({xml_name}, |v| XsdParse::parse(v))?,"
-        ));
+        ))
       } else {
-        output.line(&format!("{field_name}: XsdParse::parse(element)?,"));
-      }
+        output.line(&format!("{field_name}: XsdParse::parse(element)?,"))
+      };
 
-      parse.push_block(output);
-      parse.line("Ok(output)");
-      r#impl.push_fn(parse);
+      parse = parse.push_block(output).line("Ok(output)");
+      r#impl = r#impl.push_fn(parse);
 
       match generated_struct.element {
         XsdElement::Struct(_) | XsdElement::Enum(_) => output_struct.inner.push(generated_struct),

@@ -1,4 +1,4 @@
-use crate::codegen::{Block, Enum, Impl};
+use crate::codegen::{Block, Enum, Function, Impl};
 
 use super::{
   simple_type::SimpleType,
@@ -50,9 +50,9 @@ impl Union {
       generated_enum.derive(derive);
     }
 
-    let mut output = Block::new("let output = ").after(";").to_owned();
+    let mut output = Block::new("let output = ").after(";");
 
-    output.line("let mut oks = vec![];");
+    output = output.line("let mut oks = vec![];");
 
     let mut names = Vec::new();
     for (index, member) in self.member_types.iter().enumerate() {
@@ -61,7 +61,7 @@ impl Union {
         generated_enum
           .new_variant(&st_name)
           .tuple(imp.element.get_type());
-        output.line(format!(
+        output = output.line(format!(
           "let gen_{}: Option<{}> = element.try_get_content();",
           index,
           imp.element.get_type().name
@@ -73,13 +73,13 @@ impl Union {
     }
 
     for index in 0..names.len() {
-      output.line(&format!(
+      output = output.line(&format!(
         "if gen_{}.is_some() {{ oks.push({}) }}",
         index, index
       ));
     }
 
-    output.line("if oks.len() > 1 { return Err(XsdError::XsdGenError { node_name: element.name, msg: format!(\"{} were able to be parsed.\", oks.join(\", \")) }); }");
+    output = output.line("if oks.len() > 1 { return Err(XsdError::XsdGenError { node_name: element.name, msg: format!(\"{} were able to be parsed.\", oks.join(\", \")) }); }");
 
     let mut match_block = Block::new(&format!(
       "match ({})",
@@ -89,7 +89,7 @@ impl Union {
         .join(", ")
     ));
     for index in 0..self.member_types.len() {
-      match_block.line(&format!(
+      match_block = match_block.line(&format!(
         "({}) => Self::{}(value),",
         (0..self.member_types.len())
           .map(|i| if i == index { "Some(value)" } else { "None" })
@@ -98,27 +98,25 @@ impl Union {
         names[index]
       ));
     }
-    match_block.push_block(Block::new(&format!(
+    match_block = match_block.push_block(Block::new(&format!(
       "({}) => ",
       (0..self.member_types.len())
         .map(|_| "None")
         .collect::<Vec<_>>()
         .join(", "))).line("return Err(XsdError::XsdGenError { node_name: element.name, msg: format!(\"No valid values could be parsed.\") });").to_owned()
     );
-    match_block.line("_ => unreachable!()");
+    match_block = match_block.line("_ => unreachable!()");
 
-    output.push_block(match_block);
+    output = output.push_block(match_block);
 
-    let mut r#impl = Impl::new(generated_enum.ty()).to_owned();
-
-    let parse = r#impl.new_fn("parse");
-    parse.arg("mut element", "XMLElementWrapper");
-    parse.ret("Result<Self, XsdError>");
-
-    parse.push_block(output);
-
-    parse.line("element.finalize(false, false)?;");
-    parse.line("Ok(output)");
+    let r#impl = Impl::new(generated_enum.ty()).push_fn(
+      Function::new("parse")
+        .arg("mut element", "XMLElementWrapper")
+        .ret("Result<Self, XsdError>")
+        .push_block(output)
+        .line("element.finalize(false, false)?;")
+        .line("Ok(output)"),
+    );
 
     parent_name.ty = XsdType::Union;
 

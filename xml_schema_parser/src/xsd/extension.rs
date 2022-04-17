@@ -1,23 +1,18 @@
-use crate::{
-  codegen::Struct,
-  xsd::{attribute::Attribute, sequence::Sequence, XsdContext},
-};
+use xsd_codegen::{Struct, XMLElement};
+use xsd_types::{to_field_name, XsdName, XsdParseError, XsdType};
+
+use crate::xsd::{attribute::Attribute, sequence::Sequence, XsdContext};
 
 use super::{
   annotation::Annotation,
   attribute_group::AttributeGroup,
   choice::Choice,
   group::Group,
-  xsd_context::{to_field_name, MergeSettings, XsdElement, XsdImpl, XsdName, XsdType},
-  XMLElementWrapper, XsdError,
+  xsd_context::{MergeSettings, XsdElement, XsdImpl},
+  XsdError,
 };
 
 #[derive(Clone, Debug, PartialEq)]
-// #[yaserde(
-//   root = "extension",
-//   prefix = "xs",
-//   namespace = "xs: http://www.w3.org/2001/XMLSchema"
-// )]
 pub struct Extension {
   pub base: XsdName,
   pub attributes: Vec<Attribute>,
@@ -29,7 +24,7 @@ pub struct Extension {
 }
 
 impl Extension {
-  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
     element.check_name("extension")?;
 
     let attributes = element.get_children_with("attribute", Attribute::parse)?;
@@ -44,17 +39,19 @@ impl Extension {
     if (!attributes.is_empty() || !attribute_groups.is_empty())
       && (group.is_some() || choice.is_some() || sequence.is_some())
     {
-      return Err(XsdError::XsdParseError(format!(
-        "(group | choice | sequence) and (attribute | attributeGroup) cannot both present in {}",
-        element.name()
-      )));
+      return Err(XsdParseError {
+        node_name: element.node_name(),
+        msg: format!(
+          "(group | choice | sequence) and (attribute | attributeGroup) cannot both present",
+        ),
+      });
     }
 
     if group.is_some() as u8 + choice.is_some() as u8 + sequence.is_some() as u8 > 1 {
-      return Err(XsdError::XsdParseError(format!(
-        "group | choice | sequence cannot all be present in {}",
-        element.name()
-      )));
+      return Err(XsdParseError {
+        node_name: element.node_name(),
+        msg: format!("group | choice | sequence cannot all be present",),
+      });
     }
 
     let output = Self {
@@ -89,10 +86,10 @@ impl Extension {
     let base_impl = match generated_impl {
       super::xsd_context::SearchResult::SingleMatch(imp) => imp,
       super::xsd_context::SearchResult::MultipleMatches => {
-        return Err(XsdError::XsdParseError(format!(
-          "Found both a simple and complex type named {}",
-          self.base
-        )));
+        return Err(XsdError::ContextSearchError {
+          name: self.base.clone(),
+          msg: format!("found both a simple and complex type"),
+        });
       }
       super::xsd_context::SearchResult::NoMatches => {
         return Err(XsdError::XsdImplNotFound(self.base.clone()));
@@ -147,97 +144,5 @@ impl Extension {
     generated_impl.name.ty = XsdType::Extension;
 
     Ok(generated_impl)
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn extension() {
-    let st = Extension {
-      base: XsdName::new("xs:string", XsdType::SimpleType),
-      attributes: vec![],
-      attribute_groups: vec![],
-      sequence: None,
-      group: None,
-      choice: None,
-      annotation: None,
-    };
-
-    let mut context =
-      XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
-        .unwrap();
-
-    let value = st
-      .get_implementation(
-        XsdName {
-          namespace: None,
-          local_name: "test".to_string(),
-          ty: crate::xsd::xsd_context::XsdType::Extension,
-        },
-        &mut context,
-      )
-      .unwrap()
-      .to_string()
-      .unwrap();
-    let ts = quote!(#value).to_string();
-    assert!(ts == "# [ yaserde ( text ) ] pub content : String ,");
-  }
-
-  #[test]
-  fn extension_with_attributes() {
-    use crate::xsd::attribute::Required;
-
-    let st = Extension {
-      base: XsdName::new("xs:string", XsdType::SimpleType),
-      attributes: vec![
-        Attribute {
-          annotation: None,
-          name: Some(XsdName::new("attribute_1", XsdType::Attribute)),
-          kind: Some(XsdName::new("xs:string", XsdType::SimpleType)),
-          default: None,
-          fixed: None,
-          reference: None,
-          required: Required::Required,
-          simple_type: None,
-        },
-        Attribute {
-          annotation: None,
-          name: Some(XsdName::new("attribute_2", XsdType::Attribute)),
-          kind: Some(XsdName::new("xs:boolean", XsdType::SimpleType)),
-          default: None,
-          fixed: None,
-          reference: None,
-          required: Required::Optional,
-          simple_type: None,
-        },
-      ],
-      attribute_groups: vec![],
-      sequence: None,
-      group: None,
-      choice: None,
-      annotation: None,
-    };
-
-    let mut context =
-      XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
-        .unwrap();
-
-    let value = st
-      .get_implementation(
-        XsdName {
-          namespace: None,
-          local_name: "test".to_string(),
-          ty: crate::xsd::xsd_context::XsdType::Extension,
-        },
-        &mut context,
-      )
-      .unwrap()
-      .to_string()
-      .unwrap();
-    let ts = quote!(#value).to_string();
-    assert!(ts == "struct Test { # [ yaserde ( text ) ] pub content : String , # [ yaserde ( attribute ) ] pub attribute_1 : String , # [ yaserde ( attribute ) ] pub attribute_2 : Option < bool > , }");
   }
 }

@@ -119,6 +119,7 @@ pub struct TypeDef {
 pub struct Variant {
   pub name: String,
   pub fields: Fields,
+  pub attributes: String,
 }
 
 /// Defines a set of fields.
@@ -1013,12 +1014,12 @@ impl Enum {
 
   /// Push a variant to the enum, returning a mutable reference to it.
   pub fn new_variant(&mut self, name: &str) -> &mut Variant {
-    self.push_variant(Variant::new(name));
+    self.variants.push(Variant::new(name));
     self.variants.last_mut().unwrap()
   }
 
   /// Push a variant to the enum.
-  pub fn push_variant(&mut self, item: Variant) -> &mut Self {
+  pub fn push_variant(mut self, item: Variant) -> Self {
     self.variants.push(item);
     self
   }
@@ -1045,11 +1046,17 @@ impl Variant {
     Variant {
       name: name.to_string(),
       fields: Fields::Empty,
+      attributes: String::new(),
     }
   }
 
+  pub fn attribute(mut self, attribute: &str) -> Self {
+    self.attributes.push_str(attribute);
+    self
+  }
+
   /// Add a named field to the variant.
-  pub fn named<T>(&mut self, name: &str, ty: T) -> &mut Self
+  pub fn named<T>(mut self, name: &str, ty: T) -> Self
   where
     T: Into<Type>,
   {
@@ -1058,7 +1065,7 @@ impl Variant {
   }
 
   /// Add a tuple field to the variant.
-  pub fn tuple(&mut self, ty: impl Into<Type>) -> &mut Self {
+  pub fn tuple(mut self, ty: impl Into<Type>) -> Self {
     self.fields.tuple(ty);
     self
   }
@@ -1398,12 +1405,12 @@ impl Field {
   }
 
   /// Set field's annotation.
-  pub fn annotation(&mut self, annotation: Vec<&str>) -> &mut Self {
+  pub fn annotation(mut self, annotation: Vec<&str>) -> Self {
     self.annotation = annotation.iter().map(|ann| ann.to_string()).collect();
     self
   }
 
-  pub fn vis(&mut self, vis: &str) -> &mut Self {
+  pub fn vis(mut self, vis: &str) -> Self {
     self.vis = Some(vis.to_string());
     self
   }

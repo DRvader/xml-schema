@@ -1,5 +1,7 @@
-use crate::codegen::{self, Block, Enum, Fields, Module, Struct, Type, TypeDef, Variant};
-use heck::{CamelCase, SnakeCase};
+use xsd_codegen::{
+  Block, Enum, Field, Fields, Formatter, Impl, Item, Module, Struct, Type, TypeDef, Variant,
+};
+use xsd_types::{to_field_name, to_struct_name, XsdName, XsdParseError, XsdType};
 
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Write};
@@ -8,109 +10,7 @@ use std::iter::FromIterator;
 use xml::namespace::Namespace;
 use xml::reader::{EventReader, XmlEvent};
 
-use crate::codegen::{Field, Impl};
-
 use super::XsdError;
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum XsdType {
-  Annotation,
-  AttributeGroup,
-  Attribute,
-  Choice,
-  ComplexContent,
-  ComplexType,
-  Element,
-  Extension,
-  Group,
-  Import,
-  List,
-  Restriction,
-  Sequence,
-  SimpleContent,
-  SimpleType,
-  Union,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct XsdName {
-  pub namespace: Option<String>,
-  pub local_name: String,
-  pub ty: XsdType,
-}
-
-impl std::fmt::Display for XsdName {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    if let Some(namespace) = &self.namespace {
-      write!(f, "{}:{}", namespace, self.local_name)
-    } else {
-      write!(f, "{}", self.local_name)
-    }
-  }
-}
-
-impl XsdName {
-  pub fn new(name: &str, ty: XsdType) -> Self {
-    if let Some((lhs, rhs)) = name.split_once(':') {
-      Self {
-        namespace: Some(lhs.to_string()),
-        local_name: rhs.to_string(),
-        ty,
-      }
-    } else {
-      Self {
-        namespace: None,
-        local_name: name.to_string(),
-        ty,
-      }
-    }
-  }
-
-  pub fn new_namespace(name: &str, ty: XsdType, namespace: Option<&str>) -> Self {
-    if let Some((lhs, rhs)) = name.split_once(':') {
-      Self {
-        namespace: Some(lhs.to_string()),
-        local_name: rhs.to_string(),
-        ty,
-      }
-    } else {
-      Self {
-        namespace: namespace.map(|s| s.to_string()),
-        local_name: name.to_string(),
-        ty,
-      }
-    }
-  }
-
-  pub fn to_struct_name(&self) -> String {
-    to_struct_name(&self.local_name)
-  }
-
-  pub fn to_field_name(&self) -> String {
-    to_field_name(&self.local_name)
-  }
-}
-
-pub fn to_struct_name(name: &str) -> String {
-  let output = name.replace(".", "_").to_camel_case();
-  if let Some(char) = output.chars().next() {
-    if char.is_numeric() {
-      return format!("_{output}");
-    }
-  }
-
-  output
-}
-
-pub fn to_field_name(name: &str) -> String {
-  let name = name.to_snake_case();
-
-  if name == "type" {
-    "r#type".to_string()
-  } else {
-    name
-  }
-}
 
 #[derive(Clone, Debug)]
 pub enum XsdElement {
@@ -122,7 +22,7 @@ pub enum XsdElement {
 }
 
 impl XsdElement {
-  pub fn fmt(&self, f: &mut crate::codegen::Formatter) -> core::fmt::Result {
+  pub fn fmt(&self, f: &mut Formatter) -> core::fmt::Result {
     match &self {
       XsdElement::Struct(r#struct) => r#struct.fmt(f),
       XsdElement::Enum(r#enum) => r#enum.fmt(f),
@@ -142,8 +42,8 @@ impl XsdElement {
   pub fn get_last_added_field(&self) -> Option<(String, String)> {
     match self {
       XsdElement::Struct(a) => match &a.fields {
-        crate::codegen::Fields::Tuple(a) => a.last().map(|v| (v.1.name.clone(), v.1.name.clone())),
-        crate::codegen::Fields::Named(a) => a.last().map(|v| (v.name.clone(), v.ty.to_string())),
+        Fields::Tuple(a) => a.last().map(|v| (v.1.name.clone(), v.1.name.clone())),
+        Fields::Named(a) => a.last().map(|v| (v.name.clone(), v.ty.to_string())),
         _ => None,
       },
       XsdElement::Enum(a) => a.variants.last().map(|v| (v.name.clone(), v.name.clone())),
@@ -220,8 +120,8 @@ pub struct XsdImpl {
 }
 
 pub enum MergeType {
-  Fields,
-  Structs,
+  Field,
+  Attribute,
 }
 
 pub struct MergeSettings<'a> {
@@ -232,7 +132,7 @@ pub struct MergeSettings<'a> {
 impl<'a> MergeSettings<'a> {
   pub const ATTRIBUTE: MergeSettings<'a> = MergeSettings {
     conflict_prefix: Some("attr_"),
-    merge_type: MergeType::Structs,
+    merge_type: MergeType::Attribute,
   };
 }
 
@@ -240,7 +140,7 @@ impl<'a> Default for MergeSettings<'a> {
   fn default() -> Self {
     Self {
       conflict_prefix: None,
-      merge_type: MergeType::Structs,
+      merge_type: MergeType::Field,
     }
   }
 }
@@ -294,7 +194,7 @@ impl XsdImpl {
     }
   }
 
-  pub fn wrap_inner(&self) -> Option<codegen::Module> {
+  pub fn wrap_inner(&self) -> Option<Module> {
     if self.inner.is_empty() {
       return None;
     }
@@ -303,7 +203,7 @@ impl XsdImpl {
     self.wrap_inner_mod(&mut top_level, 1);
 
     for i in top_level.scope.items {
-      if let codegen::Item::Module(m) = i {
+      if let Item::Module(m) = i {
         return Some(m);
       };
     }
@@ -311,7 +211,7 @@ impl XsdImpl {
     unreachable!();
   }
 
-  pub fn fmt(&self, f: &mut crate::codegen::Formatter<'_>) -> core::fmt::Result {
+  pub fn fmt(&self, f: &mut Formatter) -> core::fmt::Result {
     self.element.fmt(f)?;
     for r#impl in &self.implementation {
       r#impl.fmt(f)?;
@@ -327,11 +227,9 @@ impl XsdImpl {
   pub fn infer_type_name(&self) -> String {
     match &self.element {
       XsdElement::Struct(a) => match &a.fields {
-        crate::codegen::Fields::Empty => unimplemented!(),
-        crate::codegen::Fields::Tuple(tup) => {
-          tup.iter().map(|v| v.1.name.as_str()).collect::<String>()
-        }
-        crate::codegen::Fields::Named(names) => names
+        Fields::Empty => unimplemented!(),
+        Fields::Tuple(tup) => tup.iter().map(|v| v.1.name.as_str()).collect::<String>(),
+        Fields::Named(names) => names
           .iter()
           .map(|f| to_struct_name(&f.name))
           .collect::<String>(),
@@ -361,7 +259,7 @@ impl XsdImpl {
 
   pub fn to_string(&self) -> Result<String, core::fmt::Error> {
     let mut dst = String::new();
-    let mut formatter = crate::codegen::Formatter::new(&mut dst);
+    let mut formatter = Formatter::new(&mut dst);
 
     self.fmt(&mut formatter)?;
 
@@ -383,14 +281,14 @@ impl XsdImpl {
               for t in tup {
                 let mut variant = Variant::new(&t.1.name);
                 variant.fields.tuple(t.1);
-                gen_enum.push_variant(variant);
+                gen_enum = gen_enum.push_variant(variant);
               }
             } else {
               let mut variant = Variant::new(&str.type_def.ty.name);
               for t in tup {
                 variant.fields.tuple(t.1);
               }
-              gen_enum.push_variant(variant);
+              gen_enum = gen_enum.push_variant(variant);
             }
           }
           Fields::Named(names) => {
@@ -398,14 +296,14 @@ impl XsdImpl {
               for t in names {
                 let mut variant = Variant::new(&t.name);
                 variant.fields.tuple(t.ty);
-                gen_enum.push_variant(variant);
+                gen_enum = gen_enum.push_variant(variant);
               }
             } else {
               let mut variant = Variant::new(&str.type_def.ty.name);
               for t in names {
                 variant.fields.push_named(t);
               }
-              gen_enum.push_variant(variant);
+              gen_enum = gen_enum.push_variant(variant);
             }
           }
         }
@@ -478,16 +376,7 @@ impl XsdImpl {
     }
   }
 
-  pub fn merge(&mut self, other: XsdImpl, settings: MergeSettings) {
-    match &settings.merge_type {
-      MergeType::Fields => self.merge_fields(other, settings),
-      MergeType::Structs => {
-        self.merge_structs(other, settings);
-      }
-    }
-  }
-
-  pub fn merge_structs(&mut self, mut other: XsdImpl, _settings: MergeSettings) {
+  pub fn merge(&mut self, mut other: XsdImpl, settings: MergeSettings) {
     match &mut self.element {
       XsdElement::Struct(a) => match &other.element {
         XsdElement::Struct(b) => {
@@ -505,7 +394,12 @@ impl XsdImpl {
 
           self.inner.push(other);
 
-          a.push_field(Field::new(&field_name, ty));
+          let field = Field::new(&field_name, ty).vis("pub");
+          let field = match settings.merge_type {
+            MergeType::Field => field,
+            MergeType::Attribute => field.annotation(vec!["#[yaserde(attribute)]"]),
+          };
+          a.push_field(field);
         }
         XsdElement::Enum(b) => {
           let field_name = to_field_name(
@@ -522,12 +416,22 @@ impl XsdImpl {
 
           self.inner.push(other);
 
-          a.push_field(Field::new(&field_name, ty).vis("pub").to_owned());
+          let field = Field::new(&field_name, ty).vis("pub");
+          let field = match settings.merge_type {
+            MergeType::Field => field,
+            MergeType::Attribute => field.annotation(vec!["#[yaserde(attribute)]"]),
+          };
+          a.push_field(field);
         }
         XsdElement::Type(b) | XsdElement::TypeAlias(b, _) => {
           let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or_else(|| &b.name));
           self.inner.extend(other.inner);
-          a.push_field(Field::new(&field_name, b).vis("pub").to_owned());
+          let field = Field::new(&field_name, b).vis("pub");
+          let field = match settings.merge_type {
+            MergeType::Field => field,
+            MergeType::Attribute => field.annotation(vec!["#[yaserde(attribute)]"]),
+          };
+          a.push_field(field);
         }
         XsdElement::Field(b) => {
           a.push_field(b.clone());
@@ -549,7 +453,12 @@ impl XsdImpl {
 
           self.inner.push(other);
 
-          a.new_variant(&field_name).tuple(ty);
+          let variant = Variant::new(&field_name).tuple(ty);
+          let variant = match settings.merge_type {
+            MergeType::Field => variant,
+            MergeType::Attribute => variant.attribute("#[yaserde(attribute)]"),
+          };
+          a.variants.push(variant);
         }
         XsdElement::Enum(b) => {
           let field_name = to_field_name(
@@ -566,15 +475,31 @@ impl XsdImpl {
 
           self.inner.push(other);
 
-          a.new_variant(&field_name).tuple(ty);
+          let variant = Variant::new(&field_name).tuple(ty);
+          let variant = match settings.merge_type {
+            MergeType::Field => variant,
+            MergeType::Attribute => variant.attribute("#[yaserde(attribute)]"),
+          };
+
+          a.variants.push(variant);
         }
         XsdElement::Type(b) | XsdElement::TypeAlias(b, _) => {
           let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or_else(|| &b.name));
           self.inner.extend(other.inner);
-          a.new_variant(&field_name).tuple(b.clone());
+          let variant = Variant::new(&field_name).tuple(b.clone());
+          let variant = match settings.merge_type {
+            MergeType::Field => variant,
+            MergeType::Attribute => variant.attribute("#[yaserde(attribute)]"),
+          };
+          a.variants.push(variant);
         }
         XsdElement::Field(b) => {
-          a.new_variant(&b.name).tuple(b.ty.clone());
+          let variant = Variant::new(&b.name).tuple(b.ty.clone());
+          let variant = match settings.merge_type {
+            MergeType::Field => variant,
+            MergeType::Attribute => variant.attribute("#[yaserde(attribute)]"),
+          };
+          a.variants.push(variant);
         }
       },
       XsdElement::Type(_) => unimplemented!("Cannot merge into type."),
@@ -642,7 +567,7 @@ impl XsdImpl {
               panic!("Merge conflict in variant!");
             }
           }
-          a.push_variant(variant);
+          a.variants.push(variant);
         }
         Self::merge_typedef(&mut a.type_def, b.type_def);
       }
@@ -779,9 +704,10 @@ impl XsdContext {
       }
     }
 
-    Err(XsdError::XsdParseError(
-      "Bad XML Schema, unable to found schema element.".to_string(),
-    ))
+    Err(XsdError::XsdParseError(XsdParseError {
+      node_name: "schema".to_string(),
+      msg: "Bad XML Schema, unable to found schema element.".to_string(),
+    }))
   }
 
   fn resolve_namespace(&self, namespace: Option<&str>) -> Option<String> {

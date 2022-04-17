@@ -1,19 +1,16 @@
-use crate::codegen::Enum;
+use xsd_codegen::{Enum, XMLElement};
+use xsd_types::{to_struct_name, XsdName, XsdParseError, XsdType};
 
 use super::{
   element::Element,
   group::Group,
   max_occurences::MaxOccurences,
   sequence::Sequence,
-  xsd_context::{
-    infer_type_name, to_struct_name, MergeSettings, XsdContext, XsdElement, XsdImpl, XsdName,
-    XsdType,
-  },
-  XMLElementWrapper, XsdError,
+  xsd_context::{infer_type_name, MergeSettings, XsdContext, XsdElement, XsdImpl},
+  XsdError,
 };
 
 #[derive(Clone, Default, Debug, PartialEq)]
-// #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Choice {
   pub id: Option<String>,
   pub min_occurences: u64,
@@ -25,7 +22,7 @@ pub struct Choice {
 }
 
 impl Choice {
-  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
     element.check_name("choice")?;
 
     let output = Self {

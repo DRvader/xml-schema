@@ -1,23 +1,14 @@
-use super::{XMLElementWrapper, XsdError};
+use xsd_codegen::XMLElement;
+use xsd_types::XsdParseError;
 
 #[derive(Clone, Default, Debug, PartialEq)]
-// #[yaserde(
-//     rename = "annotation"
-//     prefix = "xs",
-//     namespace = "xs: http://www.w3.org/2001/XMLSchema"
-//   )]
 pub struct Annotation {
   pub id: Option<String>,
-  // #[yaserde(
-  //     rename = "documentation"
-  //     prefix = "xs",
-  //     namespace = "xs: http://www.w3.org/2001/XMLSchema"
-  //   )]
   pub documentation: Vec<String>,
 }
 
 impl Annotation {
-  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
     element.check_name("annotation")?;
 
     let output = Ok(Self {

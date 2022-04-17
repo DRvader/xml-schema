@@ -1,20 +1,22 @@
+use xsd_codegen::XMLElement;
+use xsd_types::{XsdName, XsdParseError, XsdType};
+
 use crate::xsd::{extension::Extension, XsdContext};
 
 use super::{
   restriction::{Restriction, RestrictionParentType},
-  xsd_context::{XsdImpl, XsdName, XsdType},
-  XMLElementWrapper, XsdError,
+  xsd_context::XsdImpl,
+  XsdError,
 };
 
 #[derive(Clone, Default, Debug, PartialEq)]
-// #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct SimpleContent {
   pub restriction: Option<Restriction>,
   pub extension: Option<Extension>,
 }
 
 impl SimpleContent {
-  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
     element.check_name("simpleContent")?;
 
     let restriction = element.try_get_child_with("restriction", |child| {
@@ -23,10 +25,10 @@ impl SimpleContent {
     let extension = element.try_get_child_with("extension", Extension::parse)?;
 
     if restriction.is_some() && extension.is_some() {
-      return Err(XsdError::XsdParseError(format!(
-        "extension and restriction cannot both present in {}",
-        element.name()
-      )));
+      return Err(XsdParseError {
+        node_name: element.node_name(),
+        msg: format!("extension and restriction cannot both present",),
+      });
     }
 
     let output = Self {

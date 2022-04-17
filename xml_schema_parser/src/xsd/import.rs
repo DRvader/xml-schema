@@ -1,6 +1,9 @@
+use xsd_codegen::XMLElement;
+use xsd_types::XsdParseError;
+
 use crate::Xsd;
 
-use super::{xsd_context::XsdContext, XMLElementWrapper, XsdError};
+use super::{xsd_context::XsdContext, XsdError};
 
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Import {
@@ -10,7 +13,7 @@ pub struct Import {
 }
 
 impl Import {
-  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
     Ok(Self {
       id: element.try_get_attribute("id")?,
       namespace: element.try_get_attribute("namespace")?,

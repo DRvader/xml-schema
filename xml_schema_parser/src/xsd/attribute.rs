@@ -1,21 +1,14 @@
-use std::str::FromStr;
+use xsd_codegen::{FromXmlString, Impl, Type, XMLElement};
+use xsd_types::{XsdName, XsdParseError, XsdType};
 
 use super::{
   annotation::Annotation,
-  xsd_context::{to_field_name, XsdElement, XsdImpl, XsdName, XsdType},
-  XMLElementWrapper, XsdError,
+  xsd_context::{XsdElement, XsdImpl},
+  XsdError,
 };
-use crate::{
-  codegen::{Field, Impl, Type},
-  xsd::{simple_type::SimpleType, XsdContext},
-};
+use crate::xsd::{simple_type::SimpleType, XsdContext};
 
 #[derive(Clone, Default, Debug, PartialEq)]
-// #[yaserde(
-//   rename = "attribute",
-//   prefix = "xs",
-//   namespace = "xs: http://www.w3.org/2001/XMLSchema"
-// )]
 pub struct Attribute {
   pub annotation: Option<Annotation>,
   pub name: Option<XsdName>,
@@ -33,10 +26,8 @@ pub enum Required {
   Required,
 }
 
-impl FromStr for Required {
-  type Err = String;
-
-  fn from_str(s: &str) -> Result<Self, Self::Err> {
+impl FromXmlString for Required {
+  fn from_xml(s: &str) -> Result<Self, String> {
     match s {
       "optional" => Ok(Required::Optional),
       "required" => Ok(Required::Required),
@@ -55,7 +46,7 @@ impl Default for Required {
 }
 
 impl Attribute {
-  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
     element.check_name("attribute")?;
 
     let name = element
@@ -66,10 +57,10 @@ impl Attribute {
       .map(|v: String| element.new_name(&v, XsdType::Attribute));
 
     if name.is_some() && reference.is_some() {
-      return Err(XsdError::XsdParseError(format!(
-        "name and ref cannot both present in {}",
-        element.name()
-      )));
+      return Err(XsdParseError {
+        node_name: element.node_name(),
+        msg: format!("name and ref cannot both present"),
+      });
     }
 
     let kind = element
@@ -82,17 +73,17 @@ impl Attribute {
     let required = element.get_attribute_default("use")?;
 
     if reference.is_some() && (simple_type.is_some() || kind.is_some()) {
-      return Err(XsdError::XsdParseError(format!(
-        "Error in {} type | simpleType cannot be present when ref is present",
-        element.name()
-      )));
+      return Err(XsdParseError {
+        node_name: element.node_name(),
+        msg: format!("type | simpleType cannot be present when ref is present",),
+      });
     }
 
     if simple_type.is_some() && kind.is_some() {
-      return Err(XsdError::XsdParseError(format!(
-        "simpleType and type cannot both present in {}",
-        element.name()
-      )));
+      return Err(XsdParseError {
+        node_name: element.node_name(),
+        msg: format!("simpleType and type cannot both present"),
+      });
     }
 
     let output = Self {
@@ -126,7 +117,7 @@ impl Attribute {
             XsdName {
               namespace: reference.namespace.clone(),
               local_name: inner.infer_type_name(),
-              ty: super::xsd_context::XsdType::Attribute,
+              ty: XsdType::Attribute,
             }
           };
 
@@ -149,7 +140,7 @@ impl Attribute {
             XsdName {
               namespace: context.xml_schema_prefix.clone(),
               local_name: inner.name.local_name.clone(),
-              ty: super::xsd_context::XsdType::Attribute,
+              ty: XsdType::Attribute,
             }
           };
 
@@ -176,7 +167,7 @@ impl Attribute {
           XsdName {
             namespace: context.xml_schema_prefix.clone(),
             local_name: inner.name.local_name.clone(),
-            ty: super::xsd_context::XsdType::Attribute,
+            ty: XsdType::Attribute,
           }
         };
 
@@ -220,178 +211,5 @@ impl Attribute {
     generated_impl.element.add_doc(&docs.join(""));
 
     Ok(generated_impl)
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn default_required() {
-    assert_eq!(Required::default(), Required::Optional);
-  }
-
-  #[test]
-  fn string_attribute() {
-    let attribute = Attribute {
-      annotation: None,
-      name: Some(XsdName::new("language", XsdType::Attribute)),
-      kind: Some(XsdName::new("xs:string", XsdType::SimpleType)),
-      default: None,
-      fixed: None,
-      reference: None,
-      required: Required::Required,
-      simple_type: None,
-    };
-
-    let mut context =
-      XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
-        .unwrap();
-
-    let value = attribute
-      .get_implementation(&mut context)
-      .unwrap()
-      .to_string()
-      .unwrap();
-    let implementation = quote!(#value).to_string();
-    assert_eq!(
-      implementation,
-      r#"# [ yaserde ( attribute ) ] pub language : String ,"#
-    );
-  }
-
-  #[test]
-  fn optional_string_attribute() {
-    let attribute = Attribute {
-      annotation: None,
-      name: Some(XsdName::new("language", XsdType::Attribute)),
-      kind: Some(XsdName::new("xs:string", XsdType::SimpleType)),
-      default: None,
-      fixed: None,
-      reference: None,
-      required: Required::Optional,
-      simple_type: None,
-    };
-
-    let mut context =
-      XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
-        .unwrap();
-
-    let value = attribute
-      .get_implementation(&mut context)
-      .unwrap()
-      .to_string()
-      .unwrap();
-    let implementation = quote!(#value).to_string();
-    assert_eq!(
-      implementation,
-      r#"# [ yaserde ( attribute ) ] pub language : Option < String > ,"#
-    );
-  }
-
-  #[test]
-  fn type_attribute() {
-    let attribute = Attribute {
-      annotation: None,
-      name: Some(XsdName::new("language", XsdType::Attribute)),
-      kind: Some(XsdName::new("xs:string", XsdType::SimpleType)),
-      default: None,
-      fixed: None,
-      reference: None,
-      required: Required::Optional,
-      simple_type: None,
-    };
-
-    let mut context =
-      XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
-        .unwrap();
-
-    let value = attribute
-      .get_implementation(&mut context)
-      .unwrap()
-      .to_string()
-      .unwrap();
-    let implementation = quote!(#value).to_string();
-    assert_eq!(
-      implementation,
-      r#"# [ yaserde ( attribute , rename = "type" ) ] pub kind : Option < String > ,"#
-    );
-  }
-
-  #[test]
-  fn reference_type_attribute() {
-    let attribute = Attribute {
-      annotation: None,
-      name: Some(XsdName::new("language", XsdType::Attribute)),
-      kind: None,
-      default: None,
-      fixed: None,
-      reference: Some(XsdName::new("MyType", XsdType::Attribute)),
-      required: Required::Optional,
-      simple_type: None,
-    };
-
-    let mut context =
-      XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
-        .unwrap();
-
-    let value = attribute
-      .get_implementation(&mut context)
-      .unwrap()
-      .to_string()
-      .unwrap();
-    let implementation = quote!(#value).to_string();
-    assert_eq!(
-      implementation,
-      r#"# [ yaserde ( attribute , rename = "type" ) ] pub kind : Option < MyType > ,"#
-    );
-  }
-
-  #[test]
-  #[should_panic]
-  fn bad_type_attribute() {
-    let attribute = Attribute {
-      annotation: None,
-      name: Some(XsdName::new("type", XsdType::Attribute)),
-      default: None,
-      fixed: None,
-      kind: None,
-      reference: None,
-      required: Required::Optional,
-      simple_type: None,
-    };
-
-    let mut context =
-      XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
-        .unwrap();
-
-    attribute.get_implementation(&mut context).unwrap();
-  }
-
-  #[test]
-  fn attribute_without_name() {
-    let attribute = Attribute {
-      annotation: None,
-      name: None,
-      kind: Some(XsdName::new("xs:string", XsdType::SimpleType)),
-      default: None,
-      fixed: None,
-      reference: None,
-      required: Required::Optional,
-      simple_type: None,
-    };
-
-    let mut context =
-      XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
-        .unwrap();
-
-    let value = attribute
-      .get_implementation(&mut context)
-      .unwrap()
-      .to_string()
-      .unwrap();
-    let implementation = quote!(#value).to_string();
-    assert_eq!(implementation, "".to_string());
   }
 }

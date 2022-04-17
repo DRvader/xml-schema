@@ -1,20 +1,22 @@
+use xsd_codegen::XMLElement;
+use xsd_types::{XsdName, XsdParseError, XsdType};
+
 use crate::xsd::{extension::Extension, xsd_context::XsdContext};
 
 use super::{
   restriction::{Restriction, RestrictionParentType},
-  xsd_context::{XsdImpl, XsdName, XsdType},
-  XMLElementWrapper, XsdError,
+  xsd_context::XsdImpl,
+  XsdError,
 };
 
 #[derive(Clone, Default, Debug, PartialEq)]
-// #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct ComplexContent {
   pub extension: Option<Extension>,
   pub restriction: Option<Restriction>,
 }
 
 impl ComplexContent {
-  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
     element.check_name("complexContent")?;
 
     let output = Self {

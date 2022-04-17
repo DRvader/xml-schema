@@ -1,0 +1,15 @@
+[package]
+name = "xsd-codegen"
+version = "0.0.7"
+description = "Structure generator from XSD source file"
+edition = "2021"
+
+[lib]
+name = "xsd_codegen"
+
+[dependencies]
+xmltree = "0.10.3"
+thiserror = "1.0.30"
+xsd-types = {path = "../xsd-types"}
+
+[dev-dependencies]

@@ -1,20 +1,15 @@
-use crate::{
-  codegen::{Block, Field, Function, Impl, Struct},
-  xsd::attribute::Attribute,
-};
+use xsd_codegen::{Block, Field, Function, Impl, Struct, XMLElement};
+use xsd_types::{XsdName, XsdParseError, XsdType};
+
+use crate::xsd::attribute::Attribute;
 
 use super::{
   annotation::Annotation,
-  xsd_context::{to_field_name, MergeSettings, XsdContext, XsdElement, XsdImpl, XsdName, XsdType},
-  XMLElementWrapper, XsdError,
+  xsd_context::{MergeSettings, XsdContext, XsdElement, XsdImpl},
+  XsdError,
 };
 
 #[derive(Clone, Default, Debug, PartialEq)]
-// #[yaserde(
-//   rename = "attributeGroup",
-//   prefix = "xs",
-//   namespace = "xs: http://www.w3.org/2001/XMLSchema"
-// )]
 pub struct AttributeGroup {
   pub name: Option<XsdName>,
   pub reference: Option<XsdName>,
@@ -24,7 +19,7 @@ pub struct AttributeGroup {
 }
 
 impl AttributeGroup {
-  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
     element.check_name("attributeGroup")?;
 
     let name = element
@@ -35,10 +30,10 @@ impl AttributeGroup {
       .map(|v: String| element.new_name(&v, XsdType::AttributeGroup));
 
     if name.is_some() && reference.is_some() {
-      return Err(XsdError::XsdParseError(format!(
-        "name and ref both present in {}",
-        element.name()
-      )));
+      return Err(XsdParseError {
+        node_name: element.node_name(),
+        msg: format!("name and ref both present"),
+      });
     }
 
     let attributes = element.get_children_with("attribute", Attribute::parse)?;
@@ -75,7 +70,7 @@ impl AttributeGroup {
         };
 
         let field_name = if let Some(parent_name) = &parent_name {
-          to_field_name(&parent_name.local_name)
+          parent_name.to_field_name()
         } else if let Some(field_hint) = &inner.fieldname_hint {
           field_hint.clone()
         } else {

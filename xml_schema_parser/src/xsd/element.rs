@@ -1,19 +1,16 @@
-use crate::{
-  codegen::{Block, Function, Impl, Struct},
-  xsd::{
-    annotation::Annotation,
-    complex_type::ComplexType,
-    max_occurences::MaxOccurences,
-    simple_type::SimpleType,
-    xsd_context::{XsdElement, XsdImpl, XsdName},
-    XsdContext, XsdError,
-  },
+use xsd_codegen::{Block, Function, Impl, Struct, XMLElement};
+use xsd_types::{XsdGenError, XsdName, XsdParseError, XsdType};
+
+use crate::xsd::{
+  annotation::Annotation,
+  complex_type::ComplexType,
+  max_occurences::MaxOccurences,
+  simple_type::SimpleType,
+  xsd_context::{XsdElement, XsdImpl},
+  XsdContext, XsdError,
 };
 
-use super::{xsd_context::XsdType, XMLElementWrapper};
-
 #[derive(Clone, Default, Debug, PartialEq)]
-// #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Element {
   pub name: Option<XsdName>,
   pub kind: Option<XsdName>,
@@ -26,16 +23,13 @@ pub struct Element {
   pub complex_type: Option<ComplexType>,
   pub simple_type: Option<SimpleType>,
   pub annotation: Option<Annotation>,
-  // #[yaserde(rename = "unique")]
   // pub uniques: Vec<String>,
-  // #[yaserde(rename = "key")]
   // pub keys: Vec<String>,
-  // #[yaserde(rename = "keyref")]
   // pub keyrefs: Vec<String>,
 }
 
 impl Element {
-  pub fn parse(mut element: XMLElementWrapper, parent_is_schema: bool) -> Result<Self, XsdError> {
+  pub fn parse(mut element: XMLElement, parent_is_schema: bool) -> Result<Self, XsdParseError> {
     element.check_name("element")?;
 
     let name = element
@@ -46,14 +40,18 @@ impl Element {
       .map(|v: String| XsdName::new(&v, XsdType::Element));
 
     if parent_is_schema && name.is_none() {
-      return Err(XsdError::XsdParseError(
-        "name attribute cannot be absent when parent is the schema tag.".to_string(),
-      ));
+      return Err(XsdParseError {
+        node_name: element.node_name(),
+        msg: "name attribute cannot be absent when parent is the schema tag.".to_string(),
+      });
     } else if parent_is_schema && refers.is_some() {
-      return Err(XsdError::XsdParseError(format!(
-        "ref attribute ({}) cannot be present when parent is the schema tag.",
-        refers.unwrap()
-      )));
+      return Err(XsdParseError {
+        node_name: element.node_name(),
+        msg: format!(
+          "ref attribute ({}) cannot be present when parent is the schema tag.",
+          refers.unwrap()
+        ),
+      });
     }
 
     let complex_type = element.try_get_child_with("complexType", ComplexType::parse)?;
@@ -61,10 +59,10 @@ impl Element {
       element.try_get_child_with("simpleType", |child| SimpleType::parse(child, false))?;
 
     if simple_type.is_some() && complex_type.is_some() {
-      return Err(XsdError::XsdParseError(format!(
-        "simpleType | complexType cannot both present in {}",
-        element.name()
-      )));
+      return Err(XsdParseError {
+        node_name: element.node_name(),
+        msg: format!("simpleType | complexType cannot both present",),
+      });
     }
 
     let annotation = element.try_get_child_with("annotation", Annotation::parse)?;
@@ -146,10 +144,14 @@ impl Element {
               implementation: vec![],
             },
             super::xsd_context::SearchResult::MultipleMatches => {
-              return Err(XsdError::XsdParseError(format!(
-                "Found both a simple and complex type named {}",
-                self.kind.as_ref().unwrap()
-              )));
+              return Err(XsdError::XsdGenError(XsdGenError {
+                node_name: xml_name.to_string(),
+                ty: XsdType::Element,
+                msg: format!(
+                  "Found both a simple and complex type named {}",
+                  self.kind.as_ref().unwrap()
+                ),
+              }));
             }
             super::xsd_context::SearchResult::NoMatches => {
               return Err(XsdError::XsdImplNotFound(xml_name.clone()));
@@ -158,10 +160,11 @@ impl Element {
         }
       }
       _ => {
-        return Err(XsdError::XsdGenError {
+        return Err(XsdError::XsdGenError(XsdGenError {
           node_name: xml_name.to_string(),
+          ty: XsdType::Element,
           msg: "Found both simple and complex type in element.".to_string(),
-        })
+        }))
       }
     };
 
@@ -233,89 +236,5 @@ impl Element {
     generated_struct.name.ty = XsdType::Element;
 
     Ok(generated_struct)
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  static DERIVES: &str =
-    "# [ derive ( Clone , Debug , Default , PartialEq , YaDeserialize , YaSerialize ) ] ";
-
-  static DOCS: &str = r#"# [ doc = "Loudness measured in Decibels" ] "#;
-
-  #[test]
-  fn extern_type() {
-    let element = Element {
-      name: Some(XsdName::new("volume", XsdType::Element)),
-      kind: Some(XsdName::new("books:volume-type", XsdType::SimpleType)),
-      refers: None,
-      min_occurences: 1,
-      max_occurences: MaxOccurences::Number { value: 1 },
-      complex_type: None,
-      simple_type: None,
-      annotation: Some(Annotation {
-        id: None,
-        documentation: vec!["Loudness measured in Decibels".to_string()],
-      }),
-      ..Default::default()
-    };
-
-    let mut context =
-      XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
-        .unwrap();
-
-    let value = element
-      .get_implementation(&mut context)
-      .unwrap()
-      .to_string()
-      .unwrap();
-    let ts = quote!(#value).to_string();
-
-    assert_eq!(
-      ts,
-      format!(
-        "{}{}pub struct Volume {{ # [ yaserde ( flatten ) ] pub content : VolumeType , }}",
-        DOCS, DERIVES
-      )
-    );
-  }
-
-  #[test]
-  fn xs_string_element() {
-    let element = Element {
-      name: Some(XsdName::new("volume", XsdType::Element)),
-      kind: Some(XsdName::new("xs:string", XsdType::SimpleType)),
-      refers: None,
-      min_occurences: 1,
-      max_occurences: MaxOccurences::Number { value: 1 },
-      complex_type: None,
-      simple_type: None,
-      annotation: Some(Annotation {
-        id: None,
-        documentation: vec!["Loudness measured in Decibels".to_string()],
-      }),
-      ..Default::default()
-    };
-
-    let mut context =
-      XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
-        .unwrap();
-
-    let value = element
-      .get_implementation(&mut context)
-      .unwrap()
-      .to_string()
-      .unwrap();
-    let ts = quote!(#value).to_string();
-
-    assert_eq!(
-      ts,
-      format!(
-        "{}{}pub struct Volume {{ # [ yaserde ( text ) ] pub content : String , }}",
-        DOCS, DERIVES
-      )
-    );
   }
 }

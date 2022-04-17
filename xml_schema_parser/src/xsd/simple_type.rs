@@ -1,16 +1,13 @@
-use crate::xsd::{
-  list::List, restriction::Restriction, union::Union, xsd_context::XsdName, XsdContext,
-};
+use xsd_codegen::XMLElement;
+use xsd_types::{XsdName, XsdParseError, XsdType};
+
+use crate::xsd::{list::List, restriction::Restriction, union::Union, XsdContext};
 
 use super::{
-  annotation::Annotation,
-  restriction::RestrictionParentType,
-  xsd_context::{XsdImpl, XsdType},
-  XMLElementWrapper, XsdError,
+  annotation::Annotation, restriction::RestrictionParentType, xsd_context::XsdImpl, XsdError,
 };
 
 #[derive(Clone, Default, Debug, PartialEq)]
-// #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct SimpleType {
   pub name: Option<XsdName>,
   pub annotation: Option<Annotation>,
@@ -20,7 +17,7 @@ pub struct SimpleType {
 }
 
 impl SimpleType {
-  pub fn parse(mut element: XMLElementWrapper, parent_is_schema: bool) -> Result<Self, XsdError> {
+  pub fn parse(mut element: XMLElement, parent_is_schema: bool) -> Result<Self, XsdParseError> {
     element.check_name("simpleType")?;
 
     let restriction = element.try_get_child_with("restriction", |child| {
@@ -30,10 +27,10 @@ impl SimpleType {
     let union = element.try_get_child_with("union", Union::parse)?;
 
     if restriction.is_some() as u8 + list.is_some() as u8 + union.is_some() as u8 > 1 {
-      return Err(XsdError::XsdParseError(format!(
-        "Two of (extension | restriction | union) cannot be present in {}",
-        element.name()
-      )));
+      return Err(XsdParseError {
+        node_name: element.node_name(),
+        msg: format!("Two of (extension | restriction | union) cannot be present"),
+      });
     }
 
     let name = element
@@ -41,15 +38,15 @@ impl SimpleType {
       .map(|v: String| element.new_name(&v, XsdType::SimpleType));
 
     if parent_is_schema && name.is_none() {
-      return Err(XsdError::XsdParseError(format!(
-        "The name attribute is required if the parent of {} is a schema.",
-        element.name()
-      )));
+      return Err(XsdParseError {
+        node_name: element.node_name(),
+        msg: format!("The name attribute is required if the parent node is a schema.",),
+      });
     } else if !parent_is_schema && name.is_some() {
-      return Err(XsdError::XsdParseError(format!(
-        "The name attribute is not allowed if the parent of {} is not a schema.",
-        element.name()
-      )));
+      return Err(XsdParseError {
+        node_name: element.node_name(),
+        msg: format!("The name attribute is not allowed if the parent of node is not a schema.",),
+      });
     }
 
     let output = Self {
@@ -95,74 +92,4 @@ impl SimpleType {
 
     Ok(generated_impl)
   }
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  static DERIVES: &str =
-    "# [ derive ( Clone , Debug , Default , PartialEq , YaDeserialize , YaSerialize ) ] ";
-
-  #[test]
-  fn simple_type() {
-    let st = SimpleType {
-      name: Some(XsdName::new("test", XsdType::SimpleType)),
-      annotation: None,
-      restriction: None,
-      list: None,
-      union: None,
-    };
-
-    let mut context =
-      XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
-        .unwrap();
-
-    let value = st
-      .get_implementation(None, &mut context)
-      .unwrap()
-      .to_string()
-      .unwrap();
-    let ts = quote!(#value).to_string();
-
-    assert_eq!(
-      format!(
-        "{}pub struct Test {{ # [ yaserde ( text ) ] pub content : std :: string :: String , }}",
-        DERIVES
-      ),
-      ts
-    );
-  }
-
-  // <!-- Whitespace-separated list of strings -->
-  // <xs:simpleType name="StringVectorType">
-  //   <xs:list itemType="xs:string"/>
-  // </xs:simpleType>
-
-  // <!-- Whitespace-separated list of unsigned integers -->
-  // <xs:simpleType name="UIntVectorType">
-  //   <xs:list itemType="xs:unsignedInt"/>
-  // </xs:simpleType>
-
-  // #[test]
-  // fn list_type() {
-  //   let st = SimpleType {
-  //     name: "string-list".to_string(),
-  //     restriction: None,
-  //     list: Some(List{
-  //       item_type: "xs:string".to_string()
-  //     }),
-  //     union: None,
-  //   };
-
-  //   let context = XsdContext {
-  //     xml_schema_prefix: Some("xs".to_string()),
-  //   };
-
-  //   let ts = st
-  //     .get_implementation(&quote!(), &None, &context)
-  //     .to_string();
-  //   println!("{}", ts);
-  //   assert!(ts == format!("{}pub struct StringList {{ # [ yaserde ( text ) ] pub content : String , }}", DERIVES));
-  // }
 }

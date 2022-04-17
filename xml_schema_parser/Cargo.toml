@@ -8,18 +8,14 @@ edition = "2021"
 name = "xml_schema_parser"
 
 [dependencies]
-heck = "0.3.1"
-proc-macro2 = "1.0"
-quote = "1.0"
 reqwest = { version = "0.10", features = ["blocking"] }
-syn = { version = "1.0", features = ["visit", "extra-traits"] }
 xml-rs = "0.8"
-yaserde_derive = { version = "0.7.1" }
-yaserde = { version = "0.7.1" }
 xmltree = "0.10.3"
 thiserror = "1.0.30"
 chrono = "0.4"
 tracing = "0.1.29"
+xsd-codegen = { path = "../xsd-codegen" }
+xsd-types = { path = "../xsd-types" }
 
 [dev-dependencies]
 tracing-subscriber = "0.3"

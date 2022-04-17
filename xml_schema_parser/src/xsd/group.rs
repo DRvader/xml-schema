@@ -1,16 +1,16 @@
-use crate::codegen::Field;
+use xsd_codegen::{Field, XMLElement};
+use xsd_types::{to_field_name, XsdName, XsdParseError, XsdType};
 
 use super::{
   annotation::Annotation,
   choice::Choice,
   max_occurences::MaxOccurences,
   sequence::Sequence,
-  xsd_context::{to_field_name, XsdContext, XsdElement, XsdImpl, XsdName, XsdType},
-  XMLElementWrapper, XsdError,
+  xsd_context::{XsdContext, XsdElement, XsdImpl},
+  XsdError,
 };
 
 #[derive(Clone, Default, Debug, PartialEq)]
-// #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Group {
   pub id: Option<String>,
   pub name: Option<XsdName>,
@@ -23,7 +23,7 @@ pub struct Group {
 }
 
 impl Group {
-  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
     element.check_name("group")?;
 
     let name = element
@@ -37,17 +37,17 @@ impl Group {
     let choice = element.try_get_child_with("choice", Choice::parse)?;
 
     if name.is_some() && refers.is_some() {
-      return Err(XsdError::XsdParseError(format!(
-        "name and ref cannot both present in {}",
-        element.name()
-      )));
+      return Err(XsdParseError {
+        node_name: element.node_name(),
+        msg: format!("name and ref cannot both present",),
+      });
     }
 
     if sequence.is_some() && choice.is_some() {
-      return Err(XsdError::XsdParseError(format!(
-        "sequence and choice cannot both present in {}",
-        element.name()
-      )));
+      return Err(XsdParseError {
+        node_name: element.node_name(),
+        msg: format!("sequence and choice cannot both present in"),
+      });
     }
 
     let output = Self {
@@ -81,7 +81,7 @@ impl Group {
             Some(XsdName {
               namespace: name.namespace.clone(),
               local_name: name.local_name.clone(),
-              ty: super::xsd_context::XsdType::Sequence,
+              ty: XsdType::Sequence,
             }),
             context,
           )?;
@@ -99,7 +99,7 @@ impl Group {
             Some(XsdName {
               namespace: name.namespace.clone(),
               local_name: name.local_name.clone(),
-              ty: super::xsd_context::XsdType::Choice,
+              ty: XsdType::Choice,
             }),
             context,
           )?;
@@ -125,7 +125,7 @@ impl Group {
         };
 
         let field_name = if let Some(parent_name) = &parent_name {
-          to_field_name(&parent_name.local_name)
+          parent_name.to_field_name()
         } else if let Some(field_hint) = &inner.fieldname_hint {
           field_hint.clone()
         } else {
@@ -138,11 +138,11 @@ impl Group {
           XsdName {
             namespace: None,
             local_name: inner.infer_type_name(),
-            ty: super::xsd_context::XsdType::Group,
+            ty: XsdType::Group,
           }
         };
 
-        name.ty = super::xsd_context::XsdType::Group;
+        name.ty = XsdType::Group;
 
         XsdImpl {
           name,

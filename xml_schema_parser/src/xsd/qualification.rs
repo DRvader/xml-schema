@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use xsd_codegen::FromXmlString;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Qualification {
@@ -12,10 +12,8 @@ impl Default for Qualification {
   }
 }
 
-impl FromStr for Qualification {
-  type Err = String;
-
-  fn from_str(s: &str) -> Result<Self, Self::Err> {
+impl FromXmlString for Qualification {
+  fn from_xml(s: &str) -> Result<Self, String> {
     match s {
       "qualified" => Ok(Qualification::Qualidified),
       "unqualified" => Ok(Qualification::Unqualified),
@@ -24,14 +22,5 @@ impl FromStr for Qualification {
         err
       )),
     }
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-  #[test]
-  fn default_qualification() {
-    assert_eq!(Qualification::default(), Qualification::Unqualified);
   }
 }

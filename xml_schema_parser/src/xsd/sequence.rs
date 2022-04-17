@@ -1,20 +1,17 @@
+use xsd_codegen::{Block, Function, Impl, Struct, XMLElement};
+use xsd_types::{XsdName, XsdParseError, XsdType};
+
 use super::{
   annotation::Annotation,
   choice::Choice,
   group::Group,
   max_occurences::MaxOccurences,
-  xsd_context::{
-    infer_type_name, to_struct_name, MergeSettings, XsdElement, XsdImpl, XsdName, XsdType,
-  },
-  XMLElementWrapper, XsdError,
+  xsd_context::{infer_type_name, MergeSettings, XsdElement, XsdImpl},
+  XsdError,
 };
-use crate::{
-  codegen::{Block, Function, Impl, Struct},
-  xsd::{element::Element, XsdContext},
-};
+use crate::xsd::{element::Element, XsdContext};
 
 #[derive(Clone, Default, Debug, PartialEq)]
-// #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Sequence {
   pub id: Option<String>,
   pub min_occurences: u64,
@@ -35,7 +32,7 @@ enum PureType {
 }
 
 impl Sequence {
-  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
     element.check_name("sequence")?;
 
     let output = Self {
@@ -119,7 +116,7 @@ impl Sequence {
     } else {
       inferred_name
     };
-    let struct_name = to_struct_name(&struct_name);
+    let struct_name = xsd_types::to_struct_name(&struct_name);
 
     let mut generated_impl = XsdImpl {
       name: xml_name,

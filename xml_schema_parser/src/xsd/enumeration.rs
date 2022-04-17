@@ -1,13 +1,14 @@
-use super::{XMLElementWrapper, XsdError};
+use xsd_codegen::XMLElement;
+
+use super::XsdError;
 
 #[derive(Clone, Default, Debug, PartialEq)]
-// #[yaserde(prefix = "xs", namespace = "xs: http://www.w3.org/2001/XMLSchema")]
 pub struct Enumeration {
   pub value: String,
 }
 
 impl Enumeration {
-  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdError> {
     element.check_name("enumeration")?;
 
     let output = Self {

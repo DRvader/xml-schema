@@ -1,23 +1,16 @@
 use std::collections::BTreeMap;
 
+use xsd_codegen::{Formatter, XMLElement};
+use xsd_types::{XsdName, XsdParseError, XsdType};
+
 use crate::xsd::{
   attribute, attribute_group, complex_type, element, group, import, qualification, simple_type,
-  xsd_context::XsdName, XsdContext,
+  XsdContext,
 };
-use proc_macro2::TokenStream;
 
-use super::{
-  annotation,
-  xsd_context::{XsdImpl, XsdType},
-  XMLElementWrapper, XsdError,
-};
+use super::{annotation, XsdError};
 
 #[derive(Clone, Default, Debug, PartialEq)]
-// #[yaserde(
-//   root="schema"
-//   prefix="xs",
-//   namespace="xs: http://www.w3.org/2001/XMLSchema",
-// )]
 pub struct Schema {
   pub target_namespace: Option<String>,
   pub element_form_default: qualification::Qualification,
@@ -34,7 +27,7 @@ pub struct Schema {
 }
 
 impl Schema {
-  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
     element.check_name("schema")?;
 
     let target_namespace: Option<String> = element.try_get_attribute("targetNamespace")?;
@@ -232,7 +225,7 @@ impl Schema {
     }
 
     if !error_msg.is_empty() {
-      return Err(XsdError::XsdParseError(format!(
+      return Err(XsdError::XsdMissing(format!(
         "COULD NOT FIND:{}",
         error_msg
       )));
@@ -245,8 +238,8 @@ impl Schema {
     let top_level_names = self.fill_context(context, None)?;
 
     let mut dst = String::new();
-    dst.push_str("use xml_schema_parser::{XsdError, XMLElementWrapper, XsdParse};\n\n");
-    let mut formatter = crate::codegen::Formatter::new(&mut dst);
+    dst.push_str("use xml_schema_parser::{XsdError, XMLElementWrapper, XsdParse, YaDeserialize, YaSerialize};\n\n");
+    let mut formatter = Formatter::new(&mut dst);
     for name in top_level_names {
       context.search(&name).unwrap().fmt(&mut formatter).unwrap();
     }
@@ -254,83 +247,5 @@ impl Schema {
     std::fs::write("../musicxml-rs/src/musicxml_sys/musicxml.rs", &dst).unwrap();
 
     Ok(dst)
-  }
-}
-
-fn generate_namespace_definition(
-  target_prefix: &Option<String>,
-  target_namespace: &Option<String>,
-) -> TokenStream {
-  match (target_prefix, target_namespace) {
-    (None, None) => quote!(),
-    (None, Some(_target_namespace)) => {
-      panic!("undefined prefix attribute, a target namespace is defined")
-    }
-    (Some(_prefix), None) => panic!(
-      "a prefix attribute, but no target namespace is defined, please remove the prefix parameter"
-    ),
-    (Some(prefix), Some(target_namespace)) => {
-      let namespace = format!("{}: {}", prefix, target_namespace);
-      quote!(#[yaserde(prefix=#prefix, namespace=#namespace)])
-    }
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn default_schema_implementation() {
-    let schema = Schema::default();
-
-    let mut context =
-      XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
-        .unwrap();
-
-    let implementation = schema.generate(&mut context).unwrap();
-    assert!(implementation.is_empty());
-  }
-
-  #[test]
-  #[should_panic]
-  fn missing_prefix() {
-    let schema = Schema {
-      target_namespace: Some("http://example.com".to_string()),
-      ..Schema::default()
-    };
-
-    let mut context =
-      XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
-        .unwrap();
-
-    schema.generate(&mut context).unwrap();
-  }
-
-  #[test]
-  #[should_panic]
-  fn missing_target_namespace() {
-    let schema = Schema::default();
-
-    let mut context =
-      XsdContext::new(r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>"#)
-        .unwrap();
-
-    schema.generate(&mut context).unwrap();
-  }
-
-  #[test]
-  fn generate_namespace() {
-    let definition = generate_namespace_definition(
-      &Some("prefix".to_string()),
-      &Some("http://example.com".to_string()),
-    );
-
-    let implementation = format!("{}", definition);
-
-    assert_eq!(
-      implementation,
-      r#"# [ yaserde ( prefix = "prefix" , namespace = "prefix: http://example.com" ) ]"#
-    );
   }
 }

@@ -1,3 +1,6 @@
+use xsd_codegen::{Struct, XMLElement};
+use xsd_types::{XsdName, XsdParseError, XsdType};
+
 use super::{
   annotation::Annotation,
   attribute::Attribute,
@@ -7,18 +10,11 @@ use super::{
   group::Group,
   sequence::Sequence,
   simple_content::SimpleContent,
-  xsd_context::{infer_type_name, XsdType},
-  xsd_context::{MergeSettings, XsdElement, XsdImpl, XsdName},
-  XMLElementWrapper, XsdContext, XsdError,
+  xsd_context::{MergeSettings, XsdElement, XsdImpl},
+  XsdContext, XsdError,
 };
-use crate::codegen::Struct;
 
 #[derive(Clone, Default, Debug, PartialEq)]
-// #[yaserde(
-//   rename = "complexType"
-//   prefix = "xs",
-//   namespace = "xs: http://www.w3.org/2001/XMLSchema"
-// )]
 pub struct ComplexType {
   pub name: Option<XsdName>,
   pub attributes: Vec<Attribute>,
@@ -32,7 +28,7 @@ pub struct ComplexType {
 }
 
 impl ComplexType {
-  pub fn parse(mut element: XMLElementWrapper) -> Result<Self, XsdError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
     element.check_name("complexType")?;
 
     // (annotation?,(simpleContent|complexContent|((group|all|choice|sequence)?,((attribute|attributeGroup)*,anyAttribute?))))
@@ -48,10 +44,10 @@ impl ComplexType {
     let attribute_groups = element.get_children_with("attributeGroup", AttributeGroup::parse)?;
 
     if simple_content.is_some() && complex_content.is_some() {
-      return Err(XsdError::XsdParseError(format!(
-        "simpleContent | complexContent cannot both present in {}",
-        element.name()
-      )));
+      return Err(XsdParseError {
+        node_name: element.node_name(),
+        msg: format!("simpleContent | complexContent cannot both present",),
+      });
     }
 
     if (simple_content.is_some() || complex_content.is_some())
@@ -61,17 +57,16 @@ impl ComplexType {
         || choice.is_some()
         || sequence.is_some())
     {
-      return Err(XsdError::XsdParseError(format!(
-        "(simpleContent | complexContent) and (group | choice | sequence | attribute | attributeGroup) cannot both present in {}",
-        element.name()
-      )));
+      return Err(XsdParseError {node_name: element.node_name(), msg: format!(
+        "(simpleContent | complexContent) and (group | choice | sequence | attribute | attributeGroup) cannot both present",
+      )});
     }
 
     if group.is_some() as u8 + choice.is_some() as u8 + sequence.is_some() as u8 > 1 {
-      return Err(XsdError::XsdParseError(format!(
-        "group | choice | sequence cannot all be present in {}",
-        element.name()
-      )));
+      return Err(XsdParseError {
+        node_name: element.node_name(),
+        msg: format!("group | choice | sequence cannot all be present"),
+      });
     }
 
     let output = Self {
@@ -157,13 +152,7 @@ impl ComplexType {
     }
 
     for i in generated_impls {
-      generated_impl.merge(
-        i,
-        MergeSettings {
-          conflict_prefix: Some("attr_"),
-          merge_type: crate::xsd::xsd_context::MergeType::Structs,
-        },
-      );
+      generated_impl.merge(i, MergeSettings::default());
     }
 
     let docs = self

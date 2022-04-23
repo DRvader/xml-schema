@@ -1,5 +1,5 @@
-use xsd_codegen::{Block, Function, Impl, Struct, XMLElement};
-use xsd_types::{XsdGenError, XsdName, XsdParseError, XsdType};
+use xsd_codegen::{Struct, XMLElement};
+use xsd_types::{XsdGenError, XsdIoError, XsdName, XsdParseError, XsdType};
 
 use crate::xsd::{
   annotation::Annotation,
@@ -29,7 +29,7 @@ pub struct Element {
 }
 
 impl Element {
-  pub fn parse(mut element: XMLElement, parent_is_schema: bool) -> Result<Self, XsdParseError> {
+  pub fn parse(mut element: XMLElement, parent_is_schema: bool) -> Result<Self, XsdIoError> {
     element.check_name("element")?;
 
     let name = element
@@ -40,18 +40,18 @@ impl Element {
       .map(|v: String| XsdName::new(&v, XsdType::Element));
 
     if parent_is_schema && name.is_none() {
-      return Err(XsdParseError {
+      return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
         msg: "name attribute cannot be absent when parent is the schema tag.".to_string(),
-      });
+      }));
     } else if parent_is_schema && refers.is_some() {
-      return Err(XsdParseError {
+      return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
         msg: format!(
           "ref attribute ({}) cannot be present when parent is the schema tag.",
           refers.unwrap()
         ),
-      });
+      }));
     }
 
     let complex_type = element.try_get_child_with("complexType", ComplexType::parse)?;
@@ -59,10 +59,10 @@ impl Element {
       element.try_get_child_with("simpleType", |child| SimpleType::parse(child, false))?;
 
     if simple_type.is_some() && complex_type.is_some() {
-      return Err(XsdParseError {
+      return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
         msg: format!("simpleType | complexType cannot both present",),
-      });
+      }));
     }
 
     let annotation = element.try_get_child_with("annotation", Annotation::parse)?;
@@ -103,11 +103,7 @@ impl Element {
 
   #[tracing::instrument(skip_all)]
   pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
-    // We either have a named (such as a schema decl) or an anonymous element.
     let xml_name = self.name.clone().unwrap();
-
-    // Now we will generate and return a struct which contains the data declared in the element.
-    // TODO(drosen): Simplify output if element is trivial (e.g. simpleType).
 
     let mut generated_struct = match (&self.simple_type, &self.complex_type) {
       (None, Some(complex_type)) => {
@@ -122,7 +118,7 @@ impl Element {
             name: xml_name.clone(),
             fieldname_hint: Some(xml_name.to_field_name()),
             element: XsdElement::Struct(
-              Struct::new(&xml_name.to_struct_name())
+              Struct::new(Some(xml_name.clone()), &xml_name.to_struct_name())
                 .vis("pub")
                 .to_owned(),
             ),
@@ -144,14 +140,14 @@ impl Element {
               implementation: vec![],
             },
             super::xsd_context::SearchResult::MultipleMatches => {
-              return Err(XsdError::XsdGenError(XsdGenError {
+              return Err(XsdError::XsdIoError(XsdIoError::XsdGenError(XsdGenError {
                 node_name: xml_name.to_string(),
                 ty: XsdType::Element,
                 msg: format!(
                   "Found both a simple and complex type named {}",
                   self.kind.as_ref().unwrap()
                 ),
-              }));
+              })));
             }
             super::xsd_context::SearchResult::NoMatches => {
               return Err(XsdError::XsdImplNotFound(xml_name.clone()));
@@ -160,16 +156,13 @@ impl Element {
         }
       }
       _ => {
-        return Err(XsdError::XsdGenError(XsdGenError {
+        return Err(XsdError::XsdIoError(XsdIoError::XsdGenError(XsdGenError {
           node_name: xml_name.to_string(),
           ty: XsdType::Element,
           msg: "Found both simple and complex type in element.".to_string(),
-        }))
+        })))
       }
     };
-
-    let field_name = xml_name.to_field_name();
-    let field_type = generated_struct.element.get_type();
 
     let docs = self
       .annotation
@@ -180,6 +173,9 @@ impl Element {
     }
 
     let mut generated_struct = if self.is_multiple() || self.could_be_none() {
+      let field_name = xml_name.to_field_name();
+      let field_type = generated_struct.element.get_type();
+
       let field_type = if self.is_multiple() {
         field_type.wrap("Vec")
       } else if self.could_be_none() {
@@ -188,47 +184,19 @@ impl Element {
         field_type
       };
 
-      let mut output_struct = XsdImpl {
+      let inner = if let XsdElement::Struct(_) | XsdElement::Enum(_) = generated_struct.element {
+        vec![generated_struct]
+      } else {
+        vec![]
+      };
+
+      XsdImpl {
         name: xml_name.clone(),
         fieldname_hint: Some(field_name.clone()),
         element: XsdElement::Type(field_type).to_owned(),
-        inner: vec![],
+        inner,
         implementation: vec![],
-      };
-
-      let mut r#impl = Impl::new(output_struct.element.get_type())
-        .impl_trait("XsdParse")
-        .to_owned();
-
-      let mut parse = Function::new("parse")
-        .arg("element", "&mut XMLElementWrapper")
-        .ret("Result<Self, XsdError>");
-
-      let output = Block::new("let output = Self").after(";").to_owned();
-
-      let output = if self.is_multiple() {
-        output.line(&format!(
-          "{field_name}: element.try_get_children_with({xml_name}, |v| XsdParse::parse(v))?,"
-        ))
-      } else if self.could_be_none() {
-        output.line(&format!(
-          "{field_name}: element.try_get_child_with({xml_name}, |v| XsdParse::parse(v))?,"
-        ))
-      } else {
-        output.line(&format!("{field_name}: XsdParse::parse(element)?,"))
-      };
-
-      parse = parse.push_block(output).line("Ok(output)");
-      r#impl = r#impl.push_fn(parse);
-
-      match generated_struct.element {
-        XsdElement::Struct(_) | XsdElement::Enum(_) => output_struct.inner.push(generated_struct),
-        _ => {}
       }
-
-      output_struct.implementation.push(r#impl);
-
-      output_struct
     } else {
       generated_struct
     };

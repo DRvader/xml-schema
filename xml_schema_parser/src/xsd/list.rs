@@ -1,5 +1,5 @@
-use xsd_codegen::{Function, Impl, Struct, XMLElement};
-use xsd_types::{XsdName, XsdParseError, XsdType};
+use xsd_codegen::{fromxml_impl, Block, Struct, XMLElement};
+use xsd_types::{XsdIoError, XsdName, XsdType};
 
 use crate::xsd::XsdContext;
 
@@ -14,7 +14,7 @@ pub struct List {
 }
 
 impl List {
-  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdIoError> {
     element.check_name("list")?;
 
     let item_type: String = element.get_attribute("itemType")?;
@@ -43,16 +43,18 @@ impl List {
 
     let list_type = inner.element.get_type().to_string();
 
-    let mut generated_struct = Struct::new(&struct_name).vis("pub").to_owned();
+    let mut generated_struct = Struct::new(Some(name.clone()), &struct_name)
+      .vis("pub")
+      .to_owned();
     generated_struct.tuple_field(format!("Vec<{}>", list_type));
-    for derive in ["Clone", "Debug", "Default", "PartialEq"] {
-      generated_struct.derive(derive);
-    }
+    generated_struct.derives(&["Clone", "Debug", "Default", "PartialEq"]);
 
-    let parse_fn = Function::new("parse")
-      .arg("mut element", "XsdElementWrapper")
-      .ret("Result<Self, XsdError>")
-      .vis("pub").line(format!("let output: Vec<{list_type}> = element.get_content()?.split(' ').map(|item| item.to_owned()).map(|item| item.parse().unwrap()).collect();")).line("element.finalize(false, false)?;").line(format!("Ok({struct_name}(output))"));
+    let from_xml = fromxml_impl(
+      generated_struct.ty().clone(),
+      Block::new("")
+        .line("let output = element.get_content()?.split(' ').map(|item| item.from_xml(item)).collect();")
+        .line(format!("Ok({struct_name}(output))")),
+    );
 
     Ok(XsdImpl {
       name: XsdName {
@@ -62,9 +64,7 @@ impl List {
       fieldname_hint: Some(name.to_field_name()),
       element: XsdElement::Struct(generated_struct.clone()),
       inner: vec![],
-      implementation: vec![Impl::new(generated_struct.ty())
-        .push_fn(parse_fn)
-        .to_owned()],
+      implementation: vec![from_xml],
     })
   }
 }

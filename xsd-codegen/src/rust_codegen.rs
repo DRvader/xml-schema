@@ -26,6 +26,8 @@ use std::{
   fmt::{self, Write},
 };
 
+use xsd_types::XsdName;
+
 /// Defines a scope.
 ///
 /// A scope contains modules, types, etc...
@@ -99,6 +101,7 @@ pub struct Trait {
 pub struct Type {
   pub name: String,
   pub generics: Vec<Type>,
+  pub xml_name: Option<XsdName>,
 }
 
 /// Defines a type definition.
@@ -120,6 +123,7 @@ pub struct Variant {
   pub name: String,
   pub fields: Fields,
   pub attributes: String,
+  pub xml_name: Option<XsdName>,
 }
 
 /// Defines a set of fields.
@@ -147,6 +151,9 @@ pub struct Field {
 
   /// Field annotation
   pub annotation: Vec<String>,
+
+  /// XML NAME
+  pub xml_name: Option<XsdName>,
 }
 
 /// Defines an associated type.
@@ -233,11 +240,11 @@ pub struct Function {
 }
 
 /// Defines a code block. This is used to define a function body.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Block {
-  before: Option<String>,
-  after: Option<String>,
-  body: Vec<Body>,
+  pub before: Option<String>,
+  pub after: Option<String>,
+  pub body: Vec<Body>,
 }
 
 #[derive(Debug, Clone)]
@@ -366,8 +373,8 @@ impl Scope {
   }
 
   /// Push a new struct definition, returning a mutable reference to it.
-  pub fn new_struct(&mut self, name: &str) -> &mut Struct {
-    self.push_struct(Struct::new(name));
+  pub fn new_struct(&mut self, xml_name: Option<XsdName>, name: &str) -> &mut Struct {
+    self.push_struct(Struct::new(xml_name, name));
 
     match *self.items.last_mut().unwrap() {
       Item::Struct(ref mut v) => v,
@@ -398,8 +405,8 @@ impl Scope {
   }
 
   /// Push a new trait definition, returning a mutable reference to it.
-  pub fn new_trait(&mut self, name: &str) -> &mut Trait {
-    self.push_trait(Trait::new(name));
+  pub fn new_trait(&mut self, xml_name: Option<XsdName>, name: &str) -> &mut Trait {
+    self.push_trait(Trait::new(name, xml_name));
 
     match *self.items.last_mut().unwrap() {
       Item::Trait(ref mut v) => v,
@@ -414,8 +421,8 @@ impl Scope {
   }
 
   /// Push a new struct definition, returning a mutable reference to it.
-  pub fn new_enum(&mut self, name: &str) -> &mut Enum {
-    self.push_enum(Enum::new(name));
+  pub fn new_enum(&mut self, xml_name: Option<XsdName>, name: &str) -> &mut Enum {
+    self.push_enum(Enum::new(xml_name, name));
 
     match *self.items.last_mut().unwrap() {
       Item::Enum(ref mut v) => v,
@@ -430,7 +437,7 @@ impl Scope {
   }
 
   /// Push a new `impl` block, returning a mutable reference to it.
-  pub fn new_impl(&mut self, target: &str) -> &mut Impl {
+  pub fn new_impl(&mut self, target: &Type) -> &mut Impl {
     self.push_impl(Impl::new(target));
 
     match *self.items.last_mut().unwrap() {
@@ -639,8 +646,8 @@ impl Module {
   }
 
   /// Push a new struct definition, returning a mutable reference to it.
-  pub fn new_struct(&mut self, name: &str) -> &mut Struct {
-    self.scope.new_struct(name)
+  pub fn new_struct(&mut self, xml_name: Option<XsdName>, name: &str) -> &mut Struct {
+    self.scope.new_struct(xml_name, name)
   }
 
   /// Push a structure definition
@@ -661,8 +668,8 @@ impl Module {
   }
 
   /// Push a new enum definition, returning a mutable reference to it.
-  pub fn new_enum(&mut self, name: &str) -> &mut Enum {
-    self.scope.new_enum(name)
+  pub fn new_enum(&mut self, xml_name: Option<XsdName>, name: &str) -> &mut Enum {
+    self.scope.new_enum(xml_name, name)
   }
 
   /// Push an enum definition
@@ -672,7 +679,7 @@ impl Module {
   }
 
   /// Push a new `impl` block, returning a mutable reference to it.
-  pub fn new_impl(&mut self, target: &str) -> &mut Impl {
+  pub fn new_impl(&mut self, target: &Type) -> &mut Impl {
     self.scope.new_impl(target)
   }
 
@@ -703,9 +710,9 @@ impl Module {
 
 impl Struct {
   /// Return a structure definition with the provided name
-  pub fn new(name: &str) -> Self {
+  pub fn new(xml_name: Option<XsdName>, name: &str) -> Self {
     Struct {
-      type_def: TypeDef::new(name),
+      type_def: TypeDef::new(xml_name, name),
       fields: Fields::Empty,
     }
   }
@@ -722,8 +729,8 @@ impl Struct {
   }
 
   /// Add a generic to the struct.
-  pub fn generic(mut self, name: &str) -> Self {
-    self.type_def.ty = self.type_def.ty.generic(name);
+  pub fn generic(mut self, ty: &Type) -> Self {
+    self.type_def.ty = self.type_def.ty.generic(ty);
     self
   }
 
@@ -781,11 +788,11 @@ impl Struct {
   ///
   /// A struct can either set named fields with this function or tuple fields
   /// with `tuple_field`, but not both.
-  pub fn field<T>(&mut self, name: &str, ty: T) -> &mut Self
+  pub fn field<T>(&mut self, xml_name: Option<XsdName>, name: &str, ty: T) -> &mut Self
   where
     T: Into<Type>,
   {
-    self.fields.named(name, ty);
+    self.fields.named(xml_name, name, ty);
     self
   }
 
@@ -824,9 +831,9 @@ impl Struct {
 
 impl Trait {
   /// Return a trait definition with the provided name
-  pub fn new(name: &str) -> Self {
+  pub fn new(name: &str, xml_name: Option<XsdName>) -> Self {
     Trait {
-      type_def: TypeDef::new(name),
+      type_def: TypeDef::new(xml_name, name),
       parents: vec![],
       associated_tys: vec![],
       fns: vec![],
@@ -846,7 +853,7 @@ impl Trait {
   }
 
   /// Add a generic to the trait
-  pub fn generic(mut self, name: &str) -> Self {
+  pub fn generic(mut self, name: &Type) -> Self {
     self.type_def.ty = self.type_def.ty.generic(name);
     self
   }
@@ -947,9 +954,9 @@ impl Trait {
 
 impl Enum {
   /// Return a enum definition with the provided name.
-  pub fn new(name: &str) -> Self {
+  pub fn new(xml_name: Option<XsdName>, name: &str) -> Self {
     Enum {
-      type_def: TypeDef::new(name),
+      type_def: TypeDef::new(xml_name, name),
       variants: vec![],
     }
   }
@@ -960,13 +967,13 @@ impl Enum {
   }
 
   /// Set the enum visibility.
-  pub fn vis(&mut self, vis: &str) -> &mut Self {
+  pub fn vis(mut self, vis: &str) -> Self {
     self.type_def.vis(vis);
     self
   }
 
   /// Add a generic to the enum.
-  pub fn generic(mut self, name: &str) -> Self {
+  pub fn generic(mut self, name: &Type) -> Self {
     self.type_def.ty = self.type_def.ty.generic(name);
     self
   }
@@ -987,7 +994,7 @@ impl Enum {
   }
 
   /// Add new types that the struct should derive.
-  pub fn derives(&mut self, name: &[&str]) -> &mut Self {
+  pub fn derives(mut self, name: &[&str]) -> Self {
     for n in name {
       self.type_def.derive(n);
     }
@@ -1013,8 +1020,8 @@ impl Enum {
   }
 
   /// Push a variant to the enum, returning a mutable reference to it.
-  pub fn new_variant(&mut self, name: &str) -> &mut Variant {
-    self.variants.push(Variant::new(name));
+  pub fn new_variant(&mut self, xml_name: Option<XsdName>, name: &str) -> &mut Variant {
+    self.variants.push(Variant::new(xml_name, name));
     self.variants.last_mut().unwrap()
   }
 
@@ -1042,11 +1049,12 @@ impl Enum {
 
 impl Variant {
   /// Return a new enum variant with the given name.
-  pub fn new(name: &str) -> Self {
+  pub fn new(xml_name: Option<XsdName>, name: &str) -> Self {
     Variant {
       name: name.to_string(),
       fields: Fields::Empty,
       attributes: String::new(),
+      xml_name,
     }
   }
 
@@ -1056,11 +1064,11 @@ impl Variant {
   }
 
   /// Add a named field to the variant.
-  pub fn named<T>(mut self, name: &str, ty: T) -> Self
+  pub fn named<T>(mut self, xml_name: Option<XsdName>, name: &str, ty: T) -> Self
   where
     T: Into<Type>,
   {
-    self.fields.named(name, ty);
+    self.fields.named(xml_name, name, ty);
     self
   }
 
@@ -1084,8 +1092,9 @@ impl Variant {
 
 impl Type {
   /// Return a new type with the given name.
-  pub fn new(name: &str) -> Self {
+  pub fn new(xml_name: Option<XsdName>, name: &str) -> Self {
     Type {
+      xml_name: xml_name,
       name: name.to_string(),
       generics: vec![],
     }
@@ -1133,6 +1142,7 @@ impl Type {
     Type {
       name,
       generics: self.generics.clone(),
+      xml_name: self.xml_name.clone(),
     }
   }
 
@@ -1170,7 +1180,7 @@ impl Type {
 
 impl<'a> From<&'a str> for Type {
   fn from(src: &'a str) -> Self {
-    Type::new(src)
+    Type::new(None, src)
   }
 }
 
@@ -1179,13 +1189,14 @@ impl From<String> for Type {
     Type {
       name: src,
       generics: vec![],
+      xml_name: None,
     }
   }
 }
 
 impl<'a> From<&'a String> for Type {
   fn from(src: &'a String) -> Self {
-    Type::new(src)
+    Type::new(None, src)
   }
 }
 
@@ -1199,9 +1210,9 @@ impl<'a> From<&'a Type> for Type {
 
 impl TypeDef {
   /// Return a structure definition with the provided name
-  fn new(name: &str) -> Self {
+  fn new(xml_name: Option<XsdName>, name: &str) -> Self {
     TypeDef {
-      ty: Type::new(name),
+      ty: Type::new(xml_name, name),
       vis: None,
       docs: None,
       derive: vec![],
@@ -1385,7 +1396,7 @@ impl AssociatedType {
 
 impl Field {
   /// Return a field definition with the provided name and type
-  pub fn new<T>(name: &str, ty: T) -> Self
+  pub fn new<T>(xml_name: Option<XsdName>, name: &str, ty: T) -> Self
   where
     T: Into<Type>,
   {
@@ -1395,6 +1406,7 @@ impl Field {
       vis: None,
       documentation: Vec::new(),
       annotation: Vec::new(),
+      xml_name: xml_name,
     }
   }
 
@@ -1433,7 +1445,7 @@ impl Fields {
     self
   }
 
-  pub fn named<T>(&mut self, name: &str, ty: T) -> &mut Self
+  pub fn named<T>(&mut self, xml_name: Option<XsdName>, name: &str, ty: T) -> &mut Self
   where
     T: Into<Type>,
   {
@@ -1443,6 +1455,7 @@ impl Fields {
       vis: None,
       documentation: Vec::new(),
       annotation: Vec::new(),
+      xml_name: xml_name,
     })
   }
 
@@ -1588,7 +1601,7 @@ impl Impl {
   }
 
   /// Set an associated type.
-  pub fn associate_type<T>(&mut self, name: &str, ty: T) -> &mut Self
+  pub fn associate_type<T>(&mut self, xml_name: Option<XsdName>, name: &str, ty: T) -> &mut Self
   where
     T: Into<Type>,
   {
@@ -1598,6 +1611,7 @@ impl Impl {
       vis: None,
       documentation: Vec::new(),
       annotation: Vec::new(),
+      xml_name: xml_name,
     });
 
     self
@@ -1765,6 +1779,7 @@ impl Function {
       // Simply use empty strings.
       documentation: Vec::new(),
       annotation: Vec::new(),
+      xml_name: None,
     });
 
     self

@@ -1,5 +1,5 @@
 use xsd_codegen::XMLElement;
-use xsd_types::XsdParseError;
+use xsd_types::XsdIoError;
 
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Annotation {
@@ -8,7 +8,7 @@ pub struct Annotation {
 }
 
 impl Annotation {
-  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdIoError> {
     element.check_name("annotation")?;
 
     let output = Ok(Self {

@@ -1,5 +1,5 @@
 use xsd_codegen::{Block, Function, Impl, Struct, XMLElement};
-use xsd_types::{XsdName, XsdParseError, XsdType};
+use xsd_types::{XsdIoError, XsdName, XsdType};
 
 use super::{
   annotation::Annotation,
@@ -32,7 +32,7 @@ enum PureType {
 }
 
 impl Sequence {
-  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdIoError> {
     element.check_name("sequence")?;
 
     let output = Self {
@@ -122,7 +122,7 @@ impl Sequence {
       name: xml_name,
       fieldname_hint: None,
       element: XsdElement::Struct(
-        Struct::new(&struct_name)
+        Struct::new(None, &struct_name)
           .vis("pub")
           .derives(&["Clone", "Debug", "Default", "PartialEq"])
           .to_owned(),

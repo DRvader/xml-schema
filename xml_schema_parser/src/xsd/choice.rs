@@ -1,5 +1,5 @@
 use xsd_codegen::{Enum, XMLElement};
-use xsd_types::{to_struct_name, XsdName, XsdParseError, XsdType};
+use xsd_types::{to_struct_name, XsdIoError, XsdName, XsdType};
 
 use super::{
   element::Element,
@@ -22,7 +22,7 @@ pub struct Choice {
 }
 
 impl Choice {
-  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdIoError> {
     element.check_name("choice")?;
 
     let output = Self {
@@ -86,9 +86,9 @@ impl Choice {
 
     let mut generated_impl = XsdImpl {
       fieldname_hint: Some(xml_name.to_field_name()),
-      name: xml_name,
+      name: xml_name.clone(),
       element: XsdElement::Enum(
-        Enum::new(&struct_name)
+        Enum::new(Some(xml_name.clone()), &struct_name)
           .derives(&["Clone", "Debug", "PartialEq"])
           .vis("pub")
           .to_owned(),

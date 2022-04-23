@@ -1,9 +1,10 @@
-use xsd_codegen::{Enum, Impl, Variant, XMLElement};
-use xsd_types::{to_struct_name, XsdName, XsdParseError, XsdType};
+use xsd_codegen::{Enum, XMLElement};
+use xsd_types::{XsdIoError, XsdName, XsdType};
 
 use super::{
+  general_xsdgen,
   simple_type::SimpleType,
-  xsd_context::{XsdContext, XsdElement, XsdImpl},
+  xsd_context::{MergeSettings, XsdContext, XsdElement, XsdImpl},
   XsdError,
 };
 
@@ -14,7 +15,7 @@ pub struct Union {
 }
 
 impl Union {
-  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdIoError> {
     element.check_name("union")?;
 
     let member_types: Option<String> = element.try_get_attribute("memberTypes")?;
@@ -40,52 +41,40 @@ impl Union {
   #[tracing::instrument(skip_all)]
   pub fn get_implementation(
     &self,
-    mut parent_name: XsdName,
+    parent_name: XsdName,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    let mut generated_enum = Enum::new(&parent_name.to_struct_name())
-      .vis("pub")
-      .to_owned();
-    generated_enum.derives(&["Clone", "Debug", "PartialEq", "YaDeserialize"]);
+    let mut xml_name = parent_name.clone();
+    xml_name.ty = XsdType::Union;
 
-    for (index, member) in self.member_types.iter().enumerate() {
+    let mut generated_impl = XsdImpl {
+      fieldname_hint: Some(xml_name.to_field_name()),
+      name: xml_name.clone(),
+      element: XsdElement::Enum(
+        Enum::new(Some(xml_name.clone()), &xml_name.to_struct_name())
+          .vis("pub")
+          .derives(&["Clone", "Debug", "PartialEq"]),
+      ),
+      implementation: vec![],
+      inner: vec![],
+    };
+
+    for member in &self.member_types {
       if let Some(imp) = context.search(&member) {
-        generated_enum = generated_enum.push_variant(
-          Variant::new(&to_struct_name(&imp.element.get_type().to_string()))
-            .tuple(imp.element.get_type())
-            .to_owned(),
-        );
+        generated_impl.merge(imp.to_field(), MergeSettings::default());
       } else {
         return Err(XsdError::XsdImplNotFound(parent_name));
       }
     }
 
-    let mut inner_impl = vec![];
-    for (index, member) in self.simple_types.iter().enumerate() {
-      let index = index + self.member_types.len();
-
-      let inner = member.get_implementation(Some(parent_name.clone()), context)?;
-
-      generated_enum = generated_enum.push_variant(
-        Variant::new(&to_struct_name(&inner.element.get_type().to_string()))
-          .tuple(inner.element.get_type())
-          .to_owned(),
+    for member in &self.simple_types {
+      generated_impl.merge(
+        member.get_implementation(Some(parent_name.clone()), context)?,
+        MergeSettings::default(),
       );
-
-      inner_impl.push(inner);
     }
 
-    let r#impl = Impl::new(generated_enum.ty());
-
-    parent_name.ty = XsdType::Union;
-
-    Ok(XsdImpl {
-      fieldname_hint: Some(parent_name.to_field_name()),
-      name: parent_name,
-      element: XsdElement::Enum(generated_enum),
-      implementation: vec![r#impl],
-      inner: inner_impl,
-    })
+    Ok(general_xsdgen(generated_impl))
   }
 }
 

@@ -1,7 +1,7 @@
-use std::str::FromStr;
-
-use xsd_codegen::{Block, Enum, FromXmlString, Function, Impl, Struct, Variant, XMLElement};
-use xsd_types::{to_struct_name, XsdName, XsdParseError, XsdType};
+use xsd_codegen::{
+  xsdgen_impl, Block, Enum, FromXmlString, Function, Impl, Struct, Variant, XMLElement,
+};
+use xsd_types::{to_struct_name, XsdIoError, XsdName, XsdParseError, XsdType};
 
 use super::{
   annotation::Annotation,
@@ -85,7 +85,7 @@ impl Restriction {
   pub fn parse(
     parent_type: RestrictionParentType,
     mut element: XMLElement,
-  ) -> Result<Self, XsdParseError> {
+  ) -> Result<Self, XsdIoError> {
     element.check_name("restriction")?;
 
     let annotation = element.try_get_child_with("annotation", Annotation::parse)?;
@@ -108,7 +108,7 @@ impl Restriction {
             node_name: element.node_name(),
             msg: format!(
             "choice | group | sequence | attribute | attributeGroup cannot be present in node when the parent is a simple type.",
-          )});
+          )})?;
         }
       }
       RestrictionParentType::ComplexContent => {
@@ -118,7 +118,7 @@ impl Restriction {
             msg: format!(
               "choice | group | sequence may be present in node when the parent is complex content.",
             ),
-          });
+          })?;
         }
       }
       RestrictionParentType::SimpleContent => {
@@ -127,7 +127,7 @@ impl Restriction {
             node_name: element.node_name(),
             msg: format!(
             "choice | group | sequence cannot be present in node when the parent is a simple content.",
-          )});
+          )})?;
         }
       }
     }
@@ -172,118 +172,111 @@ impl Restriction {
     Ok(output)
   }
 
-  // fn get_simple_implementation(
-  //   &self,
-  //   parent_name: XsdName,
-  //   context: &mut XsdContext,
-  //   allow_attributes: bool,
-  // ) -> Result<XsdImpl, XsdError> {
-  //   let base_type = context.search(&self.base);
+  fn get_simple_implementation(
+    &self,
+    parent_name: XsdName,
+    context: &mut XsdContext,
+    allow_attributes: bool,
+  ) -> Result<XsdImpl, XsdError> {
+    let base_type = context.search(&self.base);
 
-  //   if base_type.is_none() {
-  //     return Err(XsdError::XsdImplNotFound(self.base.clone()));
-  //   }
+    if base_type.is_none() {
+      return Err(XsdError::XsdImplNotFound(self.base.clone()));
+    }
 
-  //   let base_type = base_type.unwrap();
+    let base_type = base_type.unwrap();
 
-  //   let mut generated_impl = if !self.enumerations.is_empty() {
-  //     let typename = parent_name.to_struct_name();
-  //     let mut generated_enum = Enum::new(&typename).vis("pub").to_owned();
-  //     for derive in ["Clone", "Debug", "PartialEq"] {
-  //       generated_enum.derive(derive);
-  //     }
+    let mut generated_impl = if !self.enumerations.is_empty() {
+      let typename = parent_name.to_struct_name();
+      let mut generated_enum =
+        Enum::new(None, &typename)
+          .vis("pub")
+          .derives(&["Clone", "Debug", "PartialEq"]);
 
-  //     let mut value = Function::new("parse")
-  //       .arg("mut element", "XMLElementWrapper")
-  //       .ret(format!("Result<{}, XsdError>", &typename))
-  //       .to_owned();
+      let mut value = Block::default();
 
-  //     let mut parse_match =
-  //       Block::new("let output = match element.get_content::<String>()?.as_str()");
-  //     for enumeration in &self.enumerations {
-  //       let enumeration = if enumeration.len() == 0 {
-  //         "empty"
-  //       } else {
-  //         enumeration
-  //       };
+      let mut parse_match =
+        Block::new("let output = match element.get_content::<String>()?.as_str()");
+      for enumeration in &self.enumerations {
+        let enumeration = if enumeration.len() == 0 {
+          "empty"
+        } else {
+          enumeration
+        };
 
-  //       let enum_name = to_struct_name(enumeration);
-  //       generated_enum = generated_enum.push_variant(crate::codegen::Variant::new(&enum_name));
+        let enum_name = to_struct_name(enumeration);
+        generated_enum = generated_enum.push_variant(Variant::new(None, &enum_name));
 
-  //       parse_match = parse_match.line(format!("\"{}\" => Self::{},", enumeration, enum_name));
-  //     }
-  //     parse_match = parse_match
-  //       .push_block(
-  //         Block::new("value => ").push_block(
-  //           Block::new("return Err(XsdError::XsdGenError")
-  //             .line("node_name: element.name().to_string(),")
-  //             .line("msg: format!(\"Invalid xml node found unexpected content {value}.\"),")
-  //             .after(")"),
-  //         ),
-  //       )
-  //       .after(";");
-  //     value = value
-  //       .push_block(parse_match)
-  //       .line("element.finalize(false, false)?;")
-  //       .line("Ok(output)");
+        parse_match = parse_match.line(format!("\"{}\" => Self::{},", enumeration, enum_name));
+      }
+      parse_match = parse_match
+        .push_block(
+          Block::new("value => ").push_block(
+            Block::new("return Err(XsdGenError")
+              .line("node_name: element.name().to_string(),")
+              .line("msg: format!(\"Invalid xml node found unexpected content {value}.\"),")
+              .line("ty: XsdType::Restriction,")
+              .after(")?"),
+          ),
+        )
+        .after(";");
+      value = value.push_block(parse_match).line("Ok(output)");
 
-  //     let enum_impl = Impl::new(generated_enum.ty()).push_fn(value).to_owned();
+      let enum_impl = xsdgen_impl(generated_enum.ty().clone(), value);
 
-  //     XsdImpl {
-  //       name: parent_name.clone(),
-  //       fieldname_hint: Some(parent_name.to_field_name()),
-  //       element: XsdElement::Enum(generated_enum),
-  //       inner: Vec::new(),
-  //       implementation: vec![enum_impl],
-  //     }
-  //   } else {
-  //     let typename = parent_name.to_struct_name();
-  //     let mut generated_struct = Struct::new(&typename);
-  //     for derive in ["Clone", "Debug", "Default", "PartialEq"] {
-  //       generated_struct.derive(derive);
-  //     }
+      XsdImpl {
+        name: parent_name.clone(),
+        fieldname_hint: Some(parent_name.to_field_name()),
+        element: XsdElement::Enum(generated_enum),
+        inner: Vec::new(),
+        implementation: vec![enum_impl],
+      }
+    } else {
+      let typename = parent_name.to_struct_name();
+      let mut generated_struct = Struct::new(Some(parent_name.clone()), &typename);
+      generated_struct.derives(&["Clone", "Debug", "Default", "PartialEq"]);
 
-  //     let value = Function::new("parse")
-  //       .arg("mut element", "XMLElementWrapper")
-  //       .ret(format!("Result<{}, XsdError>", &typename))
-  //       .vis("pub")
-  //       .line("let output = Self(element.get_content()?);")
-  //       .line("element.finalize(false, false)?;")
-  //       .line("Ok(output)");
+      let value = Function::new("parse")
+        .arg("mut element", "XMLElementWrapper")
+        .ret(format!("Result<{}, XsdError>", &typename))
+        .vis("pub")
+        .line("let output = Self(element.get_content()?);")
+        .line("element.finalize(false, false)?;")
+        .line("Ok(output)");
 
-  //     let struct_impl = Impl::new(generated_struct.ty()).push_fn(value).to_owned();
+      let struct_impl = Impl::new(generated_struct.ty()).push_fn(value).to_owned();
 
-  //     XsdImpl {
-  //       name: parent_name.clone(),
-  //       fieldname_hint: Some(parent_name.to_field_name()),
-  //       element: XsdElement::Struct(
-  //         Struct::new(&parent_name.to_struct_name())
-  //           .tuple_field(base_type.element.get_type())
-  //           .to_owned(),
-  //       ),
-  //       inner: Vec::new(),
-  //       implementation: vec![struct_impl],
-  //     }
-  //   };
+      XsdImpl {
+        name: parent_name.clone(),
+        fieldname_hint: Some(parent_name.to_field_name()),
+        element: XsdElement::Struct(
+          Struct::new(Some(parent_name.clone()), &parent_name.to_struct_name())
+            .tuple_field(base_type.element.get_type())
+            .to_owned(),
+        ),
+        inner: Vec::new(),
+        implementation: vec![struct_impl],
+      }
+    };
 
-  //   if allow_attributes {
-  //     for attribute in &self.attributes {
-  //       generated_impl.merge(
-  //         attribute.get_implementation(context)?,
-  //         MergeSettings::ATTRIBUTE,
-  //       );
-  //     }
+    if allow_attributes {
+      for attribute in &self.attributes {
+        generated_impl.merge(
+          attribute.get_implementation(context)?,
+          MergeSettings::ATTRIBUTE,
+        );
+      }
 
-  //     for group in &self.attribute_groups {
-  //       generated_impl.merge(
-  //         group.get_implementation(Some(parent_name.clone()), context)?,
-  //         MergeSettings::default(),
-  //       );
-  //     }
-  //   }
+      for group in &self.attribute_groups {
+        generated_impl.merge(
+          group.get_implementation(Some(parent_name.clone()), context)?,
+          MergeSettings::default(),
+        );
+      }
+    }
 
-  //   Ok(generated_impl)
-  // }
+    Ok(generated_impl)
+  }
 
   fn get_complex_implementation(
     &self,
@@ -322,116 +315,6 @@ impl Restriction {
     }
 
     Ok(base_type)
-  }
-
-  fn get_simple_implementation(
-    &self,
-    parent_name: XsdName,
-    context: &mut XsdContext,
-    allow_attributes: bool,
-  ) -> Result<XsdImpl, XsdError> {
-    let base_type = context.search(&self.base);
-
-    if base_type.is_none() {
-      return Err(XsdError::XsdImplNotFound(self.base.clone()));
-    }
-
-    let base_type = base_type.unwrap();
-
-    let mut generated_impl = if !self.enumerations.is_empty() {
-      let typename = parent_name.to_struct_name();
-      let mut generated_enum = Enum::new(&typename).vis("pub").to_owned();
-      generated_enum.derives(&["Clone", "Debug", "PartialEq", "YaDeserialize"]);
-
-      let mut value = Function::new("parse")
-        .arg("mut element", "XMLElementWrapper")
-        .ret(format!("Result<{}, XsdError>", &typename))
-        .to_owned();
-
-      let mut parse_match =
-        Block::new("let output = match element.get_content::<String>()?.as_str()");
-      for enumeration in &self.enumerations {
-        let (ty, field) = if enumeration.len() == 0 {
-          ("Empty".to_string(), "".to_string())
-        } else {
-          (to_struct_name(enumeration), enumeration.to_string())
-        };
-
-        generated_enum = generated_enum.push_variant(Variant::new(&field));
-
-        parse_match = parse_match.line(format!("\"{}\" => Self::{},", ty, field));
-      }
-      parse_match = parse_match
-        .push_block(
-          Block::new("value => ").push_block(
-            Block::new("return Err(XsdError::XsdGenError")
-              .line("node_name: element.name().to_string(),")
-              .line("msg: format!(\"Invalid xml node found unexpected content {value}.\"),")
-              .after(")"),
-          ),
-        )
-        .after(";");
-      value = value
-        .push_block(parse_match)
-        .line("element.finalize(false, false)?;")
-        .line("Ok(output)");
-
-      let enum_impl = Impl::new(generated_enum.ty()).push_fn(value).to_owned();
-
-      XsdImpl {
-        name: parent_name.clone(),
-        fieldname_hint: Some(parent_name.to_field_name()),
-        element: XsdElement::Enum(generated_enum),
-        inner: Vec::new(),
-        implementation: vec![enum_impl],
-      }
-    } else {
-      let typename = parent_name.to_struct_name();
-      let mut generated_struct = Struct::new(&typename);
-      for derive in ["Clone", "Debug", "Default", "PartialEq"] {
-        generated_struct.derive(derive);
-      }
-
-      let value = Function::new("parse")
-        .arg("mut element", "XMLElementWrapper")
-        .ret(format!("Result<{}, XsdError>", &typename))
-        .vis("pub")
-        .line("let output = Self(element.get_content()?);")
-        .line("element.finalize(false, false)?;")
-        .line("Ok(output)");
-
-      let struct_impl = Impl::new(generated_struct.ty()).push_fn(value).to_owned();
-
-      XsdImpl {
-        name: parent_name.clone(),
-        fieldname_hint: Some(parent_name.to_field_name()),
-        element: XsdElement::Struct(
-          Struct::new(&parent_name.to_struct_name())
-            .tuple_field(base_type.element.get_type())
-            .to_owned(),
-        ),
-        inner: Vec::new(),
-        implementation: vec![struct_impl],
-      }
-    };
-
-    if allow_attributes {
-      for attribute in &self.attributes {
-        generated_impl.merge(
-          attribute.get_implementation(context)?,
-          MergeSettings::ATTRIBUTE,
-        );
-      }
-
-      for group in &self.attribute_groups {
-        generated_impl.merge(
-          group.get_implementation(Some(parent_name.clone()), context)?,
-          MergeSettings::default(),
-        );
-      }
-    }
-
-    Ok(generated_impl)
   }
 
   #[tracing::instrument(skip_all)]

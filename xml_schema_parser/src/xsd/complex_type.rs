@@ -1,5 +1,5 @@
 use xsd_codegen::{Struct, XMLElement};
-use xsd_types::{XsdName, XsdParseError, XsdType};
+use xsd_types::{XsdIoError, XsdName, XsdParseError, XsdType};
 
 use super::{
   annotation::Annotation,
@@ -28,7 +28,7 @@ pub struct ComplexType {
 }
 
 impl ComplexType {
-  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdIoError> {
     element.check_name("complexType")?;
 
     // (annotation?,(simpleContent|complexContent|((group|all|choice|sequence)?,((attribute|attributeGroup)*,anyAttribute?))))
@@ -44,10 +44,10 @@ impl ComplexType {
     let attribute_groups = element.get_children_with("attributeGroup", AttributeGroup::parse)?;
 
     if simple_content.is_some() && complex_content.is_some() {
-      return Err(XsdParseError {
+      return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
         msg: format!("simpleContent | complexContent cannot both present",),
-      });
+      }));
     }
 
     if (simple_content.is_some() || complex_content.is_some())
@@ -57,16 +57,16 @@ impl ComplexType {
         || choice.is_some()
         || sequence.is_some())
     {
-      return Err(XsdParseError {node_name: element.node_name(), msg: format!(
+      return Err(XsdIoError::XsdParseError(XsdParseError {node_name: element.node_name(), msg: format!(
         "(simpleContent | complexContent) and (group | choice | sequence | attribute | attributeGroup) cannot both present",
-      )});
+      )}));
     }
 
     if group.is_some() as u8 + choice.is_some() as u8 + sequence.is_some() as u8 > 1 {
-      return Err(XsdParseError {
+      return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
         msg: format!("group | choice | sequence cannot all be present"),
-      });
+      }));
     }
 
     let output = Self {
@@ -110,7 +110,7 @@ impl ComplexType {
     let mut generated_impl = XsdImpl {
       name: struct_id.clone().unwrap(),
       element: XsdElement::Struct(
-        Struct::new(&struct_id.unwrap().to_struct_name())
+        Struct::new(xml_name.clone(), &struct_id.unwrap().to_struct_name())
           .vis("pub")
           .to_owned(),
       ),

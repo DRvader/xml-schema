@@ -1,5 +1,5 @@
 use xsd_codegen::XMLElement;
-use xsd_types::{XsdName, XsdParseError, XsdType};
+use xsd_types::{XsdIoError, XsdName, XsdType};
 
 use crate::xsd::{extension::Extension, xsd_context::XsdContext};
 
@@ -16,7 +16,7 @@ pub struct ComplexContent {
 }
 
 impl ComplexContent {
-  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdIoError> {
     element.check_name("complexContent")?;
 
     let output = Self {

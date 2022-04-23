@@ -1,8 +1,9 @@
 use xsd_codegen::{FromXmlString, Impl, Type, XMLElement};
-use xsd_types::{XsdName, XsdParseError, XsdType};
+use xsd_types::{XsdIoError, XsdName, XsdParseError, XsdType};
 
 use super::{
   annotation::Annotation,
+  general_xsdgen,
   xsd_context::{XsdElement, XsdImpl},
   XsdError,
 };
@@ -12,7 +13,7 @@ use crate::xsd::{simple_type::SimpleType, XsdContext};
 pub struct Attribute {
   pub annotation: Option<Annotation>,
   pub name: Option<XsdName>,
-  pub kind: Option<XsdName>,
+  pub r#type: Option<XsdName>,
   pub default: Option<String>,
   pub fixed: Option<String>,
   pub required: Required,
@@ -46,7 +47,7 @@ impl Default for Required {
 }
 
 impl Attribute {
-  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdIoError> {
     element.check_name("attribute")?;
 
     let name = element
@@ -57,13 +58,13 @@ impl Attribute {
       .map(|v: String| element.new_name(&v, XsdType::Attribute));
 
     if name.is_some() && reference.is_some() {
-      return Err(XsdParseError {
+      return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
         msg: format!("name and ref cannot both present"),
-      });
+      }));
     }
 
-    let kind = element
+    let r#type = element
       .try_get_attribute("type")?
       .map(|v: String| XsdName::new(&v, XsdType::SimpleType));
 
@@ -72,18 +73,18 @@ impl Attribute {
 
     let required = element.get_attribute_default("use")?;
 
-    if reference.is_some() && (simple_type.is_some() || kind.is_some()) {
-      return Err(XsdParseError {
+    if reference.is_some() && (simple_type.is_some() || r#type.is_some()) {
+      return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
         msg: format!("type | simpleType cannot be present when ref is present",),
-      });
+      }));
     }
 
-    if simple_type.is_some() && kind.is_some() {
-      return Err(XsdParseError {
+    if simple_type.is_some() && r#type.is_some() {
+      return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
         msg: format!("simpleType and type cannot both present"),
-      });
+      }));
     }
 
     let output = Self {
@@ -92,7 +93,7 @@ impl Attribute {
       default: element.try_get_attribute("default")?,
       fixed: element.try_get_attribute("fixed")?,
       reference,
-      kind,
+      r#type,
       required,
       simple_type,
     };
@@ -106,7 +107,7 @@ impl Attribute {
   pub fn get_implementation(&self, context: &mut XsdContext) -> Result<XsdImpl, XsdError> {
     let mut generated_impl = match (
       self.reference.as_ref(),
-      self.kind.as_ref(),
+      self.r#type.as_ref(),
       self.simple_type.as_ref(),
     ) {
       (Some(reference), None, None) => {
@@ -147,7 +148,7 @@ impl Attribute {
           XsdImpl {
             name: name.clone(),
             element: XsdElement::TypeAlias(
-              Type::new(&name.to_struct_name()),
+              Type::new(None, &name.to_struct_name()),
               inner.element.get_type(),
             ),
             fieldname_hint: Some(name.to_field_name()),
@@ -174,7 +175,7 @@ impl Attribute {
         XsdImpl {
           name: name.clone(),
           element: XsdElement::TypeAlias(
-            Type::new(&name.to_struct_name()),
+            Type::new(None, &name.to_struct_name()),
             inner.element.get_type().path(&name.to_field_name()),
           ),
           fieldname_hint: Some(name.to_field_name()),
@@ -209,6 +210,8 @@ impl Attribute {
       .map(|annotation| annotation.get_doc())
       .unwrap_or_default();
     generated_impl.element.add_doc(&docs.join(""));
+
+    let generated_impl = general_xsdgen(generated_impl);
 
     Ok(generated_impl)
   }

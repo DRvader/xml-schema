@@ -1,7 +1,7 @@
 use xmltree::{Element, XMLNode};
-use xsd_types::{XsdName, XsdType};
+use xsd_types::{XsdIoError, XsdName, XsdParseError, XsdType};
 
-use crate::{FromXmlString, XsdParseError};
+use crate::FromXmlString;
 
 pub struct XMLElement {
   pub element: Element,
@@ -25,15 +25,15 @@ impl XMLElement {
     self.element.name.to_string()
   }
 
-  pub fn check_name(&self, name: &str) -> Result<(), XsdParseError> {
+  pub fn check_name(&self, name: &str) -> Result<(), XsdIoError> {
     if self.element.name != name {
-      Err(XsdParseError {
+      Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: self.node_name(),
         msg: format!(
           "Unexpected element name {} expected {}",
           name, self.element.name
         ),
-      })
+      }))
     } else {
       Ok(())
     }
@@ -51,29 +51,29 @@ impl XMLElement {
     output
   }
 
-  fn get_child(&mut self, name: &str) -> Result<XMLElement, XsdParseError> {
+  fn get_child(&mut self, name: &str) -> Result<XMLElement, XsdIoError> {
     let mut output = self.get_children(name);
     if output.len() != 1 {
-      return Err(XsdParseError {
+      return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: self.node_name(),
         msg: format!("Expected 1 child named {} found {}", name, output.len(),),
-      });
+      }));
     }
 
     Ok(output.remove(0))
   }
 
-  fn try_get_child(&mut self, name: &str) -> Result<Option<XMLElement>, XsdParseError> {
+  fn try_get_child(&mut self, name: &str) -> Result<Option<XMLElement>, XsdIoError> {
     let mut output = self.get_children(name);
     if output.len() > 1 {
-      return Err(XsdParseError {
+      return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: self.node_name(),
         msg: format!(
           "Expected 0 or 1 children named {} found {}",
           name,
           output.len(),
         ),
-      });
+      }));
     }
 
     if output.is_empty() {
@@ -86,8 +86,8 @@ impl XMLElement {
   pub fn get_children_with_filter<T>(
     &mut self,
     name: &str,
-    func: impl Fn(XMLElement) -> Result<Option<T>, XsdParseError>,
-  ) -> Result<Vec<T>, XsdParseError> {
+    func: impl Fn(XMLElement) -> Result<Option<T>, XsdIoError>,
+  ) -> Result<Vec<T>, XsdIoError> {
     let mut output = Vec::new();
     for child in self.get_children(name) {
       if let Some(child) = func(child)? {
@@ -109,24 +109,24 @@ impl XMLElement {
   pub fn get_children_with<T>(
     &mut self,
     name: &str,
-    func: impl Fn(XMLElement) -> Result<T, XsdParseError>,
-  ) -> Result<Vec<T>, XsdParseError> {
+    func: impl Fn(XMLElement) -> Result<T, XsdIoError>,
+  ) -> Result<Vec<T>, XsdIoError> {
     self.get_children_with_filter(name, |child| func(child).map(Some))
   }
 
   pub fn get_child_with<T>(
     &mut self,
     name: &str,
-    func: impl FnOnce(XMLElement) -> Result<T, XsdParseError>,
-  ) -> Result<T, XsdParseError> {
+    func: impl FnOnce(XMLElement) -> Result<T, XsdIoError>,
+  ) -> Result<T, XsdIoError> {
     func(self.get_child(name)?)
   }
 
   pub fn try_get_child_with<T>(
     &mut self,
     name: &str,
-    func: impl FnOnce(XMLElement) -> Result<T, XsdParseError>,
-  ) -> Result<Option<T>, XsdParseError> {
+    func: impl FnOnce(XMLElement) -> Result<T, XsdIoError>,
+  ) -> Result<Option<T>, XsdIoError> {
     if let Some(child) = self.try_get_child(name)? {
       Ok(Some(func(child)?))
     } else {
@@ -137,7 +137,7 @@ impl XMLElement {
   pub fn try_get_attribute<T: FromXmlString>(
     &mut self,
     name: &str,
-  ) -> Result<Option<T>, XsdParseError> {
+  ) -> Result<Option<T>, XsdIoError> {
     let value = self.element.attributes.remove(name);
     if let Some(value) = value {
       Ok(Some(T::from_xml(&value).map_err(|e| XsdParseError {
@@ -149,20 +149,20 @@ impl XMLElement {
     }
   }
 
-  pub fn get_attribute<T: FromXmlString>(&mut self, name: &str) -> Result<T, XsdParseError> {
+  pub fn get_attribute<T: FromXmlString>(&mut self, name: &str) -> Result<T, XsdIoError> {
     match self.try_get_attribute(name)? {
       Some(output) => Ok(output),
-      None => Err(XsdParseError {
+      None => Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: self.node_name(),
         msg: format!("{} not found", name),
-      }),
+      })),
     }
   }
 
   pub fn get_attribute_default<T: Default + FromXmlString>(
     &mut self,
     name: &str,
-  ) -> Result<T, XsdParseError> {
+  ) -> Result<T, XsdIoError> {
     match self.try_get_attribute(name)? {
       Some(output) => Ok(output),
       None => Ok(T::default()),
@@ -173,7 +173,7 @@ impl XMLElement {
     self.element.attributes.drain().collect()
   }
 
-  pub fn try_get_content<T: FromXmlString>(&mut self) -> Result<Option<T>, XsdParseError> {
+  pub fn try_get_content<T: FromXmlString>(&mut self) -> Result<Option<T>, XsdIoError> {
     let value = self.element.get_text();
     if let Some(value) = value {
       Ok(Some(T::from_xml(&value).map_err(|e| XsdParseError {
@@ -185,17 +185,17 @@ impl XMLElement {
     }
   }
 
-  pub fn get_content<T: FromXmlString>(&mut self) -> Result<T, XsdParseError> {
+  pub fn get_content<T: FromXmlString>(&mut self) -> Result<T, XsdIoError> {
     match self.try_get_content()? {
       Some(output) => Ok(output),
-      None => Err(XsdParseError {
+      None => Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: self.node_name(),
         msg: format!("no text found"),
-      }),
+      })),
     }
   }
 
-  fn get_content_default<T: Default + FromXmlString>(&mut self) -> Result<T, XsdParseError> {
+  fn get_content_default<T: Default + FromXmlString>(&mut self) -> Result<T, XsdIoError> {
     match self.try_get_content()? {
       Some(output) => Ok(output),
       None => Ok(T::default()),
@@ -206,7 +206,7 @@ impl XMLElement {
     self,
     allow_extra_attributes: bool,
     allow_extra_children: bool,
-  ) -> Result<(), XsdParseError> {
+  ) -> Result<(), XsdIoError> {
     let child_errs = self
       .element
       .children
@@ -249,10 +249,10 @@ impl XMLElement {
         }
         text.push_str(&format!("[extra attributes] {}", attr_errs));
       }
-      Err(XsdParseError {
+      Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: self.node_name(),
         msg: text,
-      })
+      }))
     }
   }
 }

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use xsd_codegen::{Formatter, XMLElement};
-use xsd_types::{XsdName, XsdParseError, XsdType};
+use xsd_types::{XsdIoError, XsdName, XsdType};
 
 use crate::xsd::{
   attribute, attribute_group, complex_type, element, group, import, qualification, simple_type,
@@ -27,7 +27,7 @@ pub struct Schema {
 }
 
 impl Schema {
-  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdIoError> {
     element.check_name("schema")?;
 
     let target_namespace: Option<String> = element.try_get_attribute("targetNamespace")?;
@@ -143,7 +143,7 @@ impl Schema {
     while changed {
       changed = false;
 
-      for (type_to_run, (index, error)) in &to_run {
+      for (type_to_run, (index, _error)) in &to_run {
         if let Some(index) = index {
           let result = match &type_to_run.ty {
             XsdType::Import => {
@@ -238,13 +238,13 @@ impl Schema {
     let top_level_names = self.fill_context(context, None)?;
 
     let mut dst = String::new();
-    dst.push_str("use xml_schema_parser::{XsdError, XMLElementWrapper, XsdParse, YaDeserialize, YaSerialize};\n\n");
+    dst.push_str(
+      "use xml_schema_parser::{XsdIoError, XsdGenError, XMLElement, XsdType, XsdGen, GenState};\n\n",
+    );
     let mut formatter = Formatter::new(&mut dst);
     for name in top_level_names {
       context.search(&name).unwrap().fmt(&mut formatter).unwrap();
     }
-
-    std::fs::write("../musicxml-rs/src/musicxml_sys/musicxml.rs", &dst).unwrap();
 
     Ok(dst)
   }

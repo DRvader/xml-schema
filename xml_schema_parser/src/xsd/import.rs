@@ -1,5 +1,5 @@
 use xsd_codegen::XMLElement;
-use xsd_types::XsdParseError;
+use xsd_types::XsdIoError;
 
 use crate::Xsd;
 
@@ -13,7 +13,7 @@ pub struct Import {
 }
 
 impl Import {
-  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdIoError> {
     Ok(Self {
       id: element.try_get_attribute("id")?,
       namespace: element.try_get_attribute("namespace")?,

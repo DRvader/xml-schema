@@ -1,5 +1,5 @@
 use xsd_codegen::XMLElement;
-use xsd_types::{XsdName, XsdParseError, XsdType};
+use xsd_types::{XsdIoError, XsdName, XsdParseError, XsdType};
 
 use crate::xsd::{extension::Extension, XsdContext};
 
@@ -16,7 +16,7 @@ pub struct SimpleContent {
 }
 
 impl SimpleContent {
-  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdIoError> {
     element.check_name("simpleContent")?;
 
     let restriction = element.try_get_child_with("restriction", |child| {
@@ -28,7 +28,7 @@ impl SimpleContent {
       return Err(XsdParseError {
         node_name: element.node_name(),
         msg: format!("extension and restriction cannot both present",),
-      });
+      })?;
     }
 
     let output = Self {

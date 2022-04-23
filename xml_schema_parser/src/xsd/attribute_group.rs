@@ -1,10 +1,11 @@
-use xsd_codegen::{Block, Field, Function, Impl, Struct, XMLElement};
-use xsd_types::{XsdName, XsdParseError, XsdType};
+use xsd_codegen::{Field, Struct, XMLElement};
+use xsd_types::{XsdIoError, XsdName, XsdParseError, XsdType};
 
 use crate::xsd::attribute::Attribute;
 
 use super::{
   annotation::Annotation,
+  general_xsdgen,
   xsd_context::{MergeSettings, XsdContext, XsdElement, XsdImpl},
   XsdError,
 };
@@ -19,7 +20,7 @@ pub struct AttributeGroup {
 }
 
 impl AttributeGroup {
-  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdIoError> {
     element.check_name("attributeGroup")?;
 
     let name = element
@@ -30,10 +31,10 @@ impl AttributeGroup {
       .map(|v: String| element.new_name(&v, XsdType::AttributeGroup));
 
     if name.is_some() && reference.is_some() {
-      return Err(XsdParseError {
+      return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
         msg: format!("name and ref both present"),
-      });
+      }));
     }
 
     let attributes = element.get_children_with("attribute", Attribute::parse)?;
@@ -52,8 +53,7 @@ impl AttributeGroup {
     output
   }
 
-  #[tracing::instrument(skip_all)]
-  pub fn get_implementation(
+  fn create_type(
     &self,
     parent_name: Option<XsdName>,
     context: &mut XsdContext,
@@ -61,7 +61,7 @@ impl AttributeGroup {
     // TODO(drosen): We know that both name and reference cannot be some,
     //               but we have no handler for what happens if the parent
     //               name is None.
-    let generated_impl = match (&self.name, &self.reference) {
+    match (&self.name, &self.reference) {
       (None, Some(refers)) => {
         let inner = if let Some(imp) = context.search(refers) {
           imp
@@ -90,7 +90,7 @@ impl AttributeGroup {
         Ok(XsdImpl {
           name,
           element: XsdElement::Field(
-            Field::new(&field_name, inner.element.get_type())
+            Field::new(None, &field_name, inner.element.get_type())
               .vis("pub")
               .to_owned(),
           ),
@@ -110,7 +110,7 @@ impl AttributeGroup {
           name: xml_name.clone(),
           fieldname_hint: Some(xml_name.to_field_name()),
           element: XsdElement::Struct(
-            Struct::new(&xml_name.to_struct_name())
+            Struct::new(Some(xml_name.clone()), &xml_name.to_struct_name())
               .vis("pub")
               .to_owned(),
           ),
@@ -160,36 +160,26 @@ impl AttributeGroup {
           generated_struct.element.add_doc(&doc.get_doc().join(""));
         }
 
-        let mut r#impl = Impl::new(generated_struct.element.get_type());
-
-        let mut parse = Function::new("parse")
-          .arg("mut element", "XMLElementWrapper")
-          .ret("Result<Self, XsdError>");
-
-        let mut block = Block::new("let output = Self").after(";").to_owned();
-        for (field, ty) in fields {
-          block = block.line(&format!("{}: XsdParse::parse(element)?,", field));
-        }
-
-        r#impl = r#impl.impl_trait("XsdParse").push_fn(
-          parse
-            .push_block(block)
-            .line("element.finalize(false, false)?;")
-            .line("Ok(output)"),
-        );
-
-        generated_struct.implementation.push(r#impl);
-
         Ok(generated_struct)
       }
-      _ => unreachable!("The Xsd is invalid!"),
-    };
-
-    if let Ok(mut gen) = generated_impl {
-      gen.name.ty = XsdType::AttributeGroup;
-      Ok(gen)
-    } else {
-      generated_impl
+      _ => {
+        unreachable!("Should have already checked that name and ref are not set together.");
+      }
     }
+  }
+
+  #[tracing::instrument(skip_all)]
+  pub fn get_implementation(
+    &self,
+    parent_name: Option<XsdName>,
+    context: &mut XsdContext,
+  ) -> Result<XsdImpl, XsdError> {
+    let generated_impl = self.create_type(parent_name, context)?;
+
+    let mut gen = general_xsdgen(generated_impl);
+
+    gen.name.ty = XsdType::AttributeGroup;
+
+    Ok(gen)
   }
 }

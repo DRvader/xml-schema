@@ -16,6 +16,14 @@ pub struct XsdGenError {
   pub msg: String,
 }
 
+#[derive(Error, Debug)]
+pub enum XsdIoError {
+  #[error(transparent)]
+  XsdParseError(#[from] XsdParseError),
+  #[error(transparent)]
+  XsdGenError(#[from] XsdGenError),
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum XsdType {
   Annotation,
@@ -34,6 +42,7 @@ pub enum XsdType {
   SimpleContent,
   SimpleType,
   Union,
+  Unknown,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]

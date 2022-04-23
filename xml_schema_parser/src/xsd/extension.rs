@@ -1,5 +1,5 @@
 use xsd_codegen::{Struct, XMLElement};
-use xsd_types::{to_field_name, XsdName, XsdParseError, XsdType};
+use xsd_types::{to_field_name, XsdIoError, XsdName, XsdParseError, XsdType};
 
 use crate::xsd::{attribute::Attribute, sequence::Sequence, XsdContext};
 
@@ -24,7 +24,7 @@ pub struct Extension {
 }
 
 impl Extension {
-  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdIoError> {
     element.check_name("extension")?;
 
     let attributes = element.get_children_with("attribute", Attribute::parse)?;
@@ -39,19 +39,19 @@ impl Extension {
     if (!attributes.is_empty() || !attribute_groups.is_empty())
       && (group.is_some() || choice.is_some() || sequence.is_some())
     {
-      return Err(XsdParseError {
+      return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
         msg: format!(
           "(group | choice | sequence) and (attribute | attributeGroup) cannot both present",
         ),
-      });
+      }));
     }
 
     if group.is_some() as u8 + choice.is_some() as u8 + sequence.is_some() as u8 > 1 {
-      return Err(XsdParseError {
+      return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
         msg: format!("group | choice | sequence cannot all be present",),
-      });
+      }));
     }
 
     let output = Self {
@@ -100,9 +100,10 @@ impl Extension {
       name: parent_name.clone(),
       fieldname_hint: Some(parent_name.to_field_name()),
       element: XsdElement::Struct(
-        Struct::new(&parent_name.to_struct_name())
+        Struct::new(None, &parent_name.to_struct_name())
           .vis("pub")
           .field(
+            None,
             &base_impl
               .fieldname_hint
               .clone()

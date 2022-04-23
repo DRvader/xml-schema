@@ -1,5 +1,5 @@
 use xsd_codegen::{Field, XMLElement};
-use xsd_types::{to_field_name, XsdName, XsdParseError, XsdType};
+use xsd_types::{to_field_name, XsdIoError, XsdName, XsdParseError, XsdType};
 
 use super::{
   annotation::Annotation,
@@ -23,7 +23,7 @@ pub struct Group {
 }
 
 impl Group {
-  pub fn parse(mut element: XMLElement) -> Result<Self, XsdParseError> {
+  pub fn parse(mut element: XMLElement) -> Result<Self, XsdIoError> {
     element.check_name("group")?;
 
     let name = element
@@ -40,14 +40,14 @@ impl Group {
       return Err(XsdParseError {
         node_name: element.node_name(),
         msg: format!("name and ref cannot both present",),
-      });
+      })?;
     }
 
     if sequence.is_some() && choice.is_some() {
       return Err(XsdParseError {
         node_name: element.node_name(),
         msg: format!("sequence and choice cannot both present in"),
-      });
+      })?;
     }
 
     let output = Self {
@@ -147,9 +147,13 @@ impl Group {
         XsdImpl {
           name,
           element: XsdElement::Field(
-            Field::new(&field_name, inner.element.get_type())
-              .vis("pub")
-              .to_owned(),
+            Field::new(
+              Some(inner.name.clone()),
+              &field_name,
+              inner.element.get_type(),
+            )
+            .vis("pub")
+            .to_owned(),
           ),
           fieldname_hint: Some(field_name.to_string()),
           inner: vec![],

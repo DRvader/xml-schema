@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use xml_schema_parser::{Xsd, XsdError};
 
 fn main() -> Result<(), XsdError> {
@@ -12,18 +10,19 @@ fn main() -> Result<(), XsdError> {
   // .unwrap();
 
   let mut xsd = Xsd::new_from_file("./xml.xsd")?;
+  // let mut xsd = Xsd::new_from_file("./xlink.xsd")?;
   let output = xsd.generate(&None);
 
   match output {
     Err(output) => match output {
-      XsdError::XsdParseError(msg) => {
+      XsdError::XsdIoError(msg) => {
         println!("{msg}");
         panic!();
       }
       output => return Err(output),
     },
     Ok(output) => {
-      // dbg!(output);
+      std::fs::write("../musicxml-rs/src/musicxml_sys/musicxml.rs", &output).unwrap();
     }
   }
 

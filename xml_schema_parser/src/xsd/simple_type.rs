@@ -1,5 +1,5 @@
 use xsd_codegen::XMLElement;
-use xsd_types::{XsdName, XsdParseError, XsdType};
+use xsd_types::{XsdIoError, XsdName, XsdParseError, XsdType};
 
 use crate::xsd::{list::List, restriction::Restriction, union::Union, XsdContext};
 
@@ -17,7 +17,7 @@ pub struct SimpleType {
 }
 
 impl SimpleType {
-  pub fn parse(mut element: XMLElement, parent_is_schema: bool) -> Result<Self, XsdParseError> {
+  pub fn parse(mut element: XMLElement, parent_is_schema: bool) -> Result<Self, XsdIoError> {
     element.check_name("simpleType")?;
 
     let restriction = element.try_get_child_with("restriction", |child| {
@@ -30,7 +30,7 @@ impl SimpleType {
       return Err(XsdParseError {
         node_name: element.node_name(),
         msg: format!("Two of (extension | restriction | union) cannot be present"),
-      });
+      })?;
     }
 
     let name = element
@@ -41,12 +41,12 @@ impl SimpleType {
       return Err(XsdParseError {
         node_name: element.node_name(),
         msg: format!("The name attribute is required if the parent node is a schema.",),
-      });
+      })?;
     } else if !parent_is_schema && name.is_some() {
       return Err(XsdParseError {
         node_name: element.node_name(),
         msg: format!("The name attribute is not allowed if the parent of node is not a schema.",),
-      });
+      })?;
     }
 
     let output = Self {

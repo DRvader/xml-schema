@@ -4,6 +4,7 @@ use xsd_types::{XsdIoError, XsdName, XsdType};
 use super::{
   annotation::Annotation,
   choice::Choice,
+  general_xsdgen,
   group::Group,
   max_occurences::MaxOccurences,
   xsd_context::{infer_type_name, MergeSettings, XsdElement, XsdImpl},
@@ -98,11 +99,10 @@ impl Sequence {
       generated_impls.push(group.get_implementation(None, context)?);
     }
 
-    let inferred_name = infer_type_name(&generated_impls);
-
     let mut xml_name = if let Some(parent_name) = parent_name.clone() {
       parent_name
     } else {
+      let inferred_name = infer_type_name(&generated_impls);
       XsdName {
         namespace: None,
         local_name: inferred_name.clone(),
@@ -111,61 +111,24 @@ impl Sequence {
     };
     xml_name.ty = XsdType::Sequence;
 
-    let struct_name = if let Some(parent_name) = parent_name {
-      parent_name.local_name
-    } else {
-      inferred_name
-    };
-    let struct_name = xsd_types::to_struct_name(&struct_name);
-
     let mut generated_impl = XsdImpl {
-      name: xml_name,
-      fieldname_hint: None,
+      name: xml_name.clone(),
+      fieldname_hint: Some(xml_name.to_field_name()),
       element: XsdElement::Struct(
-        Struct::new(None, &struct_name)
+        Struct::new(Some(xml_name.clone()), &xml_name.to_struct_name())
           .vis("pub")
-          .derives(&["Clone", "Debug", "Default", "PartialEq"])
-          .to_owned(),
+          .derives(&["Clone", "Debug", "Default", "PartialEq"]),
       ),
       inner: vec![],
       implementation: vec![],
     };
 
-    let mut parsable_fields = vec![];
     for imp in generated_impls {
       generated_impl.merge(imp, MergeSettings::default());
-      if let Some(field) = generated_impl.element.get_last_added_field() {
-        parsable_fields.push(field);
-      }
     }
-
-    let mut value = Function::new("parse")
-      .vis("pub")
-      .arg("mut element", "XMLElementWrapper")
-      .ret("Result<Self, XsdError>")
-      .to_owned();
-
-    for (field, ty) in &parsable_fields {
-      value = value.line(format!("let {field} = XsdParse::parse(element)?;"));
-    }
-
-    let mut block = Block::new("let output = Self").after(";").to_owned();
-    for (field, _) in parsable_fields {
-      block = block.line(format!("{field},"));
-    }
-    value = value.push_block(block);
-
-    value = value.line("element.finalize(false, false)?;");
-    value = value.line("Ok(output)");
-
-    let struct_impl = Impl::new(generated_impl.element.get_type())
-      .push_fn(value)
-      .to_owned();
-
-    // generated_impl.implementation.push(struct_impl);
 
     generated_impl.name.ty = XsdType::Sequence;
 
-    Ok(generated_impl)
+    Ok(general_xsdgen(generated_impl))
   }
 }

@@ -8,6 +8,7 @@ use super::{
   attribute::Attribute,
   attribute_group::AttributeGroup,
   choice::Choice,
+  general_xsdgen,
   group::Group,
   sequence::Sequence,
   xsd_context::{MergeSettings, XsdElement, XsdImpl},
@@ -180,6 +181,8 @@ impl Restriction {
   ) -> Result<XsdImpl, XsdError> {
     let base_type = context.search(&self.base);
 
+    let mut generate_xsdgen = true;
+
     if base_type.is_none() {
       return Err(XsdError::XsdImplNotFound(self.base.clone()));
     }
@@ -198,13 +201,11 @@ impl Restriction {
       let mut parse_match =
         Block::new("let output = match element.get_content::<String>()?.as_str()");
       for enumeration in &self.enumerations {
-        let enumeration = if enumeration.len() == 0 {
-          "empty"
+        let enum_name = if enumeration.is_empty() {
+          "Empty".to_string()
         } else {
-          enumeration
+          to_struct_name(enumeration)
         };
-
-        let enum_name = to_struct_name(enumeration);
         generated_enum = generated_enum.push_variant(Variant::new(None, &enum_name));
 
         parse_match = parse_match.line(format!("\"{}\" => Self::{},", enumeration, enum_name));
@@ -224,6 +225,8 @@ impl Restriction {
 
       let enum_impl = xsdgen_impl(generated_enum.ty().clone(), value);
 
+      generate_xsdgen = false;
+
       XsdImpl {
         name: parent_name.clone(),
         fieldname_hint: Some(parent_name.to_field_name()),
@@ -236,16 +239,6 @@ impl Restriction {
       let mut generated_struct = Struct::new(Some(parent_name.clone()), &typename);
       generated_struct.derives(&["Clone", "Debug", "Default", "PartialEq"]);
 
-      let value = Function::new("parse")
-        .arg("mut element", "XMLElementWrapper")
-        .ret(format!("Result<{}, XsdError>", &typename))
-        .vis("pub")
-        .line("let output = Self(element.get_content()?);")
-        .line("element.finalize(false, false)?;")
-        .line("Ok(output)");
-
-      let struct_impl = Impl::new(generated_struct.ty()).push_fn(value).to_owned();
-
       XsdImpl {
         name: parent_name.clone(),
         fieldname_hint: Some(parent_name.to_field_name()),
@@ -255,14 +248,14 @@ impl Restriction {
             .to_owned(),
         ),
         inner: Vec::new(),
-        implementation: vec![struct_impl],
+        implementation: vec![],
       }
     };
 
     if allow_attributes {
       for attribute in &self.attributes {
         generated_impl.merge(
-          attribute.get_implementation(context)?,
+          attribute.get_implementation(context, false)?,
           MergeSettings::ATTRIBUTE,
         );
       }
@@ -274,6 +267,12 @@ impl Restriction {
         );
       }
     }
+
+    let generated_impl = if generate_xsdgen {
+      general_xsdgen(generated_impl)
+    } else {
+      generated_impl
+    };
 
     Ok(generated_impl)
   }
@@ -314,7 +313,7 @@ impl Restriction {
       _ => unreachable!("Should have already validated the input schema."),
     }
 
-    Ok(base_type)
+    Ok(general_xsdgen(base_type))
   }
 
   #[tracing::instrument(skip_all)]

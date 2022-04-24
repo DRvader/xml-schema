@@ -140,7 +140,7 @@ impl ComplexType {
     let mut generated_impls = vec![];
 
     for attribute in &self.attributes {
-      generated_impls.push(attribute.get_implementation(context)?);
+      generated_impls.push(attribute.get_implementation(context, false)?);
     }
 
     for g in &self.attribute_groups {

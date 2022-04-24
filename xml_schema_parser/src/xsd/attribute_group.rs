@@ -140,7 +140,10 @@ impl AttributeGroup {
         }
 
         for attr in &self.attributes {
-          generated_struct.merge(attr.get_implementation(context)?, MergeSettings::ATTRIBUTE);
+          generated_struct.merge(
+            attr.get_implementation(context, false)?,
+            MergeSettings::ATTRIBUTE,
+          );
           if let Some(field) = generated_struct.element.get_last_added_field() {
             fields.push(field);
           }

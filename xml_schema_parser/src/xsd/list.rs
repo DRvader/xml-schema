@@ -43,11 +43,10 @@ impl List {
 
     let list_type = inner.element.get_type().to_string();
 
-    let mut generated_struct = Struct::new(Some(name.clone()), &struct_name)
+    let generated_struct = Struct::new(Some(name.clone()), &struct_name)
       .vis("pub")
-      .to_owned();
-    generated_struct.tuple_field(format!("Vec<{}>", list_type));
-    generated_struct.derives(&["Clone", "Debug", "Default", "PartialEq"]);
+      .tuple_field(format!("Vec<{}>", list_type))
+      .derives(&["Clone", "Debug", "Default", "PartialEq"]);
 
     let from_xml = fromxml_impl(
       generated_struct.ty().clone(),

@@ -9,7 +9,8 @@ fn main() -> Result<(), XsdError> {
   // )
   // .unwrap();
 
-  let mut xsd = Xsd::new_from_file("./xml.xsd")?;
+  let mut xsd = Xsd::new_from_file("./musicxml.xsd")?;
+  // let mut xsd = Xsd::new_from_file("./xml.xsd")?;
   // let mut xsd = Xsd::new_from_file("./xlink.xsd")?;
   let output = xsd.generate(&None);
 

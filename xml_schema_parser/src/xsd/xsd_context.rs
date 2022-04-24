@@ -236,7 +236,7 @@ impl XsdImpl {
       },
       XsdElement::Enum(a) => a.variants.iter().map(|v| v.name.as_str()).collect(),
       XsdElement::Type(ty) | XsdElement::TypeAlias(ty, _) => ty.name.clone(),
-      XsdElement::Field(_) => unreachable!(),
+      XsdElement::Field(ty) => ty.ty.name.clone(),
     }
   }
 

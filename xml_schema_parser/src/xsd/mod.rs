@@ -127,9 +127,9 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
           block = block.line("Ok(Self (");
           for (_, field) in fields {
             block = block.line(format!(
-              "{}::gen(element, gen_state.clone(), {:?})?,",
+              "<{} as XsdGen>::gen(element, gen_state.clone(), {:?})?,",
               field.to_string(),
-              field.xml_name
+              field.xml_name.as_ref().map(|v| v.to_string())
             ));
           }
           block.line("))")
@@ -138,10 +138,10 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
           let mut inner_block = Block::new("Ok(Self");
           for field in fields {
             inner_block = inner_block.line(format!(
-              "{}: {}::gen(element, gen_state.clone(), {:?})?,",
+              "{}: <{} as XsdGen>::gen(element, gen_state.clone(), {:?})?,",
               field.name,
               field.ty.to_string(),
-              field.xml_name
+              field.xml_name.as_ref().map(|v| v.to_string())
             ));
           }
           block.push_block(inner_block.after(")"))
@@ -169,10 +169,10 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
             for (index, (_, field)) in fields.iter().enumerate() {
               let variant_res_name = format!("attempt_{}_{}", variant_index, index);
               block = block.line(format!(
-                "let {} = {}::gen(element, gen_state.clone(), {:?});",
+                "let {} = <{} as XsdGen>::gen(element, gen_state.clone(), {:?});",
                 variant_res_name,
                 field.to_string(),
-                field.xml_name
+                field.xml_name.as_ref().map(|v| v.to_string())
               ));
 
               variant_resolution_results.push((variant_res_name, variant.name.clone()));
@@ -183,10 +183,10 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
             let mut inner_block = Block::new(&format!("Ok(Self::{}", variant.name));
             for field in fields {
               inner_block = inner_block.line(format!(
-                "{}: {}::gen(element, gen_state.clone(), {:?})?,",
+                "{}: <{} as XsdGen>::gen(element, gen_state.clone(), {:?})?,",
                 field.name,
                 field.ty.to_string(),
-                field.xml_name
+                field.xml_name.as_ref().map(|v| v.to_string())
               ));
             }
             block.push_block(inner_block.after(")"))
@@ -213,7 +213,7 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
         ));
       }
       block = block.push_block(match_block.push_block(Block::new(&format!(
-            "({}) => ",
+            "({}) =>",
             (0..variant_resolution_results.len())
               .map(|_| "Err(_)")
               .collect::<Vec<_>>()

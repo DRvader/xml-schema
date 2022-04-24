@@ -723,7 +723,7 @@ impl Struct {
   }
 
   /// Set the structure visibility.
-  pub fn vis(&mut self, vis: &str) -> &mut Self {
+  pub fn vis(mut self, vis: &str) -> Self {
     self.type_def.vis(vis);
     self
   }
@@ -756,7 +756,7 @@ impl Struct {
   }
 
   /// Add new types that the struct should derive.
-  pub fn derives(&mut self, name: &[&str]) -> &mut Self {
+  pub fn derives(mut self, name: &[&str]) -> Self {
     for n in name {
       self.type_def.derive(n);
     }
@@ -800,7 +800,7 @@ impl Struct {
   ///
   /// A struct can either set tuple fields with this function or named fields
   /// with `field`, but not both.
-  pub fn tuple_field<T>(&mut self, ty: T) -> &mut Self
+  pub fn tuple_field<T>(mut self, ty: T) -> Self
   where
     T: Into<Type>,
   {

@@ -159,7 +159,7 @@ impl Schema {
             XsdType::ComplexType => {
               Some(self.complex_type[*index].get_implementation(true, None, context))
             }
-            XsdType::Attribute => Some(self.attributes[*index].get_implementation(context)),
+            XsdType::Attribute => Some(self.attributes[*index].get_implementation(context, true)),
             XsdType::AttributeGroup => {
               Some(self.attribute_group[*index].get_implementation(None, context))
             }
@@ -239,11 +239,15 @@ impl Schema {
 
     let mut dst = String::new();
     dst.push_str(
-      "use xml_schema_parser::{XsdIoError, XsdGenError, XMLElement, XsdType, XsdGen, GenState};\n\n",
+      "use xml_schema_parser::{XsdIoError, XsdGenError, XMLElement, XsdType, XsdGen, GenState, XsdName};\n\n",
     );
     let mut formatter = Formatter::new(&mut dst);
-    for name in top_level_names {
-      context.search(&name).unwrap().fmt(&mut formatter).unwrap();
+    // for name in top_level_names {
+    //   context.search(&name).unwrap().fmt(&mut formatter).unwrap();
+    // }
+
+    for value in context.structs.values() {
+      value.fmt(&mut formatter).unwrap()
     }
 
     Ok(dst)

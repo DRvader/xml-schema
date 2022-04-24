@@ -99,22 +99,12 @@ impl Extension {
     let mut generated_impl = XsdImpl {
       name: parent_name.clone(),
       fieldname_hint: Some(parent_name.to_field_name()),
-      element: XsdElement::Struct(
-        Struct::new(None, &parent_name.to_struct_name())
-          .vis("pub")
-          .field(
-            None,
-            &base_impl
-              .fieldname_hint
-              .clone()
-              .unwrap_or_else(|| to_field_name(&base_impl.element.get_type().name)),
-            base_impl.element.get_type(),
-          )
-          .to_owned(),
-      ),
+      element: XsdElement::Struct(Struct::new(None, &parent_name.to_struct_name()).vis("pub")),
       inner: vec![],
       implementation: vec![],
     };
+
+    generated_impl.merge(base_impl.to_field(), MergeSettings::default());
 
     let to_merge_impl = match (&self.group, &self.sequence, &self.choice) {
       (None, None, Some(choice)) => Some(choice.get_implementation(Some(parent_name), context)),
@@ -130,7 +120,7 @@ impl Extension {
 
     for attribute in &self.attributes {
       generated_impl.merge(
-        attribute.get_implementation(context)?,
+        attribute.get_implementation(context, false)?,
         MergeSettings::ATTRIBUTE,
       );
     }

@@ -4,6 +4,7 @@ use xsd_types::{to_field_name, XsdIoError, XsdName, XsdParseError, XsdType};
 use super::{
   annotation::Annotation,
   choice::Choice,
+  general_xsdgen,
   max_occurences::MaxOccurences,
   sequence::Sequence,
   xsd_context::{XsdContext, XsdElement, XsdImpl},
@@ -128,6 +129,6 @@ impl Group {
 
     gen.name.ty = XsdType::Group;
 
-    Ok(gen)
+    Ok(general_xsdgen(gen))
   }
 }

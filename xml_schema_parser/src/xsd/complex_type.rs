@@ -7,6 +7,7 @@ use super::{
   attribute_group::AttributeGroup,
   choice::Choice,
   complex_content::ComplexContent,
+  general_xsdgen,
   group::Group,
   sequence::Sequence,
   simple_content::SimpleContent,
@@ -152,18 +153,21 @@ impl ComplexType {
     }
 
     for i in generated_impls {
-      generated_impl.merge(i, MergeSettings::default());
+      generated_impl.merge(
+        i,
+        MergeSettings {
+          conflict_prefix: Some("attr_"),
+          merge_type: super::xsd_context::MergeType::Field,
+        },
+      );
     }
 
-    let docs = self
-      .annotation
-      .as_ref()
-      .map(|annotation| annotation.get_doc())
-      .unwrap_or_default();
-    generated_impl.element.add_doc(&docs.join(""));
+    if let Some(docs) = &self.annotation {
+      generated_impl.element.add_doc(&docs.get_doc().join(""));
+    }
 
     generated_impl.name.ty = XsdType::ComplexType;
 
-    Ok(generated_impl)
+    Ok(general_xsdgen(generated_impl))
   }
 }

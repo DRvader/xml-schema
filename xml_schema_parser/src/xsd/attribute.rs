@@ -209,7 +209,7 @@ impl Attribute {
           name: name.clone(),
           element,
           fieldname_hint: Some(name.to_field_name()),
-          inner: vec![],
+          inner: vec![inner],
           implementation: vec![],
         }
       }

@@ -400,28 +400,59 @@ impl XsdImpl {
   pub fn merge(&mut self, mut other: XsdImpl, settings: MergeSettings) {
     match &mut self.element {
       XsdElement::Struct(a) => match &other.element {
-        XsdElement::Struct(b) => {
-          let field_name = to_field_name(
-            other
-              .fieldname_hint
-              .as_ref()
-              .unwrap_or_else(|| &b.ty().name),
-          );
-          let mut ty = b.ty().clone();
+        XsdElement::Struct(b) => match (&mut a.fields, &b.fields) {
+          (Fields::Empty, b_fields) => {
+            a.fields = b_fields.clone();
+            self.inner.extend(other.inner);
+          }
+          (Fields::Tuple(a_fields), Fields::Tuple(b_fields)) => {
+            for field in b_fields {
+              a_fields.push(field.clone());
+            }
+            self.inner.extend(other.inner);
+          }
+          (Fields::Named(a_fields), Fields::Named(b_fields)) => {
+            for field in b_fields {
+              let mut conflict = false;
+              for name in &*a_fields {
+                if name.name == field.name {
+                  conflict = true;
+                  break;
+                }
+              }
 
-          other.fieldname_hint = Some(field_name.clone());
+              if settings.conflict_prefix.is_none() {
+                conflict = false;
+              }
 
-          ty.name = format!("{}::{}", to_field_name(&a.ty().name), ty.name);
+              if conflict {
+                let mut field = field.clone();
+                field.name = format!("{}{}", settings.conflict_prefix.unwrap(), field.name);
+                a_fields.push(field.clone());
+              } else {
+                a_fields.push(field.clone());
+              }
+            }
+            self.inner.extend(other.inner);
+          }
+          _ => {
+            let field_name = to_field_name(
+              other
+                .fieldname_hint
+                .as_ref()
+                .unwrap_or_else(|| &b.ty().name),
+            );
+            let mut ty = b.ty().clone();
 
-          self.inner.push(other);
+            other.fieldname_hint = Some(field_name.clone());
+            ty.name = format!("{}::{}", to_field_name(&a.ty().name), ty.name);
 
-          let field = Field::new(ty.xml_name.clone(), &field_name, ty).vis("pub");
-          // let field = match settings.merge_type {
-          //   MergeType::Field => field,
-          //   MergeType::Attribute => field.annotation(vec!["#[yaserde(attribute)]"]),
-          // };
-          a.push_field(field);
-        }
+            self.inner.push(other);
+
+            let field = Field::new(ty.xml_name.clone(), &field_name, ty).vis("pub");
+            a.push_field(field);
+          }
+        },
         XsdElement::Enum(b) => {
           let field_name = to_field_name(
             other
@@ -454,9 +485,33 @@ impl XsdImpl {
           // };
           a.push_field(field);
         }
-        XsdElement::Field(b) => {
-          a.push_field(b.clone());
-        }
+        XsdElement::Field(b) => match &mut a.fields {
+          Fields::Empty => a.fields = Fields::Named(vec![b.clone()]),
+          Fields::Tuple(fields) => {
+            fields.push((b.vis.clone(), b.ty.clone()));
+          }
+          Fields::Named(fields) => {
+            let mut conflict = false;
+            for name in fields.iter() {
+              if name.name == b.name {
+                conflict = true;
+                break;
+              }
+            }
+
+            if settings.conflict_prefix.is_none() {
+              conflict = false;
+            }
+
+            if conflict {
+              let mut field = b.clone();
+              field.name = format!("{}{}", settings.conflict_prefix.unwrap(), field.name);
+              fields.push(field.clone());
+            } else {
+              fields.push(b.clone());
+            }
+          }
+        },
       },
       XsdElement::Enum(a) => match &other.element {
         XsdElement::Struct(b) => {

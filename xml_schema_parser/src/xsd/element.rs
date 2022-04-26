@@ -10,6 +10,8 @@ use crate::xsd::{
   XsdContext, XsdError,
 };
 
+use super::general_xsdgen;
+
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Element {
   pub name: Option<XsdName>,

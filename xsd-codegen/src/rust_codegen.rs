@@ -1129,10 +1129,7 @@ impl Type {
   }
 
   /// Rewrite the `Type` with the provided path
-  ///
-  /// TODO: Is this needed?
   pub fn path(&self, path: &str) -> Type {
-    // TODO: This isn't really correct
     assert!(!self.name.contains("::"));
 
     let mut name = path.to_string();

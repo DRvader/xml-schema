@@ -3,6 +3,7 @@ use xsd_types::{to_struct_name, XsdIoError, XsdName, XsdType};
 
 use super::{
   element::Element,
+  general_xsdgen,
   group::Group,
   max_occurences::MaxOccurences,
   sequence::Sequence,
@@ -141,90 +142,8 @@ impl Choice {
       generated_impl
     };
 
-    // let generated_impl = if multiple {
-    //   let mut inner_impl = Impl::new(&struct_name);
-
-    //   inner_impl
-    //     .new_fn("parse")
-    //     .vis("pub")
-    //     .arg("mut element", "XMLElementWrapper")
-    //     .ret("Result<Self, XsdError>")
-    //     .push_block(
-    //       Block::new("")
-    //         .line(format!("element.check_name(\"{}\")?;", struct_name))
-    //         .push_block(
-    //           Block::new(&format!(
-    //             "element.get_children_with(\"{}\", |child| ",
-    //             struct_name
-    //           ))
-    //           .line("")
-    //           .after(")?;")
-    //           .to_owned(),
-    //         )
-    //         .line("element.finalize(false, false)?;")
-    //         .line("Ok(output);")
-    //         .to_owned(),
-    //     );
-
-    //   let mut inner_enum = outer_enum;
-    //   match &mut inner_enum.element {
-    //     XsdElement::Struct(str) => {
-    //       str.type_def.ty.prefix("Inner");
-    //     }
-    //     XsdElement::Enum(en) => {
-    //       en.type_def.ty.prefix("Inner");
-    //     }
-    //     XsdElement::Type(ty) => {
-    //       ty.prefix("Inner");
-    //     }
-    //     _ => {}
-    //   }
-
-    //   Ok(XsdImpl {
-    //     name: xml_name,
-    //     fieldname_hint: Some(to_field_name(&struct_name)),
-    //     element: XsdElement::Field(Field::new(
-    //       &to_field_name(&struct_name),
-    //       inner_enum.element.get_type().wrap("Vec").to_owned(),
-    //     )),
-    //     inner: vec![inner_enum],
-    //     implementation: vec![inner_impl],
-    //   })
-    // } else if option {
-    //   let mut inner_enum = outer_enum;
-    //   match &mut inner_enum.element {
-    //     XsdElement::Struct(str) => {
-    //       str.type_def.ty.prefix("Inner");
-    //     }
-    //     XsdElement::Enum(en) => {
-    //       en.type_def.ty.prefix("Inner");
-    //     }
-    //     XsdElement::Type(ty) => {
-    //       ty.prefix("Inner");
-    //     }
-    //     _ => {}
-    //   }
-
-    //   Ok(XsdImpl {
-    //     name: xml_name,
-    //     fieldname_hint: Some(to_field_name(&struct_name)),
-    //     element: XsdElement::Struct(
-    //       Struct::new(&struct_name)
-    //         .push_field(Field::new(
-    //           "inner",
-    //           Type::new(&inner_enum.element.get_type().wrap("Option").to_string()),
-    //         ))
-    //         .to_owned(),
-    //     ),
-    //     inner: vec![inner_enum],
-    //     implementation: vec![],
-    //   })
-    // } else {
-    //   Ok(outer_enum)
-    // };
-
     generated_impl.name.ty = XsdType::Choice;
 
-    Ok(generated_impl)
+    Ok(general_xsdgen(generated_impl))
   }
 }

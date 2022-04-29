@@ -13,13 +13,11 @@ readme = "../README.md"
 
 [dependencies]
 log = "0.4"
-xml-schema-derive = { version = "0.0.7", path = "../xml_schema_derive" }
 xml-schema-parser = { path = "../xml_schema_parser" }
 tracing-subscriber = "0.3"
 
 
 [dev-dependencies]
 log = "0.4"
-xml-schema-derive = { version = "0.0.7", path = "../xml_schema_derive" }
 xml-schema-parser = { path = "../xml_schema_parser" }
 tracing-subscriber = "0.3"

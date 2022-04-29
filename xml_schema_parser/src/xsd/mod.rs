@@ -20,12 +20,12 @@ mod simple_type;
 mod union;
 mod xsd_context;
 
-use std::{arch::x86_64::_blci_u64, fs};
+use std::fs;
 use thiserror::Error;
 use xml::namespace::{NS_XML_PREFIX, NS_XML_URI};
-use xsd_codegen::{xsdgen_impl, Block, Field, Impl, Type, XMLElement};
+use xsd_codegen::{xsdgen_impl, Block, XMLElement};
 use xsd_context::XsdContext;
-use xsd_types::{XsdGenError, XsdIoError, XsdName, XsdParseError};
+use xsd_types::{XsdIoError, XsdName};
 
 use self::xsd_context::XsdImpl;
 
@@ -113,12 +113,12 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
         xsd_codegen::Fields::Empty => block
           .push_block(
             Block::new("match gen_state.state")
-              .push_block(Block::new("GenType::Attribute").line(format!(
+              .push_block(Block::new("GenType::Attribute =>").line(format!(
                 "assert!(element.element.attributes.remove(\"{}\").is_some());",
                 ty.ty().xml_name.clone().unwrap()
               )))
-              .push_block(Block::new("GenType::Content").line(format!(
-                "assert!(element.try_get_child(\"{}\").is_some());",
+              .push_block(Block::new("GenType::Content =>").line(format!(
+                "assert!(element.try_get_child(\"{}\")?.is_some());",
                 ty.ty().xml_name.clone().unwrap()
               ))),
           )
@@ -160,7 +160,7 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
                   variant.xml_name.clone().unwrap()
                 )))
                 .push_block(Block::new("GenType::Content").line(format!(
-                  "assert!(element.try_get_child(\"{}\").is_some());",
+                  "assert!(element.try_get_child(\"{}\")?.is_some());",
                   variant.xml_name.clone().unwrap()
                 ))),
             )

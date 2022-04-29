@@ -12,7 +12,7 @@ use xml::reader::{EventReader, XmlEvent};
 
 use super::XsdError;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum XsdElement {
   Struct(Struct),
   Enum(Enum),
@@ -110,7 +110,7 @@ pub struct XsdDeserialize {
   map: BTreeMap<String, (Block, bool)>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct XsdImpl {
   pub name: XsdName,
   pub fieldname_hint: Option<String>,
@@ -397,6 +397,31 @@ impl XsdImpl {
     }
   }
 
+  fn merge_inner(&mut self, others: Vec<XsdImpl>) {
+    'outer: for mut other in others {
+      for i in &self.inner {
+        if other.element.get_type().to_string() == i.element.get_type().to_string() {
+          if i == &other {
+            continue 'outer;
+          }
+          let old_type = other.element.get_type();
+          other.element.set_type(format!(
+            "{}{:?}",
+            other.element.get_type().to_string(),
+            other.name.ty
+          ));
+          for implementation in &mut other.implementation {
+            if implementation.target == old_type {
+              implementation.target = other.element.get_type();
+            }
+          }
+          break;
+        }
+      }
+      self.inner.push(other);
+    }
+  }
+
   pub fn merge(&mut self, mut other: XsdImpl, settings: MergeSettings) {
     match &mut self.element {
       XsdElement::Struct(a) => match &other.element {
@@ -409,7 +434,7 @@ impl XsdImpl {
             for field in b_fields {
               a_fields.push(field.clone());
             }
-            self.inner.extend(other.inner);
+            self.merge_inner(other.inner);
           }
           (Fields::Named(a_fields), Fields::Named(b_fields)) => {
             for field in b_fields {
@@ -433,7 +458,7 @@ impl XsdImpl {
                 a_fields.push(field.clone());
               }
             }
-            self.inner.extend(other.inner);
+            self.merge_inner(other.inner);
           }
           _ => {
             let field_name = to_field_name(
@@ -447,10 +472,10 @@ impl XsdImpl {
             other.fieldname_hint = Some(field_name.clone());
             ty.name = format!("{}::{}", to_field_name(&a.ty().name), ty.name);
 
-            self.inner.push(other);
-
             let field = Field::new(ty.xml_name.clone(), &field_name, ty).vis("pub");
             a.push_field(field);
+
+            self.merge_inner(vec![other]);
           }
         },
         XsdElement::Enum(b) => {
@@ -466,24 +491,32 @@ impl XsdImpl {
 
           ty.name = format!("{}::{}", to_field_name(&a.ty().name), ty.name);
 
-          self.inner.push(other);
-
           let field = Field::new(ty.xml_name.clone(), &field_name, ty).vis("pub");
-          // let field = match settings.merge_type {
-          //   MergeType::Field => field,
-          //   MergeType::Attribute => field.annotation(vec!["#[yaserde(attribute)]"]),
-          // };
           a.push_field(field);
+
+          self.merge_inner(vec![other]);
         }
         XsdElement::Type(b) | XsdElement::TypeAlias(b, _) => {
           let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or_else(|| &b.name));
-          self.inner.extend(other.inner);
+          let b = if other.inner.len() > 0 {
+            if b.generics.len() > 0 {
+              let mut b = b.clone();
+              b.generics[0] = b.generics[0]
+                .clone()
+                .path(&to_field_name(&a.ty().to_string()));
+
+              b
+            } else {
+              b.clone().path(&to_field_name(&a.ty().to_string()))
+            }
+          } else {
+            b.clone()
+          };
+
           let field = Field::new(b.xml_name.clone(), &field_name, b).vis("pub");
-          // let field = match settings.merge_type {
-          //   MergeType::Field => field,
-          //   MergeType::Attribute => field.annotation(vec!["#[yaserde(attribute)]"]),
-          // };
           a.push_field(field);
+
+          self.merge_inner(other.inner);
         }
         XsdElement::Field(b) => match &mut a.fields {
           Fields::Empty => a.fields = Fields::Named(vec![b.clone()]),
@@ -528,13 +561,9 @@ impl XsdImpl {
           ty.name = format!("{}::{}", to_field_name(&a.ty().name), ty.name);
 
           let variant = Variant::new(b.ty().xml_name.clone(), &field_name).tuple(ty);
-          // let variant = match settings.merge_type {
-          //   MergeType::Field => variant,
-          //   MergeType::Attribute => variant.attribute("#[yaserde(attribute)]"),
-          // };
           a.variants.push(variant);
 
-          self.inner.push(other);
+          self.merge_inner(vec![other]);
         }
         XsdElement::Enum(b) => {
           let field_name = to_field_name(
@@ -549,32 +578,20 @@ impl XsdImpl {
 
           ty.name = format!("{}::{}", to_field_name(&a.ty().name), ty.name);
 
-          self.inner.push(other);
-
           let variant = Variant::new(None, &to_struct_name(&field_name)).tuple(ty);
-          // let variant = match settings.merge_type {
-          //   MergeType::Field => variant,
-          //   MergeType::Attribute => variant.attribute("#[yaserde(attribute)]"),
-          // };
-
           a.variants.push(variant);
+
+          self.merge_inner(vec![other]);
         }
         XsdElement::Type(b) | XsdElement::TypeAlias(b, _) => {
           let field_name = to_struct_name(other.fieldname_hint.as_ref().unwrap_or_else(|| &b.name));
-          self.inner.extend(other.inner);
           let variant = Variant::new(None, &field_name).tuple(b.clone());
-          // let variant = match settings.merge_type {
-          //   MergeType::Field => variant,
-          //   MergeType::Attribute => variant.attribute("#[yaserde(attribute)]"),
-          // };
           a.variants.push(variant);
+
+          self.merge_inner(other.inner);
         }
         XsdElement::Field(b) => {
           let variant = Variant::new(None, &to_struct_name(&b.name)).tuple(b.ty.clone());
-          // let variant = match settings.merge_type {
-          //   MergeType::Field => variant,
-          //   MergeType::Attribute => variant.attribute("#[yaserde(attribute)]"),
-          // };
           a.variants.push(variant);
         }
       },
@@ -767,7 +784,7 @@ impl XsdContext {
                   ("IDREF", "String"),
                   ("IDREFS", "String"),
                   ("anyType", "String"),
-                  ("date", "chrono::Date<chrono::Utc>"),
+                  ("date", "Date"),
                   ("NCName", "String"),
                 ]
                 .map(|(n, t)| impl_basic_type(n, t)),
@@ -808,8 +825,27 @@ impl XsdContext {
     })
   }
 
-  pub fn insert_impl(&mut self, name: XsdName, value: XsdImpl) {
+  pub fn insert_impl(&mut self, name: XsdName, mut value: XsdImpl) {
     let namespace = self.resolve_namespace(name.namespace.as_ref().map(|v| v.as_str()));
+
+    let ty = value.element.get_type();
+
+    for (_, s) in &self.structs {
+      if s.element.get_type().to_string() == ty.to_string() {
+        let old_type = value.element.get_type();
+        value.element.set_type(format!(
+          "{}{}",
+          ty.to_string(),
+          to_struct_name(&format!("{:?}", value.name.ty))
+        ));
+        for implementation in &mut value.implementation {
+          if implementation.target == old_type {
+            implementation.target = value.element.get_type();
+          }
+        }
+        break;
+      }
+    }
 
     self.structs.insert(
       XsdName {

@@ -58,12 +58,12 @@ impl Choice {
       generated_impls.push(sequence.get_implementation(None, context)?);
     }
 
-    for choice in &self.choices {
-      generated_impls.push(choice.get_implementation(None, context)?);
-    }
-
     for element in &self.elements {
       generated_impls.push(element.get_implementation(context)?);
+    }
+
+    for choice in &self.choices {
+      generated_impls.push(choice.get_implementation(None, context)?);
     }
 
     let inferred_name = infer_type_name(&generated_impls);
@@ -116,6 +116,8 @@ impl Choice {
       MaxOccurences::Number { value } => *value == 1 && self.min_occurences == 0,
     };
 
+    let mut generated_impl = general_xsdgen(generated_impl);
+
     let mut generated_impl = if multiple {
       let old_name = generated_impl.name.clone();
       generated_impl.name.local_name = format!("inner-{}", old_name.local_name);
@@ -144,6 +146,6 @@ impl Choice {
 
     generated_impl.name.ty = XsdType::Choice;
 
-    Ok(general_xsdgen(generated_impl))
+    Ok(generated_impl)
   }
 }

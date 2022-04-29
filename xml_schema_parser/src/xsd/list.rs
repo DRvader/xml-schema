@@ -46,7 +46,7 @@ impl List {
     let generated_struct = Struct::new(Some(name.clone()), &struct_name)
       .vis("pub")
       .tuple_field(format!("Vec<{}>", list_type))
-      .derives(&["Clone", "Debug", "Default", "PartialEq"]);
+      .derives(&["Clone", "Debug", "PartialEq"]);
 
     let from_xml = fromxml_impl(
       generated_struct.ty().clone(),

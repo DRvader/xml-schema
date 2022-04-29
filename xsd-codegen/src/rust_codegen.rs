@@ -71,14 +71,14 @@ pub struct Module {
 }
 
 /// Defines an enumeration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Enum {
   pub type_def: TypeDef,
   pub variants: Vec<Variant>,
 }
 
 /// Defines a struct.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Struct {
   pub type_def: TypeDef,
 
@@ -97,7 +97,7 @@ pub struct Trait {
 }
 
 /// Defines a type.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Type {
   pub name: String,
   pub generics: Vec<Type>,
@@ -105,7 +105,7 @@ pub struct Type {
 }
 
 /// Defines a type definition.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TypeDef {
   pub ty: Type,
   pub vis: Option<String>,
@@ -118,7 +118,7 @@ pub struct TypeDef {
 }
 
 /// Defines an enum variant.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Variant {
   pub name: String,
   pub fields: Fields,
@@ -127,7 +127,7 @@ pub struct Variant {
 }
 
 /// Defines a set of fields.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Fields {
   Empty,
   Tuple(Vec<(Option<String>, Type)>),
@@ -135,7 +135,7 @@ pub enum Fields {
 }
 
 /// Defines a struct field.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Field {
   /// Field name
   pub name: String,
@@ -160,14 +160,14 @@ pub struct Field {
 #[derive(Debug, Clone)]
 pub struct AssociatedType(pub Bound);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Bound {
   pub name: String,
   pub bound: Vec<Type>,
 }
 
 /// Defines an impl block.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Impl {
   /// The struct being implemented
   pub target: Type,
@@ -197,7 +197,7 @@ pub struct Import {
 }
 
 /// Defines a function.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Function {
   /// Name of the function
   name: String,
@@ -240,20 +240,20 @@ pub struct Function {
 }
 
 /// Defines a code block. This is used to define a function body.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Block {
   pub before: Option<String>,
   pub after: Option<String>,
   pub body: Vec<Body>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Body {
   String(String),
   Block(Block),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Docs {
   pub docs: String,
 }
@@ -1210,7 +1210,7 @@ impl TypeDef {
   fn new(xml_name: Option<XsdName>, name: &str) -> Self {
     TypeDef {
       ty: Type::new(xml_name, name),
-      vis: None,
+      vis: Some("pub".to_string()),
       docs: None,
       derive: vec![],
       allow: vec![],

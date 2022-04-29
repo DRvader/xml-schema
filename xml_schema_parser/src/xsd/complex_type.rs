@@ -113,7 +113,7 @@ impl ComplexType {
       element: XsdElement::Struct(
         Struct::new(xml_name.clone(), &struct_id.unwrap().to_struct_name())
           .vis("pub")
-          .to_owned(),
+          .derives(&["Clone", "Debug", "PartialEq"]),
       ),
       fieldname_hint: None,
       implementation: vec![],

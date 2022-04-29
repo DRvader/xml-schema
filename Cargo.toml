@@ -1,6 +1,5 @@
 [workspace]
 members = [
   "xml_schema",
-  "xml_schema_derive",
   "xml_schema_parser"
 ]

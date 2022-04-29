@@ -129,6 +129,6 @@ impl Group {
 
     gen.name.ty = XsdType::Group;
 
-    Ok(general_xsdgen(gen))
+    Ok(gen)
   }
 }

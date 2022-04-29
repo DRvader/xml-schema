@@ -63,7 +63,7 @@ impl XMLElement {
     Ok(output.remove(0))
   }
 
-  fn try_get_child(&mut self, name: &str) -> Result<Option<XMLElement>, XsdIoError> {
+  pub fn try_get_child(&mut self, name: &str) -> Result<Option<XMLElement>, XsdIoError> {
     let mut output = self.get_children(name);
     if output.len() > 1 {
       return Err(XsdIoError::XsdParseError(XsdParseError {

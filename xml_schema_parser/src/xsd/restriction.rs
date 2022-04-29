@@ -235,17 +235,13 @@ impl Restriction {
         implementation: vec![enum_impl],
       }
     } else {
-      let typename = parent_name.to_struct_name();
-      let mut generated_struct = Struct::new(Some(parent_name.clone()), &typename);
-      generated_struct.derives(&["Clone", "Debug", "Default", "PartialEq"]);
-
       XsdImpl {
         name: parent_name.clone(),
         fieldname_hint: Some(parent_name.to_field_name()),
         element: XsdElement::Struct(
           Struct::new(Some(parent_name.clone()), &parent_name.to_struct_name())
             .tuple_field(base_type.element.get_type())
-            .to_owned(),
+            .derives(&["Clone", "Debug", "PartialEq"]),
         ),
         inner: Vec::new(),
         implementation: vec![],

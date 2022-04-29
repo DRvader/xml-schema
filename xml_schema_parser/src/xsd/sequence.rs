@@ -87,16 +87,16 @@ impl Sequence {
       generated_impls.push(element.get_implementation(context)?);
     }
 
-    for choice in &self.choices {
-      generated_impls.push(choice.get_implementation(None, context)?);
-    }
-
     for sequence in &self.sequences {
       generated_impls.push(sequence.get_implementation(None, context)?);
     }
 
     for group in &self.groups {
       generated_impls.push(group.get_implementation(None, context)?);
+    }
+
+    for choice in &self.choices {
+      generated_impls.push(choice.get_implementation(None, context)?);
     }
 
     let mut xml_name = if let Some(parent_name) = parent_name.clone() {
@@ -117,7 +117,7 @@ impl Sequence {
       element: XsdElement::Struct(
         Struct::new(Some(xml_name.clone()), &xml_name.to_struct_name())
           .vis("pub")
-          .derives(&["Clone", "Debug", "Default", "PartialEq"]),
+          .derives(&["Clone", "Debug", "PartialEq"]),
       ),
       inner: vec![],
       implementation: vec![],
@@ -127,8 +127,46 @@ impl Sequence {
       generated_impl.merge(imp, MergeSettings::default());
     }
 
+    let multiple = match &self.max_occurences {
+      MaxOccurences::Unbounded => true,
+      MaxOccurences::Number { value } => *value > 1,
+    } || self.min_occurences > 1;
+
+    let option = match &self.max_occurences {
+      MaxOccurences::Unbounded => false,
+      MaxOccurences::Number { value } => *value == 1 && self.min_occurences == 0,
+    };
+
+    let mut generated_impl = general_xsdgen(generated_impl);
+
+    let mut generated_impl = if multiple {
+      let old_name = generated_impl.name.clone();
+      generated_impl.name.local_name = format!("inner-{}", old_name.local_name);
+      let output = XsdImpl {
+        name: old_name.clone(),
+        fieldname_hint: Some(generated_impl.fieldname_hint.clone().unwrap()),
+        element: XsdElement::Type(generated_impl.element.get_type().wrap("Vec").to_owned()),
+        inner: vec![generated_impl],
+        implementation: vec![],
+      };
+      output
+    } else if option {
+      let old_name = generated_impl.name.clone();
+      generated_impl.name.local_name = format!("inner-{}", old_name.local_name);
+      let output = XsdImpl {
+        name: old_name.clone(),
+        fieldname_hint: Some(generated_impl.fieldname_hint.clone().unwrap()),
+        element: XsdElement::Type(generated_impl.element.get_type().wrap("Option").to_owned()),
+        inner: vec![generated_impl],
+        implementation: vec![],
+      };
+      output
+    } else {
+      generated_impl
+    };
+
     generated_impl.name.ty = XsdType::Sequence;
 
-    Ok(general_xsdgen(generated_impl))
+    Ok(generated_impl)
   }
 }

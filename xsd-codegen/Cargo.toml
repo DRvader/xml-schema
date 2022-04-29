@@ -11,5 +11,6 @@ name = "xsd_codegen"
 xmltree = "0.10.3"
 thiserror = "1.0.30"
 xsd-types = {path = "../xsd-types"}
+chrono = "0.4"
 
 [dev-dependencies]

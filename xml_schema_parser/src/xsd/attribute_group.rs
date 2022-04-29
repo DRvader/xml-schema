@@ -90,9 +90,7 @@ impl AttributeGroup {
         Ok(XsdImpl {
           name,
           element: XsdElement::Field(
-            Field::new(None, &field_name, inner.element.get_type())
-              .vis("pub")
-              .to_owned(),
+            Field::new(None, &field_name, inner.element.get_type()).vis("pub"),
           ),
           fieldname_hint: Some(field_name.to_string()),
           inner: vec![],
@@ -112,7 +110,7 @@ impl AttributeGroup {
           element: XsdElement::Struct(
             Struct::new(Some(xml_name.clone()), &xml_name.to_struct_name())
               .vis("pub")
-              .to_owned(),
+              .derives(&["Clone", "Debug", "PartialEq"]),
           ),
           inner: vec![],
           implementation: vec![],

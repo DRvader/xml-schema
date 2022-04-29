@@ -9,6 +9,13 @@ pub struct XMLElement {
 }
 
 impl XMLElement {
+  pub fn parse(buffer: &[u8]) -> Result<Self, xmltree::ParseError> {
+    Ok(Self {
+      element: xmltree::Element::parse(buffer)?,
+      default_namespace: None,
+    })
+  }
+
   pub fn name(&self) -> &str {
     &self.element.name
   }

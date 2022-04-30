@@ -282,6 +282,19 @@ impl XsdImpl {
   }
 
   pub fn merge(&mut self, mut other: XsdImpl, settings: MergeSettings) {
+    let children_are_attributes =
+      if let XsdType::Attribute | XsdType::AttributeGroup = other.name.ty {
+        true
+      } else {
+        false
+      };
+
+    let flatten_children = if let XsdType::Group | XsdType::AttributeGroup = other.name.ty {
+      true
+    } else {
+      false
+    };
+
     match &mut self.element {
       XsdElement::Struct(a) => match &other.element {
         XsdElement::Struct(b) => match (&mut a.fields, &b.fields) {
@@ -291,7 +304,9 @@ impl XsdImpl {
           }
           (Fields::Tuple(a_fields), Fields::Tuple(b_fields)) => {
             for field in b_fields {
-              a_fields.push(field.clone());
+              let mut field = field.clone();
+              field.2 = children_are_attributes;
+              a_fields.push(field);
             }
             self.merge_inner(other.inner);
           }

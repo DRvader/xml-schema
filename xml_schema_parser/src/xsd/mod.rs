@@ -126,7 +126,7 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
         xsd_codegen::Fields::Tuple(fields) => {
           let mut self_gen = Block::new("let gen_self = |element: &mut XMLElement|");
           self_gen = self_gen.line("Ok(Self (");
-          for (_, field, attribute) in fields {
+          for (_, field, attribute, flatten) in fields {
             let new_gen_state = if *attribute {
               "gen_state.to_attr()"
             } else {

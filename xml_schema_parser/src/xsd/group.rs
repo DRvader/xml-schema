@@ -110,7 +110,7 @@ impl Group {
         XsdImpl {
           name,
           element: XsdElement::Field(
-            Field::new(None, &field_name, inner.element.get_type(), false)
+            Field::new(None, &field_name, inner.element.get_type(), false, true)
               .vis("pub")
               .to_owned(),
           ),

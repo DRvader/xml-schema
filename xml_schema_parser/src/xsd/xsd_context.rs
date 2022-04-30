@@ -1,6 +1,4 @@
-use xsd_codegen::{
-  Block, Enum, Field, Fields, Formatter, Impl, Item, Module, Struct, Type, TypeDef, Variant,
-};
+use xsd_codegen::{Enum, Field, Fields, Formatter, Impl, Item, Module, Struct, Type, Variant};
 use xsd_types::{to_field_name, to_struct_name, XsdIoError, XsdName, XsdParseError, XsdType};
 
 use std::collections::BTreeMap;
@@ -92,22 +90,6 @@ impl XsdElement {
       _ => {}
     }
   }
-
-  pub fn is_builtin_type(&self) -> bool {
-    match &self {
-      XsdElement::Type(ty) => [
-        "String", "u8", "i8", "u16", "i16", "u32", "i32", "u64", "i64", "u128", "i128", "bool",
-        "f32", "f64", "char",
-      ]
-      .contains(&ty.name.as_str()),
-      _ => false,
-    }
-  }
-}
-
-#[derive(Default, Debug, Clone)]
-pub struct XsdDeserialize {
-  map: BTreeMap<String, (Block, bool)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -181,7 +163,7 @@ impl XsdImpl {
         XsdElement::Enum(a) => {
           module.push_enum(a.clone());
         }
-        XsdElement::Field(_) => unimplemented!(),
+        XsdElement::Field(_) => {}
         XsdElement::Type(_) => {}
         XsdElement::TypeAlias(..) => {}
       }
@@ -240,23 +222,6 @@ impl XsdImpl {
     }
   }
 
-  pub fn set_name(&mut self, name: &str) {
-    self.name = XsdName {
-      namespace: None,
-      local_name: name.to_string(),
-      ty: self.name.ty.clone(),
-    };
-
-    let ty = to_struct_name(name);
-    self.element.set_type(ty.clone());
-
-    for i in &mut self.implementation {
-      i.target = ty.clone().into();
-    }
-
-    self.fieldname_hint = None;
-  }
-
   pub fn to_string(&self) -> Result<String, core::fmt::Error> {
     let mut dst = String::new();
     let mut formatter = Formatter::new(&mut dst);
@@ -273,126 +238,20 @@ impl XsdImpl {
       XsdImpl {
         name: self.name.clone(),
         fieldname_hint: self.fieldname_hint.clone(),
-        element: XsdElement::Field(Field::new(
-          self.element.get_type().xml_name.clone(),
-          &self
-            .fieldname_hint
-            .clone()
-            .unwrap_or_else(|| self.name.to_field_name()),
-          self.element.get_type(),
-        )),
+        element: XsdElement::Field(
+          Field::new(
+            self.element.get_type().xml_name.clone(),
+            &self
+              .fieldname_hint
+              .clone()
+              .unwrap_or_else(|| self.name.to_field_name()),
+            self.element.get_type(),
+            false,
+          )
+          .vis("pub"),
+        ),
         inner: vec![],
         implementation: vec![],
-      }
-    }
-  }
-
-  pub fn merge_into_enum(&mut self, mut other: XsdImpl, merge_as_fields: bool) {
-    other.element = match other.element {
-      XsdElement::Struct(str) => {
-        let mut gen_enum = Enum {
-          type_def: str.type_def.clone(),
-          variants: vec![],
-        };
-
-        match str.fields {
-          Fields::Empty => {}
-          Fields::Tuple(tup) => {
-            if merge_as_fields {
-              for t in tup {
-                let mut variant = Variant::new(t.1.xml_name.clone(), &t.1.name);
-                variant.fields.tuple(t.1);
-                gen_enum = gen_enum.push_variant(variant);
-              }
-            } else {
-              let mut variant = Variant::new(str.type_def.ty.xml_name, &str.type_def.ty.name);
-              for t in tup {
-                variant.fields.tuple(t.1);
-              }
-              gen_enum = gen_enum.push_variant(variant);
-            }
-          }
-          Fields::Named(names) => {
-            if merge_as_fields {
-              for t in names {
-                let mut variant = Variant::new(t.xml_name, &t.name);
-                variant.fields.tuple(t.ty);
-                gen_enum = gen_enum.push_variant(variant);
-              }
-            } else {
-              let mut variant = Variant::new(str.type_def.ty.xml_name, &str.type_def.ty.name);
-              for t in names {
-                variant.fields.push_named(t);
-              }
-              gen_enum = gen_enum.push_variant(variant);
-            }
-          }
-        }
-
-        XsdElement::Enum(gen_enum)
-      }
-      _ => other.element,
-    };
-
-    self.merge(other, MergeSettings::default())
-  }
-
-  fn merge_typedef(this: &mut TypeDef, other: TypeDef) {
-    match (&mut this.docs, other.docs) {
-      (None, None) => {}
-      (None, Some(b)) => {
-        this.docs = Some(b);
-      }
-      (Some(_), None) => {}
-      (Some(a), Some(b)) => {
-        if !a.docs.ends_with('\n') {
-          a.docs.push('\n');
-        }
-        a.docs.push_str(&b.docs);
-      }
-    }
-
-    for derive in other.derive {
-      if !this.derive.contains(&derive) {
-        this.derive.push(derive);
-      }
-    }
-
-    for allow in other.allow {
-      if !this.allow.contains(&allow) {
-        this.allow.push(allow);
-      }
-    }
-
-    for bound in other.bounds {
-      let bounded_names = bound
-        .bound
-        .iter()
-        .map(|t| t.name.clone())
-        .collect::<Vec<_>>();
-
-      let mut add = true;
-      for b in &this.bounds {
-        assert!(
-          b.name != bound.name
-            || (b.bound.len() == bound.bound.len()
-              && b.bound.iter().all(|t| bounded_names.contains(&t.name)))
-        );
-
-        if b.name == bound.name {
-          add = false;
-          break;
-        }
-      }
-
-      if add {
-        this.bounds.push(bound);
-      }
-    }
-
-    for macros in other.macros {
-      if !this.macros.contains(&macros) {
-        this.macros.push(macros);
       }
     }
   }
@@ -406,9 +265,9 @@ impl XsdImpl {
           }
           let old_type = other.element.get_type();
           other.element.set_type(format!(
-            "{}{:?}",
+            "{}{}",
             other.element.get_type().to_string(),
-            other.name.ty
+            to_struct_name(&format!("{:?}", other.name.ty))
           ));
           for implementation in &mut other.implementation {
             if implementation.target == old_type {
@@ -467,12 +326,12 @@ impl XsdImpl {
                 .as_ref()
                 .unwrap_or_else(|| &b.ty().name),
             );
-            let mut ty = b.ty().clone();
+            let ty = b.ty().clone();
 
             other.fieldname_hint = Some(field_name.clone());
-            ty.name = format!("{}::{}", to_field_name(&a.ty().name), ty.name);
+            let ty = ty.path(&to_field_name(&a.ty().name));
 
-            let field = Field::new(ty.xml_name.clone(), &field_name, ty).vis("pub");
+            let field = Field::new(ty.xml_name.clone(), &field_name, ty, false).vis("pub");
             a.push_field(field);
 
             self.merge_inner(vec![other]);
@@ -485,35 +344,69 @@ impl XsdImpl {
               .as_ref()
               .unwrap_or_else(|| &b.ty().name),
           );
-          let mut ty = b.ty().clone();
+          let ty = b.ty().clone();
 
           other.fieldname_hint = Some(field_name.clone());
 
-          ty.name = format!("{}::{}", to_field_name(&a.ty().name), ty.name);
+          let ty = ty.path(&to_field_name(&a.ty().name));
 
-          let field = Field::new(ty.xml_name.clone(), &field_name, ty).vis("pub");
+          let field = Field::new(ty.xml_name.clone(), &field_name, ty, false).vis("pub");
           a.push_field(field);
 
           self.merge_inner(vec![other]);
         }
         XsdElement::Type(b) | XsdElement::TypeAlias(b, _) => {
           let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or_else(|| &b.name));
-          let b = if other.inner.len() > 0 {
-            if b.generics.len() > 0 {
-              let mut b = b.clone();
-              b.generics[0] = b.generics[0]
-                .clone()
-                .path(&to_field_name(&a.ty().to_string()));
 
-              b
-            } else {
-              b.clone().path(&to_field_name(&a.ty().to_string()))
+          let mut b = b.clone();
+          for i in &mut other.inner {
+            if let XsdElement::Field(_) | XsdElement::Type(_) | XsdElement::TypeAlias(_, _) =
+              i.element
+            {
+              continue;
             }
-          } else {
-            b.clone()
+
+            if i.element.get_type() == b {
+              b = b.path(&to_field_name(&a.ty().to_string()));
+            }
+
+            let mut new_generics = vec![];
+            for generic in b.generics {
+              if i.element.get_type() == generic {
+                new_generics.push(generic.path(&to_field_name(&a.ty().to_string())));
+              } else {
+                new_generics.push(generic);
+              }
+            }
+            b.generics = new_generics;
+          }
+
+          let mut field = Field::new(b.xml_name.clone(), &field_name, b, false).vis("pub");
+
+          let mut name_conflict = match &a.fields {
+            Fields::Empty => false,
+            Fields::Tuple(_) => false,
+            Fields::Named(a_fields) => {
+              let mut conflict = false;
+              for a_field in a_fields {
+                if a_field.name == field.name {
+                  conflict = true;
+                  break;
+                }
+              }
+
+              conflict
+            }
           };
 
-          let field = Field::new(b.xml_name.clone(), &field_name, b).vis("pub");
+          if settings.conflict_prefix.is_none() {
+            name_conflict = false;
+          }
+
+          if name_conflict {
+            field.name = format!("{}{}", settings.conflict_prefix.unwrap(), field.name);
+          }
+
           a.push_field(field);
 
           self.merge_inner(other.inner);
@@ -521,7 +414,7 @@ impl XsdImpl {
         XsdElement::Field(b) => match &mut a.fields {
           Fields::Empty => a.fields = Fields::Named(vec![b.clone()]),
           Fields::Tuple(fields) => {
-            fields.push((b.vis.clone(), b.ty.clone()));
+            fields.push((b.vis.clone(), b.ty.clone(), false));
           }
           Fields::Named(fields) => {
             let mut conflict = false;
@@ -554,13 +447,13 @@ impl XsdImpl {
               .as_ref()
               .unwrap_or_else(|| &b.ty().name),
           );
-          let mut ty = b.ty().clone();
+          let ty = b.ty().clone();
 
           other.fieldname_hint = Some(field_name.clone());
 
-          ty.name = format!("{}::{}", to_field_name(&a.ty().name), ty.name);
+          let ty = ty.path(&to_field_name(&a.ty().name));
 
-          let variant = Variant::new(b.ty().xml_name.clone(), &field_name).tuple(ty);
+          let variant = Variant::new(b.ty().xml_name.clone(), &field_name).tuple(ty, false);
           a.variants.push(variant);
 
           self.merge_inner(vec![other]);
@@ -578,122 +471,50 @@ impl XsdImpl {
 
           ty.name = format!("{}::{}", to_field_name(&a.ty().name), ty.name);
 
-          let variant = Variant::new(None, &to_struct_name(&field_name)).tuple(ty);
+          let variant = Variant::new(None, &to_struct_name(&field_name)).tuple(ty, false);
           a.variants.push(variant);
 
           self.merge_inner(vec![other]);
         }
         XsdElement::Type(b) | XsdElement::TypeAlias(b, _) => {
           let field_name = to_struct_name(other.fieldname_hint.as_ref().unwrap_or_else(|| &b.name));
-          let variant = Variant::new(None, &field_name).tuple(b.clone());
+
+          let mut b = b.clone();
+          for i in &mut other.inner {
+            if let XsdElement::Field(_) | XsdElement::Type(_) | XsdElement::TypeAlias(_, _) =
+              i.element
+            {
+              continue;
+            }
+
+            if i.element.get_type() == b {
+              b = b.path(&to_field_name(&a.ty().to_string()));
+            }
+
+            let mut new_generics = vec![];
+            for generic in b.generics {
+              if i.element.get_type() == generic {
+                new_generics.push(generic.path(&to_field_name(&a.ty().to_string())));
+              } else {
+                new_generics.push(generic);
+              }
+            }
+            b.generics = new_generics;
+          }
+
+          let variant = Variant::new(None, &field_name).tuple(b.clone(), false);
           a.variants.push(variant);
 
           self.merge_inner(other.inner);
         }
         XsdElement::Field(b) => {
-          let variant = Variant::new(None, &to_struct_name(&b.name)).tuple(b.ty.clone());
+          let variant = Variant::new(None, &to_struct_name(&b.name)).tuple(b.ty.clone(), false);
           a.variants.push(variant);
         }
       },
       XsdElement::Type(_) => unimplemented!("Cannot merge into type."),
       XsdElement::TypeAlias(..) => unimplemented!("Cannot merge into type alias."),
       XsdElement::Field(_) => unimplemented!("Cannot merge into field."),
-    }
-  }
-
-  pub fn merge_fields(&mut self, other: XsdImpl, settings: MergeSettings) {
-    match (&mut self.element, other.element) {
-      (XsdElement::Struct(a), XsdElement::Struct(b)) => {
-        match (&mut a.fields, b.fields) {
-          (_, Fields::Empty) => {}
-          (Fields::Empty, Fields::Tuple(b)) => {
-            a.fields = Fields::Tuple(b);
-          }
-          (Fields::Empty, Fields::Named(b)) => {
-            a.fields = Fields::Named(b);
-          }
-          (Fields::Tuple(a), Fields::Tuple(b)) => {
-            for field in b {
-              for f in a.iter() {
-                if field.1.name == f.1.name {
-                  panic!("Merge conflict in field!");
-                }
-              }
-              a.push(field);
-            }
-          }
-          (Fields::Named(a), Fields::Named(b)) => {
-            for mut field in b {
-              let mut conflict = false;
-              for f in a.iter() {
-                if field.name == f.name {
-                  conflict = true;
-                  break;
-                }
-              }
-
-              if conflict {
-                if let Some(prefix) = settings.conflict_prefix {
-                  field.name = format!("{}{}", prefix, field.name);
-                  a.push(field)
-                } else {
-                  panic!("Merge conflict in field!");
-                }
-              } else {
-                a.push(field);
-              }
-            }
-          }
-          (Fields::Tuple(_), Fields::Named(_)) => {
-            panic!("[ERROR] Tried to merge named field into tuple!")
-          }
-          (Fields::Named(_), Fields::Tuple(_)) => {
-            panic!("[ERROR] Tried to merge tuple field into named!")
-          }
-        }
-        Self::merge_typedef(&mut a.type_def, b.type_def);
-      }
-      (XsdElement::Enum(a), XsdElement::Enum(b)) => {
-        for variant in b.variants {
-          for v in &a.variants {
-            if variant.name == v.name {
-              panic!("Merge conflict in variant!");
-            }
-          }
-          a.variants.push(variant);
-        }
-        Self::merge_typedef(&mut a.type_def, b.type_def);
-      }
-      (XsdElement::Type(_a), XsdElement::Type(_b)) => {
-        panic!("Tried to merge type with type");
-      }
-      _ => panic!("Invalid merge"),
-    }
-
-    // Check trait impls, use current on conflict (will need to change)
-    //  Have special handling for known traits
-    // Check normal impls, raise error on conflicting names
-    // for j in other.implementation {
-    //   for i in &self.implementation {
-    //     i.fns.extend(j.fns);
-    //     i.macros.extend(j.macros);
-    //   }
-
-    //   i.fns.extend(j.fns);
-    //   i.macros.extend(j.macros);
-    // }
-
-    // Check for two things that are named the same
-    for j in other.inner {
-      for i in &self.inner {
-        assert!(match (i.element.try_get_type(), j.element.try_get_type()) {
-          (None, None) => false,
-          (None, Some(_)) => true,
-          (Some(_), None) => true,
-          (Some(a), Some(b)) => a.name != b.name,
-        });
-      }
-      self.inner.push(j);
     }
   }
 }
@@ -888,14 +709,6 @@ impl XsdContext {
     }
 
     output
-  }
-
-  pub fn has_xml_schema_prefix(&self) -> bool {
-    self.xml_schema_prefix.is_some()
-  }
-
-  pub fn match_xml_schema_prefix(&self, value: &str) -> bool {
-    self.xml_schema_prefix == Some(value.to_string())
   }
 }
 

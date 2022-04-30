@@ -3,7 +3,7 @@ use crate::{rust_codegen::Body, Block, Function, Impl, Type};
 pub fn xsdgen_impl(r#type: Type, block: Block) -> Impl {
   let mut function = Function::new("gen")
     .arg("element", Type::new(None, "&mut XMLElement"))
-    .arg("gen_state", Type::new(None, "GenState"))
+    .arg("mut gen_state", Type::new(None, "GenState"))
     .arg("name", Type::new(None, "Option<&str>"))
     .ret(Type::new(None, "Result<Self, XsdIoError>"));
   let mut skip_b = false;

@@ -191,10 +191,9 @@ impl Restriction {
 
     let mut generated_impl = if !self.enumerations.is_empty() {
       let typename = parent_name.to_struct_name();
-      let mut generated_enum =
-        Enum::new(None, &typename)
-          .vis("pub")
-          .derives(&["Clone", "Debug", "PartialEq"]);
+      let mut generated_enum = Enum::new(Some(parent_name.clone()), &typename)
+        .vis("pub")
+        .derives(&["Clone", "Debug", "PartialEq"]);
 
       let mut value = Block::default();
 
@@ -240,7 +239,7 @@ impl Restriction {
         fieldname_hint: Some(parent_name.to_field_name()),
         element: XsdElement::Struct(
           Struct::new(Some(parent_name.clone()), &parent_name.to_struct_name())
-            .tuple_field(base_type.element.get_type())
+            .tuple_field(base_type.element.get_type(), false)
             .derives(&["Clone", "Debug", "PartialEq"]),
         ),
         inner: Vec::new(),

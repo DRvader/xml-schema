@@ -16,6 +16,18 @@ impl XMLElement {
     })
   }
 
+  pub fn parse_hack(buffer: &[u8]) -> Result<Self, xmltree::ParseError> {
+    let mut element = Self::parse(buffer)?;
+
+    let mut root_element = Element::new("root");
+    root_element
+      .children
+      .push(XMLNode::Element(element.element));
+    element.element = root_element;
+
+    Ok(element)
+  }
+
   pub fn name(&self) -> &str {
     &self.element.name
   }

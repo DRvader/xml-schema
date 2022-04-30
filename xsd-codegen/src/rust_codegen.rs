@@ -130,7 +130,7 @@ pub struct Variant {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Fields {
   Empty,
-  Tuple(Vec<(Option<String>, Type)>),
+  Tuple(Vec<(Option<String>, Type, bool)>),
   Named(Vec<Field>),
 }
 
@@ -154,6 +154,9 @@ pub struct Field {
 
   /// XML NAME
   pub xml_name: Option<XsdName>,
+
+  /// Should the field and children be parsed as attributes
+  pub attribute: bool,
 }
 
 /// Defines an associated type.
@@ -788,11 +791,17 @@ impl Struct {
   ///
   /// A struct can either set named fields with this function or tuple fields
   /// with `tuple_field`, but not both.
-  pub fn field<T>(&mut self, xml_name: Option<XsdName>, name: &str, ty: T) -> &mut Self
+  pub fn field<T>(
+    &mut self,
+    xml_name: Option<XsdName>,
+    name: &str,
+    ty: T,
+    attribute: bool,
+  ) -> &mut Self
   where
     T: Into<Type>,
   {
-    self.fields.named(xml_name, name, ty);
+    self.fields.named(xml_name, name, ty, attribute);
     self
   }
 
@@ -800,11 +809,11 @@ impl Struct {
   ///
   /// A struct can either set tuple fields with this function or named fields
   /// with `field`, but not both.
-  pub fn tuple_field<T>(mut self, ty: T) -> Self
+  pub fn tuple_field<T>(mut self, ty: T, attribute: bool) -> Self
   where
     T: Into<Type>,
   {
-    self.fields.tuple(ty);
+    self.fields.tuple(ty, attribute);
     self
   }
 
@@ -1064,17 +1073,17 @@ impl Variant {
   }
 
   /// Add a named field to the variant.
-  pub fn named<T>(mut self, xml_name: Option<XsdName>, name: &str, ty: T) -> Self
+  pub fn named<T>(mut self, xml_name: Option<XsdName>, name: &str, ty: T, attribute: bool) -> Self
   where
     T: Into<Type>,
   {
-    self.fields.named(xml_name, name, ty);
+    self.fields.named(xml_name, name, ty, attribute);
     self
   }
 
   /// Add a tuple field to the variant.
-  pub fn tuple(mut self, ty: impl Into<Type>) -> Self {
-    self.fields.tuple(ty);
+  pub fn tuple(mut self, ty: impl Into<Type>, attribute: bool) -> Self {
+    self.fields.tuple(ty, attribute);
     self
   }
 
@@ -1393,7 +1402,7 @@ impl AssociatedType {
 
 impl Field {
   /// Return a field definition with the provided name and type
-  pub fn new<T>(xml_name: Option<XsdName>, name: &str, ty: T) -> Self
+  pub fn new<T>(xml_name: Option<XsdName>, name: &str, ty: T, attribute: bool) -> Self
   where
     T: Into<Type>,
   {
@@ -1403,7 +1412,8 @@ impl Field {
       vis: None,
       documentation: Vec::new(),
       annotation: Vec::new(),
-      xml_name: xml_name,
+      xml_name,
+      attribute,
     }
   }
 
@@ -1442,7 +1452,13 @@ impl Fields {
     self
   }
 
-  pub fn named<T>(&mut self, xml_name: Option<XsdName>, name: &str, ty: T) -> &mut Self
+  pub fn named<T>(
+    &mut self,
+    xml_name: Option<XsdName>,
+    name: &str,
+    ty: T,
+    attribute: bool,
+  ) -> &mut Self
   where
     T: Into<Type>,
   {
@@ -1452,20 +1468,21 @@ impl Fields {
       vis: None,
       documentation: Vec::new(),
       annotation: Vec::new(),
-      xml_name: xml_name,
+      xml_name,
+      attribute,
     })
   }
 
-  pub fn tuple_vis<T>(&mut self, vis: &str, ty: T) -> &mut Self
+  pub fn tuple_vis<T>(&mut self, vis: &str, ty: T, attribute: bool) -> &mut Self
   where
     T: Into<Type>,
   {
     match *self {
       Fields::Empty => {
-        *self = Fields::Tuple(vec![(Some(vis.to_string()), ty.into())]);
+        *self = Fields::Tuple(vec![(Some(vis.to_string()), ty.into(), attribute)]);
       }
       Fields::Tuple(ref mut fields) => {
-        fields.push((Some(vis.to_string()), ty.into()));
+        fields.push((Some(vis.to_string()), ty.into(), attribute));
       }
       _ => panic!("field list is tuple"),
     }
@@ -1473,16 +1490,16 @@ impl Fields {
     self
   }
 
-  pub fn tuple<T>(&mut self, ty: T) -> &mut Self
+  pub fn tuple<T>(&mut self, ty: T, attribute: bool) -> &mut Self
   where
     T: Into<Type>,
   {
     match *self {
       Fields::Empty => {
-        *self = Fields::Tuple(vec![(None, ty.into())]);
+        *self = Fields::Tuple(vec![(None, ty.into(), attribute)]);
       }
       Fields::Tuple(ref mut fields) => {
-        fields.push((None, ty.into()));
+        fields.push((None, ty.into(), attribute));
       }
       _ => panic!("field list is tuple"),
     }
@@ -1526,7 +1543,7 @@ impl Fields {
 
         write!(fmt, "(")?;
 
-        for (i, (vis, ty)) in tys.iter().enumerate() {
+        for (i, (vis, ty, _attribute)) in tys.iter().enumerate() {
           if i != 0 {
             write!(fmt, ", ")?;
           }
@@ -1598,7 +1615,13 @@ impl Impl {
   }
 
   /// Set an associated type.
-  pub fn associate_type<T>(&mut self, xml_name: Option<XsdName>, name: &str, ty: T) -> &mut Self
+  pub fn associate_type<T>(
+    &mut self,
+    xml_name: Option<XsdName>,
+    name: &str,
+    ty: T,
+    attribute: bool,
+  ) -> &mut Self
   where
     T: Into<Type>,
   {
@@ -1608,7 +1631,8 @@ impl Impl {
       vis: None,
       documentation: Vec::new(),
       annotation: Vec::new(),
-      xml_name: xml_name,
+      xml_name,
+      attribute,
     });
 
     self
@@ -1777,6 +1801,7 @@ impl Function {
       documentation: Vec::new(),
       annotation: Vec::new(),
       xml_name: None,
+      attribute: false,
     });
 
     self

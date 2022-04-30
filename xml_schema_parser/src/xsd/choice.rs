@@ -98,12 +98,8 @@ impl Choice {
       implementation: vec![],
     };
 
-    let mut variants = vec![];
     for imp in generated_impls {
       generated_impl.merge(imp, MergeSettings::default());
-      if let Some(field) = generated_impl.element.get_last_added_field() {
-        variants.push(field);
-      }
     }
 
     let multiple = match &self.max_occurences {

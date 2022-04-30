@@ -1,5 +1,5 @@
 use xsd_codegen::{Struct, XMLElement};
-use xsd_types::{to_field_name, XsdIoError, XsdName, XsdParseError, XsdType};
+use xsd_types::{XsdIoError, XsdName, XsdParseError, XsdType};
 
 use crate::xsd::{attribute::Attribute, sequence::Sequence, XsdContext};
 
@@ -104,7 +104,13 @@ impl Extension {
       implementation: vec![],
     };
 
-    generated_impl.merge(base_impl.to_field(), MergeSettings::default());
+    let mut base_impl = base_impl.to_field();
+    base_impl.fieldname_hint = Some(parent_name.to_field_name());
+    if let XsdElement::Field(field) = &mut base_impl.element {
+      field.name = parent_name.to_field_name();
+    }
+
+    generated_impl.merge(base_impl, MergeSettings::default());
 
     let to_merge_impl = match (&self.group, &self.sequence, &self.choice) {
       (None, None, Some(choice)) => Some(choice.get_implementation(Some(parent_name), context)),

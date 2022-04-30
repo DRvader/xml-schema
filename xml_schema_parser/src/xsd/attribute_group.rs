@@ -90,7 +90,7 @@ impl AttributeGroup {
         Ok(XsdImpl {
           name,
           element: XsdElement::Field(
-            Field::new(None, &field_name, inner.element.get_type()).vis("pub"),
+            Field::new(None, &field_name, inner.element.get_type(), true).vis("pub"),
           ),
           fieldname_hint: Some(field_name.to_string()),
           inner: vec![],
@@ -116,8 +116,6 @@ impl AttributeGroup {
           implementation: vec![],
         };
 
-        let mut fields = vec![];
-
         if let Some(reference) = &self.reference {
           // We are using a reference as a base so load the reference
           if let Some(imp) = context.search(&reference) {
@@ -129,9 +127,6 @@ impl AttributeGroup {
               implementation: vec![],
             };
             generated_struct.merge(value, MergeSettings::default());
-            if let Some(field) = generated_struct.element.get_last_added_field() {
-              fields.push(field);
-            }
           } else {
             return Err(XsdError::XsdImplNotFound(reference.clone()));
           }
@@ -142,9 +137,6 @@ impl AttributeGroup {
             attr.get_implementation(context, false)?,
             MergeSettings::ATTRIBUTE,
           );
-          if let Some(field) = generated_struct.element.get_last_added_field() {
-            fields.push(field);
-          }
         }
 
         for attr in &self.attribute_groups {
@@ -152,9 +144,6 @@ impl AttributeGroup {
             attr.get_implementation(parent_name.clone(), context)?,
             MergeSettings::default(),
           );
-          if let Some(field) = generated_struct.element.get_last_added_field() {
-            fields.push(field);
-          }
         }
 
         if let Some(doc) = &self.annotation {

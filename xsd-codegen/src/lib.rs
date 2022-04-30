@@ -37,6 +37,15 @@ pub struct GenState {
   pub state: GenType,
 }
 
+impl GenState {
+  pub fn to_attr(&self) -> Self {
+    Self {
+      is_root: self.is_root,
+      state: GenType::Attribute,
+    }
+  }
+}
+
 pub trait XsdGen
 where
   Self: Sized,
@@ -65,7 +74,7 @@ impl<T: XsdGen> XsdGen for Vec<T> {
           let mut new_state = gen_state.clone();
           new_state.is_root = false;
           element.get_children_with(name, |mut value| {
-            T::gen(&mut value, new_state.clone(), Some(name))
+            T::gen(&mut value, new_state.clone(), None)
           })?
         } else {
           return Err(XsdGenError {
@@ -106,7 +115,7 @@ impl<T: XsdGen> XsdGen for Option<T> {
           let mut new_state = gen_state.clone();
           new_state.is_root = false;
           element.try_get_child_with(name, |mut value| {
-            T::gen(&mut value, new_state.clone(), Some(name))
+            T::gen(&mut value, new_state.clone(), None)
           })?
         }
       };

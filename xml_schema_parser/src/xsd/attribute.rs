@@ -1,4 +1,4 @@
-use xsd_codegen::{Field, FromXmlString, Impl, Type, XMLElement};
+use xsd_codegen::{Field, FromXmlString, Type, XMLElement};
 use xsd_types::{XsdIoError, XsdName, XsdParseError, XsdType};
 
 use super::{
@@ -137,8 +137,8 @@ impl Attribute {
           return Err(XsdError::XsdImplNotFound(reference.clone()));
         }
       }
-      (None, Some(kind), None) => {
-        if let Some(inner) = context.search(kind) {
+      (None, Some(r#type), None) => {
+        if let Some(inner) = context.search(r#type) {
           let name = if let Some(name) = &self.name {
             name.clone()
           } else {
@@ -151,7 +151,7 @@ impl Attribute {
 
           let element = if parent_is_schema {
             XsdElement::TypeAlias(
-              Type::new(None, &name.to_struct_name()),
+              Type::new(Some(name.clone()), &name.to_struct_name()),
               inner.element.get_type(),
             )
           } else {
@@ -160,6 +160,7 @@ impl Attribute {
                 Some(name.clone()),
                 &name.to_field_name(),
                 inner.element.get_type(),
+                true,
               )
               .vis("pub"),
             )
@@ -173,7 +174,7 @@ impl Attribute {
             implementation: vec![],
           }
         } else {
-          return Err(XsdError::XsdImplNotFound(kind.clone()));
+          return Err(XsdError::XsdImplNotFound(r#type.clone()));
         }
       }
       (None, None, Some(simple_type)) => {
@@ -200,6 +201,7 @@ impl Attribute {
               Some(name.clone()),
               &name.to_field_name(),
               inner.element.get_type().path(&name.to_field_name()),
+              true,
             )
             .vis("pub"),
           )
@@ -216,17 +218,38 @@ impl Attribute {
       (_, _, _) => panic!("Not implemented Rust type for: {:?}", self),
     };
 
-    let rust_type = if self.required == Required::Optional {
-      generated_impl.element.get_type().wrap("Option")
-    } else {
-      generated_impl.element.get_type()
-    };
-
     if let Some(doc) = &self.annotation {
       generated_impl.element.add_doc(&doc.get_doc().join(""));
     }
 
-    let generated_impl = general_xsdgen(generated_impl);
+    let mut generated_impl = general_xsdgen(generated_impl);
+
+    let generated_impl = if !parent_is_schema {
+      if let Required::Optional = self.required {
+        let old_name = generated_impl.name.clone();
+        let outer_element = match generated_impl.element.clone() {
+          XsdElement::Field(field) => {
+            let mut output_type = field.ty.wrap("Option");
+            output_type.xml_name = field.xml_name;
+            output_type
+          }
+          element => element.get_type().wrap("Option"),
+        };
+        generated_impl.name.local_name = format!("inner-{}", old_name.local_name);
+        let output = XsdImpl {
+          name: old_name.clone(),
+          fieldname_hint: Some(generated_impl.fieldname_hint.clone().unwrap()),
+          element: XsdElement::Type(outer_element),
+          inner: vec![generated_impl],
+          implementation: vec![],
+        };
+        output
+      } else {
+        generated_impl
+      }
+    } else {
+      generated_impl
+    };
 
     Ok(generated_impl)
   }

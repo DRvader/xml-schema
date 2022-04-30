@@ -125,16 +125,20 @@ impl ComplexType {
       &self.simple_content,
       &self.group,
       &self.sequence,
+      &self.choice,
     ) {
-      (Some(complex_content), None, None, None) => {
+      (Some(complex_content), None, None, None, None) => {
         Some(complex_content.get_implementation(xml_name.unwrap(), context)?)
       }
-      (None, Some(simple_content), None, None) => {
+      (None, Some(simple_content), None, None, None) => {
         Some(simple_content.get_implementation(xml_name.unwrap(), context)?)
       }
-      (None, None, Some(group), None) => Some(group.get_implementation(xml_name, context)?),
-      (None, None, None, Some(sequence)) => Some(sequence.get_implementation(xml_name, context)?),
-      (None, None, None, None) => None,
+      (None, None, Some(group), None, None) => Some(group.get_implementation(xml_name, context)?),
+      (None, None, None, Some(sequence), None) => {
+        Some(sequence.get_implementation(xml_name, context)?)
+      }
+      (None, None, None, None, Some(choice)) => Some(choice.get_implementation(xml_name, context)?),
+      (None, None, None, None, None) => None,
       _ => unreachable!("Xsd is invalid."),
     };
 

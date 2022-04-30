@@ -4,7 +4,6 @@ use xsd_types::{to_field_name, XsdIoError, XsdName, XsdParseError, XsdType};
 use super::{
   annotation::Annotation,
   choice::Choice,
-  general_xsdgen,
   max_occurences::MaxOccurences,
   sequence::Sequence,
   xsd_context::{XsdContext, XsdElement, XsdImpl},
@@ -111,13 +110,9 @@ impl Group {
         XsdImpl {
           name,
           element: XsdElement::Field(
-            Field::new(
-              Some(inner.name.clone()),
-              &field_name,
-              inner.element.get_type(),
-            )
-            .vis("pub")
-            .to_owned(),
+            Field::new(None, &field_name, inner.element.get_type(), false)
+              .vis("pub")
+              .to_owned(),
           ),
           fieldname_hint: Some(field_name.to_string()),
           inner: vec![],

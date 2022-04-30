@@ -1,4 +1,4 @@
-use xsd_codegen::{fromxml_impl, Block, Struct, XMLElement};
+use xsd_codegen::{fromxml_impl, Block, Struct, Type, XMLElement};
 use xsd_types::{XsdIoError, XsdName, XsdType};
 
 use crate::xsd::XsdContext;
@@ -45,7 +45,7 @@ impl List {
 
     let generated_struct = Struct::new(Some(name.clone()), &struct_name)
       .vis("pub")
-      .tuple_field(format!("Vec<{}>", list_type))
+      .tuple_field(Type::new(None, &list_type).wrap("Vec"), false)
       .derives(&["Clone", "Debug", "PartialEq"]);
 
     let from_xml = fromxml_impl(

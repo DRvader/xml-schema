@@ -65,7 +65,7 @@ impl<T: XsdGen> XsdGen for Vec<T> {
   ) -> Result<Self, XsdIoError> {
     let output = match gen_state.state {
       GenType::Attribute => {
-        vec![T::gen(element, gen_state.clone(), name)?]
+        vec![T::gen(element, gen_state, name)?]
       }
       GenType::Content => {
         if let Some(name) = name {
@@ -124,7 +124,7 @@ impl<T: XsdGen> XsdGen for Option<T> {
       let mut output = None;
 
       let mut last_element = element.clone();
-      if let Ok(value) = T::gen(element, gen_state.clone(), None) {
+      if let Ok(value) = T::gen(element, gen_state, None) {
         output = Some(value);
         last_element = element.clone();
       }

@@ -124,7 +124,8 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
           )
           .line("Ok(Self)"),
         xsd_codegen::Fields::Tuple(fields) => {
-          let mut self_gen = Block::new("let gen_self = |element: &mut XMLElement|");
+          let mut self_gen =
+            Block::new("let gen_self = |element: &mut XMLElement, name: Option<&str>|");
           self_gen = self_gen.line("Ok(Self (");
           for TupleField {
             ty: field,
@@ -160,12 +161,13 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
             .push_block(self_gen)
             .push_block(
               Block::new("if let (Some(name), GenType::Content) = (name, gen_state.state)")
-                .line("element.get_child_with(name, |mut element| gen_self(&mut element))"),
+                .line("element.get_child_with(name, |mut element| gen_self(&mut element, None))"),
             )
-            .push_block(Block::new("else").line("gen_self(element)"))
+            .push_block(Block::new("else").line("gen_self(element, name)"))
         }
         xsd_codegen::Fields::Named(fields) => {
-          let self_gen = Block::new("let gen_self = |element: &mut XMLElement|");
+          let self_gen =
+            Block::new("let gen_self = |element: &mut XMLElement, name: Option<&str>|");
           let mut inner_block = Block::new("Ok(Self");
           for field in fields {
             let new_gen_state = if field.attribute {
@@ -196,9 +198,9 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
             .push_block(self_gen)
             .push_block(
               Block::new("if let (Some(name), GenType::Content) = (name, gen_state.state)")
-                .line("element.get_child_with(name, |mut element| gen_self(&mut element))"),
+                .line("element.get_child_with(name, |mut element| gen_self(&mut element, None))"),
             )
-            .push_block(Block::new("else").line("gen_self(element)"))
+            .push_block(Block::new("else").line("gen_self(element, name)"))
         }
       }
     }

@@ -59,24 +59,30 @@ impl XMLElement {
     }
   }
 
-  fn get_children(&mut self, name: &str) -> Vec<XMLElement> {
+  fn get_children(&mut self, name: &str, max_children: Option<usize>) -> Vec<XMLElement> {
     let mut output = Vec::new();
     while let Some(child) = self.element.take_child(name) {
       output.push(XMLElement {
         element: child,
         default_namespace: self.default_namespace.clone(),
       });
+
+      if let Some(max) = max_children {
+        if output.len() >= max {
+          break;
+        }
+      }
     }
 
     output
   }
 
   fn get_child(&mut self, name: &str) -> Result<XMLElement, XsdIoError> {
-    let mut output = self.get_children(name);
+    let mut output = self.get_children(name, Some(1));
     if output.len() != 1 {
       return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: self.node_name(),
-        msg: format!("Expected 1 child named {} found {}", name, output.len(),),
+        msg: format!("Expected 1 child named {} found 0", name),
       }));
     }
 
@@ -84,7 +90,7 @@ impl XMLElement {
   }
 
   pub fn try_get_child(&mut self, name: &str) -> Result<Option<XMLElement>, XsdIoError> {
-    let mut output = self.get_children(name);
+    let mut output = self.get_children(name, Some(1));
     if output.len() > 1 {
       return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: self.node_name(),
@@ -109,7 +115,7 @@ impl XMLElement {
     func: impl Fn(XMLElement) -> Result<Option<T>, XsdIoError>,
   ) -> Result<Vec<T>, XsdIoError> {
     let mut output = Vec::new();
-    for child in self.get_children(name) {
+    for child in self.get_children(name, None) {
       if let Some(child) = func(child)? {
         output.push(child);
       }

@@ -162,6 +162,8 @@ impl XMLElement {
       }
     }
 
+    output.reverse();
+
     output
   }
 

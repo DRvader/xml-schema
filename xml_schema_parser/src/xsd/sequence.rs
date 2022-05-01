@@ -70,7 +70,7 @@ impl Sequence {
       generated_impls.push(choice.get_implementation(None, context)?);
     }
 
-    let mut xml_name = if let Some(parent_name) = parent_name {
+    let mut xml_name = if let Some(parent_name) = parent_name.clone() {
       parent_name
     } else {
       let inferred_name = infer_type_name(&generated_impls);
@@ -92,6 +92,7 @@ impl Sequence {
       ),
       inner: vec![],
       implementation: vec![],
+      flatten: parent_name.is_none(),
     };
 
     for imp in generated_impls {
@@ -117,6 +118,7 @@ impl Sequence {
         name: old_name,
         fieldname_hint: Some(generated_impl.fieldname_hint.clone().unwrap()),
         element: XsdElement::Type(generated_impl.element.get_type().wrap("Vec")),
+        flatten: generated_impl.flatten,
         inner: vec![generated_impl],
         implementation: vec![],
       }
@@ -127,6 +129,7 @@ impl Sequence {
         name: old_name,
         fieldname_hint: Some(generated_impl.fieldname_hint.clone().unwrap()),
         element: XsdElement::Type(generated_impl.element.get_type().wrap("Option")),
+        flatten: generated_impl.flatten,
         inner: vec![generated_impl],
         implementation: vec![],
       }

@@ -101,7 +101,7 @@ impl Group {
           to_field_name(&inner.infer_type_name())
         };
 
-        let mut name = if let Some(parent_name) = parent_name {
+        let mut name = if let Some(parent_name) = parent_name.clone() {
           parent_name
         } else {
           XsdName {
@@ -128,6 +128,7 @@ impl Group {
           fieldname_hint: Some(field_name.to_string()),
           inner: vec![],
           implementation: vec![],
+          flatten: true,
         }
       }
       _ => unreachable!("The Xsd is invalid!"),

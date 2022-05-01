@@ -73,16 +73,12 @@ impl Choice {
     } else {
       XsdName {
         namespace: None,
-        local_name: inferred_name.clone(),
+        local_name: inferred_name,
         ty: XsdType::Choice,
       }
     };
 
-    let struct_name = if let Some(parent_name) = parent_name {
-      parent_name.local_name
-    } else {
-      inferred_name
-    };
+    let struct_name = xml_name.local_name.clone();
     let struct_name = to_struct_name(&struct_name);
 
     let mut generated_impl = XsdImpl {
@@ -95,6 +91,7 @@ impl Choice {
       ),
       inner: vec![],
       implementation: vec![],
+      flatten: parent_name.is_none(),
     };
 
     for imp in generated_impls {
@@ -122,6 +119,7 @@ impl Choice {
         element: XsdElement::Type(generated_impl.element.get_type().wrap("Vec")),
         inner: vec![generated_impl],
         implementation: vec![],
+        flatten: false,
       }
     } else if option {
       let old_name = generated_impl.name.clone();
@@ -132,6 +130,7 @@ impl Choice {
         element: XsdElement::Type(generated_impl.element.get_type().wrap("Option")),
         inner: vec![generated_impl],
         implementation: vec![],
+        flatten: false,
       }
     } else {
       generated_impl

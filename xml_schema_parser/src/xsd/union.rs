@@ -57,6 +57,7 @@ impl Union {
       ),
       implementation: vec![],
       inner: vec![],
+      flatten: false,
     };
 
     for member in &self.member_types {

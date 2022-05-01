@@ -132,6 +132,7 @@ impl Attribute {
             fieldname_hint: Some(name.to_field_name()),
             inner: vec![],
             implementation: vec![],
+            flatten: self.name.is_none(),
           }
         } else {
           return Err(XsdError::XsdImplNotFound(reference.clone()));
@@ -173,6 +174,7 @@ impl Attribute {
             fieldname_hint: Some(name.to_field_name()),
             inner: vec![],
             implementation: vec![],
+            flatten: false,
           }
         } else {
           return Err(XsdError::XsdImplNotFound(r#type.clone()));
@@ -215,6 +217,7 @@ impl Attribute {
           fieldname_hint: Some(name.to_field_name()),
           inner: vec![inner],
           implementation: vec![],
+          flatten: false,
         }
       }
       (_, _, _) => panic!("Not implemented Rust type for: {:?}", self),
@@ -244,6 +247,7 @@ impl Attribute {
           element: XsdElement::Type(outer_element),
           inner: vec![generated_impl],
           implementation: vec![],
+          flatten: false,
         }
       } else {
         generated_impl

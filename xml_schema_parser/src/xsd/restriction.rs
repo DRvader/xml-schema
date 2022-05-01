@@ -1,6 +1,4 @@
-use xsd_codegen::{
-  fromxml_impl, xsdgen_impl, Block, Enum, FromXmlString, Struct, Variant, XMLElement,
-};
+use xsd_codegen::{fromxml_impl, Block, Enum, FromXmlString, Struct, Variant, XMLElement};
 use xsd_types::{to_struct_name, XsdIoError, XsdName, XsdParseError, XsdType};
 
 use super::{
@@ -213,6 +211,7 @@ impl Restriction {
         element: XsdElement::Enum(generated_enum),
         inner: Vec::new(),
         implementation: vec![enum_impl],
+        flatten: false,
       }
     } else {
       let mut ty = base_type.element.get_type();
@@ -227,6 +226,7 @@ impl Restriction {
         ),
         inner: vec![],
         implementation: vec![],
+        flatten: false,
       }
     };
 

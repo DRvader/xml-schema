@@ -128,6 +128,7 @@ impl Element {
               element: XsdElement::Type(ty),
               inner: vec![],
               implementation: vec![],
+              flatten: false,
             }
           }
           super::xsd_context::SearchResult::MultipleMatches => {
@@ -154,6 +155,7 @@ impl Element {
           ),
           inner: vec![],
           implementation: vec![],
+          flatten: false,
         });
       }
       _ => {
@@ -195,6 +197,7 @@ impl Element {
         element: XsdElement::Type(field_type),
         inner,
         implementation: vec![],
+        flatten: false,
       }
     } else {
       generated_struct

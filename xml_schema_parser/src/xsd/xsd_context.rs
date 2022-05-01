@@ -87,6 +87,7 @@ pub struct XsdImpl {
   pub element: XsdElement,
   pub inner: Vec<XsdImpl>,
   pub implementation: Vec<Impl>,
+  pub flatten: bool,
 }
 
 pub enum MergeType {
@@ -241,6 +242,7 @@ impl XsdImpl {
         ),
         inner: vec![],
         implementation: vec![],
+        flatten: self.flatten,
       }
     }
   }
@@ -274,7 +276,8 @@ impl XsdImpl {
     let children_are_attributes =
       matches!(other.name.ty, XsdType::Attribute | XsdType::AttributeGroup);
 
-    let flatten_children = matches!(other.name.ty, XsdType::Group | XsdType::AttributeGroup);
+    let flatten_children =
+      matches!(other.name.ty, XsdType::Group | XsdType::AttributeGroup) || other.flatten;
 
     match &mut self.element {
       XsdElement::Struct(a) => match &other.element {
@@ -605,6 +608,7 @@ impl XsdContext {
                 element: XsdElement::Type(Type::new(None, ty)),
                 inner: vec![],
                 implementation: vec![],
+                flatten: false,
               };
 
               (xsd_name, imp)

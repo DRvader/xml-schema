@@ -64,6 +64,7 @@ impl List {
       element: XsdElement::Struct(generated_struct),
       inner: vec![],
       implementation: vec![from_xml],
+      flatten: false,
     })
   }
 }

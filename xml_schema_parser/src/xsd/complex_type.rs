@@ -116,6 +116,7 @@ impl ComplexType {
       fieldname_hint: None,
       implementation: vec![],
       inner: vec![],
+      flatten: false,
     };
 
     let inner_impl = match (

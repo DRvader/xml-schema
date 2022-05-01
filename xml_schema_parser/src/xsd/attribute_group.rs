@@ -95,6 +95,7 @@ impl AttributeGroup {
           fieldname_hint: Some(field_name.to_string()),
           inner: vec![],
           implementation: vec![],
+          flatten: true,
         })
       }
       (_, None) => {
@@ -113,6 +114,7 @@ impl AttributeGroup {
           ),
           inner: vec![],
           implementation: vec![],
+          flatten: true,
         };
 
         if let Some(reference) = &self.reference {
@@ -124,6 +126,7 @@ impl AttributeGroup {
               element: XsdElement::Type(imp.element.get_type()),
               inner: vec![],
               implementation: vec![],
+              flatten: true,
             };
             generated_struct.merge(value, MergeSettings::default());
           } else {

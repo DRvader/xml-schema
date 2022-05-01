@@ -101,6 +101,7 @@ impl Extension {
       element: XsdElement::Struct(Struct::new(None, &parent_name.to_struct_name()).vis("pub")),
       inner: vec![],
       implementation: vec![],
+      flatten: false,
     };
 
     let mut base_impl = base_impl.to_field();

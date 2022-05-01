@@ -37,17 +37,23 @@ impl Group {
     let choice = element.try_get_child_with("choice", Choice::parse)?;
 
     if name.is_some() && refers.is_some() {
-      return Err(XsdParseError {
-        node_name: element.node_name(),
-        msg: format!("name and ref cannot both present",),
-      })?;
+      return Err(
+        XsdParseError {
+          node_name: element.node_name(),
+          msg: "name and ref cannot both present".to_string(),
+        }
+        .into(),
+      );
     }
 
     if sequence.is_some() && choice.is_some() {
-      return Err(XsdParseError {
-        node_name: element.node_name(),
-        msg: format!("sequence and choice cannot both present in"),
-      })?;
+      return Err(
+        XsdParseError {
+          node_name: element.node_name(),
+          msg: "sequence and choice cannot both present in".to_string(),
+        }
+        .into(),
+      );
     }
 
     let output = Self {
@@ -108,11 +114,16 @@ impl Group {
         name.ty = XsdType::Group;
 
         XsdImpl {
-          name,
+          name: name.clone(),
           element: XsdElement::Field(
-            Field::new(None, &field_name, inner.element.get_type(), false, true)
-              .vis("pub")
-              .to_owned(),
+            Field::new(
+              Some(name),
+              &field_name,
+              inner.element.get_type(),
+              false,
+              true,
+            )
+            .vis("pub"),
           ),
           fieldname_hint: Some(field_name.to_string()),
           inner: vec![],
@@ -121,6 +132,10 @@ impl Group {
       }
       _ => unreachable!("The Xsd is invalid!"),
     };
+
+    if let Some(annotation) = &self.annotation {
+      gen.element.add_doc(&annotation.get_doc().join("\n"));
+    }
 
     gen.name.ty = XsdType::Group;
 

@@ -5,8 +5,8 @@ mod xml_element;
 use std::collections::BTreeMap;
 
 pub use rust_codegen::{
-  Block, Enum, Field, Fields, Formatter, Function, Impl, Item, Module, Struct, Type, TypeDef,
-  Variant,
+  Block, Enum, Field, Fields, Formatter, Function, Impl, Item, Module, Struct, TupleField, Type,
+  TypeDef, Variant,
 };
 pub use xml_element::XMLElement;
 use xsd_types::{XsdGenError, XsdIoError};
@@ -141,26 +141,22 @@ impl<T: FromXmlString> XsdGen for T {
     gen_state: GenState,
     name: Option<&str>,
   ) -> Result<Self, XsdIoError> {
-    if let Some(name) = name {
-      let output = match gen_state.state {
-        GenType::Attribute => element.get_attribute(name),
-        GenType::Content => element.get_content(),
-      };
-
-      // if gen_state.is_root {
-      //   element.finalize(false, false)?;
-      // }
-
-      output
-    } else {
-      return Err(XsdGenError {
-        node_name: element.node_name(),
-        ty: xsd_types::XsdType::Unknown,
-        msg: format!(
-          "Expected node name to parse {} implementing FromXmlString got None.",
-          std::any::type_name::<T>()
-        ),
-      })?;
+    match gen_state.state {
+      GenType::Attribute => {
+        if let Some(name) = name {
+          element.get_attribute(name)
+        } else {
+          return Err(XsdGenError {
+            node_name: element.node_name(),
+            ty: xsd_types::XsdType::Unknown,
+            msg: format!(
+              "Expected node name to parse {} attribute implementing FromXmlString got None.",
+              std::any::type_name::<T>()
+            ),
+          })?;
+        }
+      }
+      GenType::Content => element.get_content(),
     }
   }
 }

@@ -1,6 +1,4 @@
-use xsd_codegen::{
-  xsdgen_impl, Block, Enum, FromXmlString, Function, Impl, Struct, Variant, XMLElement,
-};
+use xsd_codegen::{xsdgen_impl, Block, Enum, FromXmlString, Struct, Variant, XMLElement};
 use xsd_types::{to_struct_name, XsdIoError, XsdName, XsdParseError, XsdType};
 
 use super::{
@@ -107,28 +105,22 @@ impl Restriction {
         {
           return Err(XsdParseError {
             node_name: element.node_name(),
-            msg: format!(
-            "choice | group | sequence | attribute | attributeGroup cannot be present in node when the parent is a simple type.",
-          )})?;
+            msg: "choice | group | sequence | attribute | attributeGroup cannot be present in node when the parent is a simple type.".to_string()}.into());
         }
       }
       RestrictionParentType::ComplexContent => {
         if choice.is_some() as u8 + group.is_some() as u8 + sequence.is_some() as u8 > 1 {
           return Err(XsdParseError {
             node_name: element.node_name(),
-            msg: format!(
-              "choice | group | sequence may be present in node when the parent is complex content.",
-            ),
-          })?;
+            msg: "choice | group | sequence may be present in node when the parent is complex content.".to_string(),
+          }.into());
         }
       }
       RestrictionParentType::SimpleContent => {
         if choice.is_some() || group.is_some() || sequence.is_some() {
           return Err(XsdParseError {
             node_name: element.node_name(),
-            msg: format!(
-            "choice | group | sequence cannot be present in node when the parent is a simple content.",
-          )})?;
+            msg: "choice | group | sequence cannot be present in node when the parent is a simple content.".to_string()}.into());
         }
       }
     }
@@ -239,7 +231,7 @@ impl Restriction {
         fieldname_hint: Some(parent_name.to_field_name()),
         element: XsdElement::Struct(
           Struct::new(Some(parent_name.clone()), &parent_name.to_struct_name())
-            .tuple_field(base_type.element.get_type(), false)
+            .tuple_field(base_type.element.get_type(), false, false)
             .derives(&["Clone", "Debug", "PartialEq"]),
         ),
         inner: Vec::new(),

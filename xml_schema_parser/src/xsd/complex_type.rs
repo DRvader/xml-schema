@@ -47,7 +47,7 @@ impl ComplexType {
     if simple_content.is_some() && complex_content.is_some() {
       return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
-        msg: format!("simpleContent | complexContent cannot both present",),
+        msg: "simpleContent | complexContent cannot both present".to_string(),
       }));
     }
 
@@ -58,15 +58,13 @@ impl ComplexType {
         || choice.is_some()
         || sequence.is_some())
     {
-      return Err(XsdIoError::XsdParseError(XsdParseError {node_name: element.node_name(), msg: format!(
-        "(simpleContent | complexContent) and (group | choice | sequence | attribute | attributeGroup) cannot both present",
-      )}));
+      return Err(XsdIoError::XsdParseError(XsdParseError {node_name: element.node_name(), msg: "(simpleContent | complexContent) and (group | choice | sequence | attribute | attributeGroup) cannot both present".to_string()}));
     }
 
     if group.is_some() as u8 + choice.is_some() as u8 + sequence.is_some() as u8 > 1 {
       return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
-        msg: format!("group | choice | sequence cannot all be present"),
+        msg: "group | choice | sequence cannot all be present".to_string(),
       }));
     }
 
@@ -104,7 +102,7 @@ impl ComplexType {
         local_name: v.local_name.clone(),
         ty: XsdType::ComplexType,
       })
-      .or_else(|| parent_name);
+      .or(parent_name);
 
     let xml_name = struct_id.clone();
 

@@ -60,7 +60,7 @@ impl Attribute {
     if name.is_some() && reference.is_some() {
       return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
-        msg: format!("name and ref cannot both present"),
+        msg: "name and ref cannot both present".to_string(),
       }));
     }
 
@@ -76,14 +76,14 @@ impl Attribute {
     if reference.is_some() && (simple_type.is_some() || r#type.is_some()) {
       return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
-        msg: format!("type | simpleType cannot be present when ref is present",),
+        msg: "type | simpleType cannot be present when ref is present".to_string(),
       }));
     }
 
     if simple_type.is_some() && r#type.is_some() {
       return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
-        msg: format!("simpleType and type cannot both present"),
+        msg: "simpleType and type cannot both present".to_string(),
       }));
     }
 
@@ -115,7 +115,7 @@ impl Attribute {
       self.simple_type.as_ref(),
     ) {
       (Some(reference), None, None) => {
-        if let Some(inner) = context.search(&reference) {
+        if let Some(inner) = context.search(reference) {
           let name = if let Some(name) = &self.name {
             name.clone()
           } else {
@@ -161,6 +161,7 @@ impl Attribute {
                 &name.to_field_name(),
                 inner.element.get_type(),
                 true,
+                false,
               )
               .vis("pub"),
             )
@@ -202,6 +203,7 @@ impl Attribute {
               &name.to_field_name(),
               inner.element.get_type().path(&name.to_field_name()),
               true,
+              false,
             )
             .vis("pub"),
           )
@@ -236,14 +238,13 @@ impl Attribute {
           element => element.get_type().wrap("Option"),
         };
         generated_impl.name.local_name = format!("inner-{}", old_name.local_name);
-        let output = XsdImpl {
-          name: old_name.clone(),
+        XsdImpl {
+          name: old_name,
           fieldname_hint: Some(generated_impl.fieldname_hint.clone().unwrap()),
           element: XsdElement::Type(outer_element),
           inner: vec![generated_impl],
           implementation: vec![],
-        };
-        output
+        }
       } else {
         generated_impl
       }

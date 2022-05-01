@@ -60,7 +60,7 @@ impl Union {
     };
 
     for member in &self.member_types {
-      if let Some(imp) = context.search(&member) {
+      if let Some(imp) = context.search(member) {
         generated_impl.merge(imp.to_field(), MergeSettings::default());
       } else {
         return Err(XsdError::XsdImplNotFound(parent_name));

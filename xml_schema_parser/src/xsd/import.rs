@@ -23,10 +23,9 @@ impl Import {
 
   pub fn get_implementation(&self, context: &mut XsdContext) -> Result<(), XsdError> {
     let mut xsd = Xsd::new_from_file(self.schema_location.as_ref().unwrap())?;
-    let top_level_names = xsd.schema.fill_context(
-      &mut xsd.context,
-      self.namespace.as_ref().map(|v| v.as_str()),
-    )?;
+    let top_level_names = xsd
+      .schema
+      .fill_context(&mut xsd.context, self.namespace.as_deref())?;
 
     for name in top_level_names {
       let gen = xsd.context.remove_impl(&name).unwrap();

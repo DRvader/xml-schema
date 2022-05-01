@@ -23,7 +23,7 @@ mod xsd_context;
 use std::fs;
 use thiserror::Error;
 use xml::namespace::{NS_XML_PREFIX, NS_XML_URI};
-use xsd_codegen::{xsdgen_impl, Block, XMLElement};
+use xsd_codegen::{xsdgen_impl, Block, TupleField, XMLElement};
 use xsd_context::XsdContext;
 use xsd_types::{XsdIoError, XsdName};
 
@@ -126,20 +126,32 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
         xsd_codegen::Fields::Tuple(fields) => {
           let mut self_gen = Block::new("let gen_self = |element: &mut XMLElement|");
           self_gen = self_gen.line("Ok(Self (");
-          for (_, field, attribute, flatten) in fields {
+          for TupleField {
+            ty: field,
+            attribute,
+            flatten,
+            ..
+          } in fields
+          {
             let new_gen_state = if *attribute {
               "gen_state.to_attr()"
             } else {
               "gen_state.clone()"
             };
-            self_gen = self_gen.line(format!(
-              "<{} as XsdGen>::gen(element, {new_gen_state}, {})?,",
-              field.to_string(),
+
+            let next_xml_name = if *flatten {
+              "None".to_string()
+            } else {
               field
                 .xml_name
                 .as_ref()
                 .map(|v| format!("Some(\"{}\")", v))
-                .unwrap_or_else(|| "None".to_string())
+                .unwrap_or_else(|| "name".to_string())
+            };
+
+            self_gen = self_gen.line(format!(
+              "<{} as XsdGen>::gen(element, {new_gen_state}, {next_xml_name})?,",
+              field.to_string(),
             ));
           }
           let self_gen = self_gen.line("))").after(";");
@@ -161,15 +173,21 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
             } else {
               "gen_state.clone()"
             };
-            inner_block = inner_block.line(format!(
-              "{}: <{} as XsdGen>::gen(element, {new_gen_state}, {})?,",
-              field.name,
-              field.ty.to_string(),
+
+            let next_xml_name = if field.flatten {
+              "None".to_string()
+            } else {
               field
                 .xml_name
                 .as_ref()
                 .map(|v| format!("Some(\"{}\")", v))
-                .unwrap_or_else(|| "None".to_string())
+                .unwrap_or_else(|| "name".to_string())
+            };
+
+            inner_block = inner_block.line(format!(
+              "{}: <{} as XsdGen>::gen(element, {new_gen_state}, {next_xml_name})?,",
+              field.name,
+              field.ty.to_string()
             ));
           }
           let self_gen = self_gen.push_block(inner_block.after(")")).after(";");
@@ -202,23 +220,37 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
             )
             .line(format!("Ok(Self::{})", &variant.name)),
           xsd_codegen::Fields::Tuple(fields) => {
-            for (index, (_, field, attribute)) in fields.iter().enumerate() {
+            for (
+              index,
+              TupleField {
+                ty: field,
+                attribute,
+                flatten,
+                ..
+              },
+            ) in fields.iter().enumerate()
+            {
               let new_gen_state = if *attribute {
                 "gen_state.to_attr()"
               } else {
                 "gen_state.clone()"
               };
 
-              let variant_res_name = format!("attempt_{}_{}", variant_index, index);
-              block = block.line(format!(
-                "let {} = <{} as XsdGen>::gen(element, {new_gen_state}, {});",
-                variant_res_name,
-                field.to_string(),
+              let next_xml_name = if *flatten {
+                "None".to_string()
+              } else {
                 field
                   .xml_name
                   .as_ref()
                   .map(|v| format!("Some(\"{}\")", v))
-                  .unwrap_or_else(|| "None".to_string())
+                  .unwrap_or_else(|| "name".to_string())
+              };
+
+              let variant_res_name = format!("attempt_{}_{}", variant_index, index);
+              block = block.line(format!(
+                "let {} = <{} as XsdGen>::gen(element, {new_gen_state}, {next_xml_name});",
+                variant_res_name,
+                field.to_string(),
               ));
 
               variant_resolution_results.push((variant_res_name, variant.name.clone()));
@@ -234,15 +266,20 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
                 "gen_state.clone()"
               };
 
-              inner_block = inner_block.line(format!(
-                "{}: <{} as XsdGen>::gen(element, {new_gen_state}, {})?,",
-                field.name,
-                field.ty.to_string(),
+              let next_xml_name = if field.flatten {
+                "None".to_string()
+              } else {
                 field
                   .xml_name
                   .as_ref()
                   .map(|v| format!("Some(\"{}\")", v))
-                  .unwrap_or_else(|| "None".to_string())
+                  .unwrap_or_else(|| "name".to_string())
+              };
+
+              inner_block = inner_block.line(format!(
+                "{}: <{} as XsdGen>::gen(element, {new_gen_state}, {next_xml_name})?,",
+                field.name,
+                field.ty.to_string(),
               ));
             }
             block.push_block(inner_block.after(")"))

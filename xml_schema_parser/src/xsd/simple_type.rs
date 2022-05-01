@@ -27,10 +27,13 @@ impl SimpleType {
     let union = element.try_get_child_with("union", Union::parse)?;
 
     if restriction.is_some() as u8 + list.is_some() as u8 + union.is_some() as u8 > 1 {
-      return Err(XsdParseError {
-        node_name: element.node_name(),
-        msg: format!("Two of (extension | restriction | union) cannot be present"),
-      })?;
+      return Err(
+        XsdParseError {
+          node_name: element.node_name(),
+          msg: "Two of (extension | restriction | union) cannot be present".to_string(),
+        }
+        .into(),
+      );
     }
 
     let name = element
@@ -38,15 +41,22 @@ impl SimpleType {
       .map(|v: String| element.new_name(&v, XsdType::SimpleType));
 
     if parent_is_schema && name.is_none() {
-      return Err(XsdParseError {
-        node_name: element.node_name(),
-        msg: format!("The name attribute is required if the parent node is a schema.",),
-      })?;
+      return Err(
+        XsdParseError {
+          node_name: element.node_name(),
+          msg: "The name attribute is required if the parent node is a schema.".to_string(),
+        }
+        .into(),
+      );
     } else if !parent_is_schema && name.is_some() {
-      return Err(XsdParseError {
-        node_name: element.node_name(),
-        msg: format!("The name attribute is not allowed if the parent of node is not a schema.",),
-      })?;
+      return Err(
+        XsdParseError {
+          node_name: element.node_name(),
+          msg: "The name attribute is not allowed if the parent of node is not a schema."
+            .to_string(),
+        }
+        .into(),
+      );
     }
 
     let output = Self {

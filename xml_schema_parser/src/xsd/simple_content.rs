@@ -25,10 +25,13 @@ impl SimpleContent {
     let extension = element.try_get_child_with("extension", Extension::parse)?;
 
     if restriction.is_some() && extension.is_some() {
-      return Err(XsdParseError {
-        node_name: element.node_name(),
-        msg: format!("extension and restriction cannot both present",),
-      })?;
+      return Err(
+        XsdParseError {
+          node_name: element.node_name(),
+          msg: "extension and restriction cannot both present".to_string(),
+        }
+        .into(),
+      );
     }
 
     let output = Self {

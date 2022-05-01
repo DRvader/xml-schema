@@ -61,7 +61,7 @@ impl List {
         ..name.clone()
       },
       fieldname_hint: Some(name.to_field_name()),
-      element: XsdElement::Struct(generated_struct.clone()),
+      element: XsdElement::Struct(generated_struct),
       inner: vec![],
       implementation: vec![from_xml],
     })

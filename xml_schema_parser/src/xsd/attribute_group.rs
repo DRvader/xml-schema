@@ -33,7 +33,7 @@ impl AttributeGroup {
     if name.is_some() && reference.is_some() {
       return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
-        msg: format!("name and ref both present"),
+        msg: "name and ref both present".to_string(),
       }));
     }
 
@@ -90,7 +90,7 @@ impl AttributeGroup {
         Ok(XsdImpl {
           name,
           element: XsdElement::Field(
-            Field::new(None, &field_name, inner.element.get_type(), true).vis("pub"),
+            Field::new(None, &field_name, inner.element.get_type(), true, true).vis("pub"),
           ),
           fieldname_hint: Some(field_name.to_string()),
           inner: vec![],
@@ -101,8 +101,7 @@ impl AttributeGroup {
         let xml_name = self
           .name
           .clone()
-          .unwrap_or_else(|| parent_name.as_ref().unwrap().clone())
-          .clone();
+          .unwrap_or_else(|| parent_name.as_ref().unwrap().clone());
 
         let mut generated_struct = XsdImpl {
           name: xml_name.clone(),
@@ -118,7 +117,7 @@ impl AttributeGroup {
 
         if let Some(reference) = &self.reference {
           // We are using a reference as a base so load the reference
-          if let Some(imp) = context.search(&reference) {
+          if let Some(imp) = context.search(reference) {
             let value = XsdImpl {
               name: reference.clone(),
               fieldname_hint: Some(reference.to_field_name()),

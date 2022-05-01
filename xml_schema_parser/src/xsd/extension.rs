@@ -41,16 +41,15 @@ impl Extension {
     {
       return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
-        msg: format!(
-          "(group | choice | sequence) and (attribute | attributeGroup) cannot both present",
-        ),
+        msg: "(group | choice | sequence) and (attribute | attributeGroup) cannot both present"
+          .to_string(),
       }));
     }
 
     if group.is_some() as u8 + choice.is_some() as u8 + sequence.is_some() as u8 > 1 {
       return Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: element.node_name(),
-        msg: format!("group | choice | sequence cannot all be present",),
+        msg: "group | choice | sequence cannot all be present".to_string(),
       }));
     }
 
@@ -88,7 +87,7 @@ impl Extension {
       super::xsd_context::SearchResult::MultipleMatches => {
         return Err(XsdError::ContextSearchError {
           name: self.base.clone(),
-          msg: format!("found both a simple and complex type"),
+          msg: "found both a simple and complex type".to_string(),
         });
       }
       super::xsd_context::SearchResult::NoMatches => {

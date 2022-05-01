@@ -1,6 +1,5 @@
-use std::{io::prelude::*, str::FromStr};
-use xml::reader::XmlEvent;
 use xsd_codegen::FromXmlString;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum MaxOccurences {
   Unbounded,

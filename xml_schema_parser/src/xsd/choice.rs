@@ -89,10 +89,9 @@ impl Choice {
       fieldname_hint: Some(xml_name.to_field_name()),
       name: xml_name.clone(),
       element: XsdElement::Enum(
-        Enum::new(Some(xml_name.clone()), &struct_name)
+        Enum::new(Some(xml_name), &struct_name)
           .derives(&["Clone", "Debug", "PartialEq"])
-          .vis("pub")
-          .to_owned(),
+          .vis("pub"),
       ),
       inner: vec![],
       implementation: vec![],
@@ -117,25 +116,23 @@ impl Choice {
     let mut generated_impl = if multiple {
       let old_name = generated_impl.name.clone();
       generated_impl.name.local_name = format!("inner-{}", old_name.local_name);
-      let output = XsdImpl {
-        name: old_name.clone(),
+      XsdImpl {
+        name: old_name,
         fieldname_hint: Some(generated_impl.fieldname_hint.clone().unwrap()),
-        element: XsdElement::Type(generated_impl.element.get_type().wrap("Vec").to_owned()),
+        element: XsdElement::Type(generated_impl.element.get_type().wrap("Vec")),
         inner: vec![generated_impl],
         implementation: vec![],
-      };
-      output
+      }
     } else if option {
       let old_name = generated_impl.name.clone();
       generated_impl.name.local_name = format!("inner-{}", old_name.local_name);
-      let output = XsdImpl {
-        name: old_name.clone(),
+      XsdImpl {
+        name: old_name,
         fieldname_hint: Some(generated_impl.fieldname_hint.clone().unwrap()),
-        element: XsdElement::Type(generated_impl.element.get_type().wrap("Option").to_owned()),
+        element: XsdElement::Type(generated_impl.element.get_type().wrap("Option")),
         inner: vec![generated_impl],
         implementation: vec![],
-      };
-      output
+      }
     } else {
       generated_impl
     };

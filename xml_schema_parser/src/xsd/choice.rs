@@ -7,7 +7,7 @@ use super::{
   group::Group,
   max_occurences::MaxOccurences,
   sequence::Sequence,
-  xsd_context::{infer_type_name, MergeSettings, XsdContext, XsdElement, XsdImpl},
+  xsd_context::{infer_type_name, MergeSettings, XsdContext, XsdImpl, XsdImplType},
   XsdError,
 };
 
@@ -16,24 +16,37 @@ pub struct Choice {
   pub id: Option<String>,
   pub min_occurences: u64,
   pub max_occurences: MaxOccurences,
-  pub elements: Vec<Element>,
-  pub groups: Vec<Group>,
-  pub choices: Vec<Choice>,
-  pub sequences: Vec<Sequence>,
+  pub children: Vec<ChoiceOptions>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum ChoiceOptions {
+  Element(Element),
+  Group(Group),
+  Choice(Choice),
+  Sequence(Sequence),
 }
 
 impl Choice {
   pub fn parse(mut element: XMLElement) -> Result<Self, XsdIoError> {
     element.check_name("choice")?;
 
+    let mut children = vec![];
+    for child in element.get_all_children() {
+      children.push(match child.element.name.as_str() {
+        "element" => ChoiceOptions::Element(Element::parse(child, false)?),
+        "group" => ChoiceOptions::Group(Group::parse(child)?),
+        "choice" => ChoiceOptions::Choice(Choice::parse(child)?),
+        "sequence" => ChoiceOptions::Sequence(Sequence::parse(child)?),
+        name => unreachable!("Unexpected child name {name}"),
+      });
+    }
+
     let output = Self {
       id: element.try_get_attribute("id")?,
       min_occurences: element.try_get_attribute("minOccurs")?.unwrap_or(1),
       max_occurences: element.get_attribute_default("maxOccurs")?,
-      elements: element.get_children_with("element", |child| Element::parse(child, false))?,
-      groups: element.get_children_with("group", Group::parse)?,
-      choices: element.get_children_with("choice", Choice::parse)?,
-      sequences: element.get_children_with("sequence", Sequence::parse)?,
+      children,
     };
 
     element.finalize(false, false)?;
@@ -49,21 +62,21 @@ impl Choice {
   ) -> Result<XsdImpl, XsdError> {
     let mut generated_impls = vec![];
 
-    // let mut possible_enums = vec![];
-    for group in &self.groups {
-      generated_impls.push(group.get_implementation(None, context)?);
-    }
-
-    for sequence in &self.sequences {
-      generated_impls.push(sequence.get_implementation(None, context)?);
-    }
-
-    for element in &self.elements {
-      generated_impls.push(element.get_implementation(context)?);
-    }
-
-    for choice in &self.choices {
-      generated_impls.push(choice.get_implementation(None, context)?);
+    for child in &self.children {
+      match child {
+        ChoiceOptions::Element(element) => {
+          generated_impls.push(element.get_implementation(context)?)
+        }
+        ChoiceOptions::Group(group) => {
+          generated_impls.push(group.get_implementation(None, context)?)
+        }
+        ChoiceOptions::Choice(choice) => {
+          generated_impls.push(choice.get_implementation(None, context)?)
+        }
+        ChoiceOptions::Sequence(sequence) => {
+          generated_impls.push(sequence.get_implementation(None, context)?)
+        }
+      }
     }
 
     let inferred_name = infer_type_name(&generated_impls);
@@ -84,7 +97,7 @@ impl Choice {
     let mut generated_impl = XsdImpl {
       fieldname_hint: Some(xml_name.to_field_name()),
       name: xml_name.clone(),
-      element: XsdElement::Enum(
+      element: XsdImplType::Enum(
         Enum::new(Some(xml_name), &struct_name)
           .derives(&["Clone", "Debug", "PartialEq"])
           .vis("pub"),
@@ -116,7 +129,7 @@ impl Choice {
       XsdImpl {
         name: old_name,
         fieldname_hint: Some(generated_impl.fieldname_hint.clone().unwrap()),
-        element: XsdElement::Type(generated_impl.element.get_type().wrap("Vec")),
+        element: XsdImplType::Type(generated_impl.element.get_type().wrap("Vec")),
         inner: vec![generated_impl],
         implementation: vec![],
         flatten: false,
@@ -127,7 +140,7 @@ impl Choice {
       XsdImpl {
         name: old_name,
         fieldname_hint: Some(generated_impl.fieldname_hint.clone().unwrap()),
-        element: XsdElement::Type(generated_impl.element.get_type().wrap("Option")),
+        element: XsdImplType::Type(generated_impl.element.get_type().wrap("Option")),
         inner: vec![generated_impl],
         implementation: vec![],
         flatten: false,

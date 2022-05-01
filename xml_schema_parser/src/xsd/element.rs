@@ -6,7 +6,7 @@ use crate::xsd::{
   complex_type::ComplexType,
   max_occurences::MaxOccurences,
   simple_type::SimpleType,
-  xsd_context::{XsdElement, XsdImpl},
+  xsd_context::{XsdImpl, XsdImplType},
   XsdContext, XsdError,
 };
 
@@ -125,7 +125,7 @@ impl Element {
             XsdImpl {
               name: xml_name.clone(),
               fieldname_hint: Some(xml_name.to_field_name()),
-              element: XsdElement::Type(ty),
+              element: XsdImplType::Type(ty),
               inner: vec![],
               implementation: vec![],
               flatten: false,
@@ -150,7 +150,7 @@ impl Element {
         return Ok(XsdImpl {
           name: xml_name.clone(),
           fieldname_hint: Some(xml_name.to_field_name()),
-          element: XsdElement::Struct(
+          element: XsdImplType::Struct(
             Struct::new(Some(xml_name.clone()), &xml_name.to_struct_name()).vis("pub"),
           ),
           inner: vec![],
@@ -185,7 +185,7 @@ impl Element {
         field_type
       };
 
-      let inner = if let XsdElement::Struct(_) | XsdElement::Enum(_) = generated_struct.element {
+      let inner = if let XsdImplType::Struct(_) | XsdImplType::Enum(_) = generated_struct.element {
         vec![generated_struct]
       } else {
         vec![]
@@ -194,7 +194,7 @@ impl Element {
       XsdImpl {
         name: xml_name,
         fieldname_hint: Some(field_name),
-        element: XsdElement::Type(field_type),
+        element: XsdImplType::Type(field_type),
         inner,
         implementation: vec![],
         flatten: false,

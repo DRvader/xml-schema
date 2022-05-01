@@ -108,7 +108,7 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
   let mut block = Block::new("");
   let mut generated_new_impl = true;
   match &generated_impl.element {
-    xsd_context::XsdElement::Struct(ty) => {
+    xsd_context::XsdImplType::Struct(ty) => {
       block = match &ty.fields {
         xsd_codegen::Fields::Empty => block
           .push_block(
@@ -202,7 +202,7 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
         }
       }
     }
-    xsd_context::XsdElement::Enum(ty) => {
+    xsd_context::XsdImplType::Enum(ty) => {
       let mut variant_resolution_results = vec![];
       for (variant_index, variant) in ty.variants.iter().enumerate() {
         block = match &variant.fields {
@@ -248,7 +248,10 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
 
               let variant_res_name = format!("attempt_{}_{}", variant_index, index);
               block = block.line(format!(
-                "let {} = <{} as XsdGen>::gen(element, {new_gen_state}, {next_xml_name});",
+                "let mut {variant_res_name}_element = element.clone();",
+              ));
+              block = block.line(format!(
+                "let {} = <{} as XsdGen>::gen(&mut {variant_res_name}_element, {new_gen_state}, {next_xml_name});",
                 variant_res_name,
                 field.to_string(),
               ));
@@ -276,11 +279,13 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
                   .unwrap_or_else(|| "name".to_string())
               };
 
+              block = block.line(format!("let mut {}_element = element.clone();", field.name));
               inner_block = inner_block.line(format!(
-                "{}: <{} as XsdGen>::gen(element, {new_gen_state}, {next_xml_name})?,",
+                "{}: <{} as XsdGen>::gen({0}_element, {new_gen_state}, {next_xml_name})?,",
                 field.name,
                 field.ty.to_string(),
               ));
+              variant_resolution_results.push((field.name.clone(), variant.name.clone()));
             }
             block.push_block(inner_block.after(")"))
           }
@@ -295,15 +300,18 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
           .join(", ")
       ));
 
-      for (index, (_attempt_name, variant_name)) in variant_resolution_results.iter().enumerate() {
-        match_block = match_block.line(&format!(
-          "({}) => Ok(Self::{}(value)),",
-          (0..variant_resolution_results.len())
-            .map(|i| if i == index { "Ok(value)" } else { "Err(_)" })
-            .collect::<Vec<_>>()
-            .join(", "),
-          variant_name
-        ));
+      for (index, (attempt_name, variant_name)) in variant_resolution_results.iter().enumerate() {
+        match_block = match_block.push_block(
+          Block::new(&format!(
+            "({}) =>",
+            (0..variant_resolution_results.len())
+              .map(|i| if i == index { "Ok(value)" } else { "Err(_)" })
+              .collect::<Vec<_>>()
+              .join(", ")
+          ))
+          .line(format!("*element = {attempt_name}_element;"))
+          .line(format!("Ok(Self::{variant_name}(value))")),
+        );
       }
       block = block.push_block(match_block.push_block(Block::new(&format!(
             "({}) =>",

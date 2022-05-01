@@ -9,7 +9,7 @@ use super::{
   general_xsdgen,
   group::Group,
   sequence::Sequence,
-  xsd_context::{MergeSettings, XsdElement, XsdImpl},
+  xsd_context::{MergeSettings, XsdImpl, XsdImplType},
   XsdError,
 };
 use crate::xsd::XsdContext;
@@ -208,7 +208,7 @@ impl Restriction {
       XsdImpl {
         name: parent_name.clone(),
         fieldname_hint: Some(parent_name.to_field_name()),
-        element: XsdElement::Enum(generated_enum),
+        element: XsdImplType::Enum(generated_enum),
         inner: Vec::new(),
         implementation: vec![enum_impl],
         flatten: false,
@@ -219,7 +219,7 @@ impl Restriction {
       XsdImpl {
         name: parent_name.clone(),
         fieldname_hint: Some(parent_name.to_field_name()),
-        element: XsdElement::Struct(
+        element: XsdImplType::Struct(
           Struct::new(Some(parent_name.clone()), &parent_name.to_struct_name())
             .tuple_field(ty, false, false)
             .derives(&["Clone", "Debug", "PartialEq"]),

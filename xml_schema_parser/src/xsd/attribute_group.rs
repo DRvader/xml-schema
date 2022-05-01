@@ -1,4 +1,4 @@
-use xsd_codegen::{Field, Struct, XMLElement};
+use xsd_codegen::{Field, Struct, Type, XMLElement};
 use xsd_types::{XsdIoError, XsdName, XsdParseError, XsdType};
 
 use crate::xsd::attribute::Attribute;
@@ -6,7 +6,7 @@ use crate::xsd::attribute::Attribute;
 use super::{
   annotation::Annotation,
   general_xsdgen,
-  xsd_context::{MergeSettings, XsdContext, XsdElement, XsdImpl},
+  xsd_context::{MergeSettings, XsdContext, XsdImpl, XsdImplType},
   XsdError,
 };
 
@@ -89,9 +89,7 @@ impl AttributeGroup {
 
         Ok(XsdImpl {
           name,
-          element: XsdElement::Field(
-            Field::new(None, &field_name, inner.element.get_type(), true, true).vis("pub"),
-          ),
+          element: XsdImplType::Type(inner.element.get_type().xml_name(None)),
           fieldname_hint: Some(field_name.to_string()),
           inner: vec![],
           implementation: vec![],
@@ -107,7 +105,7 @@ impl AttributeGroup {
         let mut generated_struct = XsdImpl {
           name: xml_name.clone(),
           fieldname_hint: Some(xml_name.to_field_name()),
-          element: XsdElement::Struct(
+          element: XsdImplType::Struct(
             Struct::new(Some(xml_name.clone()), &xml_name.to_struct_name())
               .vis("pub")
               .derives(&["Clone", "Debug", "PartialEq"]),
@@ -123,7 +121,7 @@ impl AttributeGroup {
             let value = XsdImpl {
               name: reference.clone(),
               fieldname_hint: Some(reference.to_field_name()),
-              element: XsdElement::Type(imp.element.get_type()),
+              element: XsdImplType::Type(imp.element.get_type()),
               inner: vec![],
               implementation: vec![],
               flatten: true,

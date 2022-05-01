@@ -11,7 +11,7 @@ use super::{
   group::Group,
   sequence::Sequence,
   simple_content::SimpleContent,
-  xsd_context::{MergeSettings, XsdElement, XsdImpl},
+  xsd_context::{MergeSettings, XsdImpl, XsdImplType},
   XsdContext, XsdError,
 };
 
@@ -108,7 +108,7 @@ impl ComplexType {
 
     let mut generated_impl = XsdImpl {
       name: struct_id.clone().unwrap(),
-      element: XsdElement::Struct(
+      element: XsdImplType::Struct(
         Struct::new(xml_name.clone(), &struct_id.unwrap().to_struct_name())
           .vis("pub")
           .derives(&["Clone", "Debug", "PartialEq"]),

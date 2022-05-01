@@ -7,10 +7,18 @@ use super::{
   general_xsdgen,
   group::Group,
   max_occurences::MaxOccurences,
-  xsd_context::{infer_type_name, MergeSettings, XsdElement, XsdImpl},
+  xsd_context::{infer_type_name, MergeSettings, XsdImpl, XsdImplType},
   XsdError,
 };
 use crate::xsd::{element::Element, XsdContext};
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum SequenceOptions {
+  Element(Element),
+  Group(Group),
+  Choice(Choice),
+  Sequence(Sequence),
+}
 
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Sequence {
@@ -18,15 +26,23 @@ pub struct Sequence {
   pub min_occurences: u64,
   pub max_occurences: MaxOccurences,
   pub annotation: Option<Annotation>,
-  pub elements: Vec<Element>,
-  pub groups: Vec<Group>,
-  pub choices: Vec<Choice>,
-  pub sequences: Vec<Sequence>,
+  pub children: Vec<SequenceOptions>,
 }
 
 impl Sequence {
   pub fn parse(mut element: XMLElement) -> Result<Self, XsdIoError> {
     element.check_name("sequence")?;
+
+    let mut children = vec![];
+    for child in element.get_all_children() {
+      children.push(match child.element.name.as_str() {
+        "element" => SequenceOptions::Element(Element::parse(child, false)?),
+        "group" => SequenceOptions::Group(Group::parse(child)?),
+        "choice" => SequenceOptions::Choice(Choice::parse(child)?),
+        "sequence" => SequenceOptions::Sequence(Sequence::parse(child)?),
+        name => unreachable!("Unexpected child name {name}"),
+      });
+    }
 
     let output = Self {
       id: element.try_get_attribute("id")?,
@@ -35,10 +51,7 @@ impl Sequence {
         .try_get_attribute("maxOccurs")?
         .unwrap_or(MaxOccurences::Number { value: 1 }),
       annotation: element.try_get_child_with("annotation", Annotation::parse)?,
-      elements: element.get_children_with("element", |child| Element::parse(child, false))?,
-      groups: element.get_children_with("group", Group::parse)?,
-      choices: element.get_children_with("choice", Choice::parse)?,
-      sequences: element.get_children_with("sequence", Sequence::parse)?,
+      children,
     };
 
     element.finalize(false, false)?;
@@ -54,20 +67,21 @@ impl Sequence {
   ) -> Result<XsdImpl, XsdError> {
     let mut generated_impls = vec![];
 
-    for element in &self.elements {
-      generated_impls.push(element.get_implementation(context)?);
-    }
-
-    for sequence in &self.sequences {
-      generated_impls.push(sequence.get_implementation(None, context)?);
-    }
-
-    for group in &self.groups {
-      generated_impls.push(group.get_implementation(None, context)?);
-    }
-
-    for choice in &self.choices {
-      generated_impls.push(choice.get_implementation(None, context)?);
+    for child in &self.children {
+      match child {
+        SequenceOptions::Element(element) => {
+          generated_impls.push(element.get_implementation(context)?)
+        }
+        SequenceOptions::Group(group) => {
+          generated_impls.push(group.get_implementation(None, context)?)
+        }
+        SequenceOptions::Choice(choice) => {
+          generated_impls.push(choice.get_implementation(None, context)?)
+        }
+        SequenceOptions::Sequence(sequence) => {
+          generated_impls.push(sequence.get_implementation(None, context)?)
+        }
+      }
     }
 
     let mut xml_name = if let Some(parent_name) = parent_name.clone() {
@@ -85,7 +99,7 @@ impl Sequence {
     let mut generated_impl = XsdImpl {
       name: xml_name.clone(),
       fieldname_hint: Some(xml_name.to_field_name()),
-      element: XsdElement::Struct(
+      element: XsdImplType::Struct(
         Struct::new(Some(xml_name.clone()), &xml_name.to_struct_name())
           .vis("pub")
           .derives(&["Clone", "Debug", "PartialEq"]),
@@ -117,7 +131,7 @@ impl Sequence {
       XsdImpl {
         name: old_name,
         fieldname_hint: Some(generated_impl.fieldname_hint.clone().unwrap()),
-        element: XsdElement::Type(generated_impl.element.get_type().wrap("Vec")),
+        element: XsdImplType::Type(generated_impl.element.get_type().wrap("Vec")),
         flatten: generated_impl.flatten,
         inner: vec![generated_impl],
         implementation: vec![],
@@ -128,7 +142,7 @@ impl Sequence {
       XsdImpl {
         name: old_name,
         fieldname_hint: Some(generated_impl.fieldname_hint.clone().unwrap()),
-        element: XsdElement::Type(generated_impl.element.get_type().wrap("Option")),
+        element: XsdImplType::Type(generated_impl.element.get_type().wrap("Option")),
         flatten: generated_impl.flatten,
         inner: vec![generated_impl],
         implementation: vec![],

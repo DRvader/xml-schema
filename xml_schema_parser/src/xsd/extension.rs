@@ -8,7 +8,7 @@ use super::{
   attribute_group::AttributeGroup,
   choice::Choice,
   group::Group,
-  xsd_context::{MergeSettings, XsdElement, XsdImpl},
+  xsd_context::{MergeSettings, XsdImpl, XsdImplType},
   XsdError,
 };
 
@@ -98,17 +98,15 @@ impl Extension {
     let mut generated_impl = XsdImpl {
       name: parent_name.clone(),
       fieldname_hint: Some(parent_name.to_field_name()),
-      element: XsdElement::Struct(Struct::new(None, &parent_name.to_struct_name()).vis("pub")),
+      element: XsdImplType::Struct(Struct::new(None, &parent_name.to_struct_name()).vis("pub")),
       inner: vec![],
       implementation: vec![],
       flatten: false,
     };
 
-    let mut base_impl = base_impl.to_field();
+    let mut base_impl = base_impl.to_type();
     base_impl.fieldname_hint = Some(parent_name.to_field_name());
-    if let XsdElement::Field(field) = &mut base_impl.element {
-      field.name = parent_name.to_field_name();
-    }
+    base_impl.flatten = true;
 
     generated_impl.merge(base_impl, MergeSettings::default());
 

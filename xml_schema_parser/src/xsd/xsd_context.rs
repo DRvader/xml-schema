@@ -1,5 +1,6 @@
+use dyn_clone::DynClone;
 use xsd_codegen::{
-  Enum, Field, Fields, Formatter, Impl, Item, Module, Struct, TupleField, Type, Variant,
+  Enum, Field, Fields, Formatter, Impl, Item, Module, Struct, TupleField, Type, TypeAlias, Variant,
 };
 use xsd_types::{to_field_name, to_struct_name, XsdIoError, XsdName, XsdParseError, XsdType};
 
@@ -13,28 +14,19 @@ use xml::reader::{EventReader, XmlEvent};
 use super::XsdError;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum XsdElement {
+pub enum XsdImplType {
   Struct(Struct),
   Enum(Enum),
-  Field(Field),
   Type(Type),
-  TypeAlias(Type, Type),
+  TypeAlias(TypeAlias),
 }
 
-impl XsdElement {
+impl XsdImplType {
   pub fn fmt(&self, f: &mut Formatter) -> core::fmt::Result {
     match &self {
-      XsdElement::Struct(r#struct) => r#struct.fmt(f),
-      XsdElement::Enum(r#enum) => r#enum.fmt(f),
-      XsdElement::TypeAlias(alias, r#type) => {
-        write!(f, "pub type ")?;
-        alias.fmt(f)?;
-        write!(f, " = ")?;
-        r#type.fmt(f)?;
-        writeln!(f, ";")?;
-        Ok(())
-      }
-      XsdElement::Field(_) => unreachable!("Should have packed field into an enum or struct."),
+      XsdImplType::Struct(r#struct) => r#struct.fmt(f),
+      XsdImplType::Enum(r#enum) => r#enum.fmt(f),
+      XsdImplType::TypeAlias(ty) => ty.fmt(f),
       _ => Ok(()),
     }
   }
@@ -45,19 +37,20 @@ impl XsdElement {
 
   pub fn try_get_type(&self) -> Option<Type> {
     match &self {
-      XsdElement::Struct(r#struct) => Some(r#struct.ty().to_owned()),
-      XsdElement::Enum(r#enum) => Some(r#enum.ty().to_owned()),
-      XsdElement::Type(r#type) | XsdElement::TypeAlias(r#type, _) => Some(r#type.clone()),
-      XsdElement::Field(field) => Some(field.ty.clone()),
+      XsdImplType::Struct(r#struct) => Some(r#struct.ty().to_owned()),
+      XsdImplType::Enum(r#enum) => Some(r#enum.ty().to_owned()),
+      XsdImplType::Type(r#type) | XsdImplType::TypeAlias(TypeAlias { alias: r#type, .. }) => {
+        Some(r#type.clone())
+      }
     }
   }
 
   pub fn set_type(&mut self, name: impl Into<Type>) {
     match self {
-      XsdElement::Struct(r#struct) => {
+      XsdImplType::Struct(r#struct) => {
         r#struct.type_def.ty = name.into();
       }
-      XsdElement::Enum(r#enum) => {
+      XsdImplType::Enum(r#enum) => {
         r#enum.type_def.ty = name.into();
       }
       _ => {}
@@ -66,16 +59,14 @@ impl XsdElement {
 
   pub fn add_doc(&mut self, doc: &str) {
     match self {
-      XsdElement::Struct(r#struct) => {
+      XsdImplType::Struct(r#struct) => {
         r#struct.doc(doc);
       }
-      XsdElement::Enum(r#enum) => {
+      XsdImplType::Enum(r#enum) => {
         r#enum.doc(doc);
       }
-      XsdElement::Field(field) => {
-        field.doc(vec![doc]);
-      }
-      _ => {}
+      XsdImplType::Type(ty) => ty.doc(doc),
+      XsdImplType::TypeAlias(ty) => ty.doc = Some(doc.to_string()),
     }
   }
 }
@@ -84,7 +75,7 @@ impl XsdElement {
 pub struct XsdImpl {
   pub name: XsdName,
   pub fieldname_hint: Option<String>,
-  pub element: XsdElement,
+  pub element: XsdImplType,
   pub inner: Vec<XsdImpl>,
   pub implementation: Vec<Impl>,
   pub flatten: bool,
@@ -131,38 +122,65 @@ pub fn infer_type_name(this: &[XsdImpl]) -> String {
 }
 
 impl XsdImpl {
-  fn wrap_inner_mod(&self, existing_module: &mut Module, level: usize) {
+  pub fn to_type(&self) -> XsdImpl {
+    match &self.element {
+      XsdImplType::Type(_) => self.clone(),
+      me => XsdImpl {
+        name: self.name.clone(),
+        fieldname_hint: self.fieldname_hint.clone(),
+        element: XsdImplType::Type(me.get_type()),
+        inner: vec![],
+        implementation: vec![],
+        flatten: self.flatten,
+      },
+    }
+  }
+
+  fn wrap_inner_mod(&self, existing_module: &mut Module, level: usize) -> bool {
     if self.inner.is_empty() {
-      return;
+      return false;
     }
 
     let mod_name = to_field_name(&self.element.get_type().name);
-    let module = existing_module.get_or_new_module(&mod_name);
+    let mut module = Module::new(&mod_name);
 
     module.import(
       &(0..level).map(|_| "super").collect::<Vec<_>>().join("::"),
       "*",
     );
 
+    let mut pushed_something = false;
+
     for inner in &self.inner {
       match &inner.element {
-        XsdElement::Struct(a) => {
+        XsdImplType::Struct(a) => {
+          pushed_something = true;
           module.push_struct(a.clone());
         }
-        XsdElement::Enum(a) => {
+        XsdImplType::Enum(a) => {
+          pushed_something = true;
           module.push_enum(a.clone());
         }
-        XsdElement::Field(_) => {}
-        XsdElement::Type(_) => {}
-        XsdElement::TypeAlias(..) => {}
+        XsdImplType::Type(_) => {}
+        XsdImplType::TypeAlias(alias) => {
+          pushed_something = true;
+          module.push_type_alias(alias.clone());
+        }
       }
 
       for i in &inner.implementation {
+        pushed_something = true;
         module.push_impl(i.clone());
       }
 
-      inner.wrap_inner_mod(module, level + 1);
+      pushed_something |= inner.wrap_inner_mod(&mut module, level + 1);
     }
+
+    if pushed_something {
+      existing_module.push_module(module);
+    }
+
+    pushed_something
   }
 
   pub fn wrap_inner(&self) -> Option<Module> {
@@ -179,7 +197,7 @@ impl XsdImpl {
       };
     }
 
-    unreachable!();
+    None
   }
 
   pub fn fmt(&self, f: &mut Formatter) -> core::fmt::Result {
@@ -197,7 +215,7 @@ impl XsdImpl {
 
   pub fn infer_type_name(&self) -> String {
     match &self.element {
-      XsdElement::Struct(a) => match &a.fields {
+      XsdImplType::Struct(a) => match &a.fields {
         Fields::Empty => unimplemented!(),
         Fields::Tuple(tup) => tup.iter().map(|v| v.ty.name.as_str()).collect::<String>(),
         Fields::Named(names) => names
@@ -205,9 +223,10 @@ impl XsdImpl {
           .map(|f| to_struct_name(&f.name))
           .collect::<String>(),
       },
-      XsdElement::Enum(a) => a.variants.iter().map(|v| v.name.as_str()).collect(),
-      XsdElement::Type(ty) | XsdElement::TypeAlias(ty, _) => ty.name.clone(),
-      XsdElement::Field(ty) => ty.ty.name.clone(),
+      XsdImplType::Enum(a) => a.variants.iter().map(|v| v.name.as_str()).collect(),
+      XsdImplType::Type(ty) | XsdImplType::TypeAlias(TypeAlias { alias: ty, .. }) => {
+        ty.name.clone()
+      }
     }
   }
 
@@ -218,33 +237,6 @@ impl XsdImpl {
     self.fmt(&mut formatter)?;
 
     Ok(dst)
-  }
-
-  pub fn to_field(&self) -> XsdImpl {
-    if let XsdElement::Field(_) = self.element {
-      self.clone()
-    } else {
-      XsdImpl {
-        name: self.name.clone(),
-        fieldname_hint: self.fieldname_hint.clone(),
-        element: XsdElement::Field(
-          Field::new(
-            self.element.get_type().xml_name,
-            &self
-              .fieldname_hint
-              .clone()
-              .unwrap_or_else(|| self.name.to_field_name()),
-            self.element.get_type(),
-            false,
-            false,
-          )
-          .vis("pub"),
-        ),
-        inner: vec![],
-        implementation: vec![],
-        flatten: self.flatten,
-      }
-    }
   }
 
   fn merge_inner(&mut self, others: Vec<XsdImpl>) {
@@ -280,8 +272,8 @@ impl XsdImpl {
       matches!(other.name.ty, XsdType::Group | XsdType::AttributeGroup) || other.flatten;
 
     match &mut self.element {
-      XsdElement::Struct(a) => match &other.element {
-        XsdElement::Struct(b) => match (&mut a.fields, &b.fields) {
+      XsdImplType::Struct(a) => match &other.element {
+        XsdImplType::Struct(b) => match (&mut a.fields, &b.fields) {
           (Fields::Empty, b_fields) => {
             a.fields = b_fields.clone();
             self.inner.extend(other.inner);
@@ -347,7 +339,7 @@ impl XsdImpl {
             self.merge_inner(vec![other]);
           }
         },
-        XsdElement::Enum(b) => {
+        XsdImplType::Enum(b) => {
           let field_name = to_field_name(
             other
               .fieldname_hint
@@ -372,14 +364,12 @@ impl XsdImpl {
 
           self.merge_inner(vec![other]);
         }
-        XsdElement::Type(b) | XsdElement::TypeAlias(b, _) => {
+        XsdImplType::Type(b) | XsdImplType::TypeAlias(TypeAlias { alias: b, .. }) => {
           let field_name = to_field_name(other.fieldname_hint.as_ref().unwrap_or(&b.name));
 
           let mut b = b.clone();
           for i in &mut other.inner {
-            if let XsdElement::Field(_) | XsdElement::Type(_) | XsdElement::TypeAlias(_, _) =
-              i.element
-            {
+            if let XsdImplType::Type(_) | XsdImplType::TypeAlias(..) = i.element {
               continue;
             }
 
@@ -435,42 +425,9 @@ impl XsdImpl {
 
           self.merge_inner(other.inner);
         }
-        XsdElement::Field(b) => match &mut a.fields {
-          Fields::Empty => a.fields = Fields::Named(vec![b.clone()]),
-          Fields::Tuple(fields) => {
-            fields.push(TupleField {
-              vis: b.vis.clone(),
-              ty: b.ty.clone(),
-              attribute: children_are_attributes,
-              flatten: flatten_children,
-            });
-          }
-          Fields::Named(fields) => {
-            let mut conflict = false;
-            for name in fields.iter() {
-              if name.name == b.name {
-                conflict = true;
-                break;
-              }
-            }
-
-            if settings.conflict_prefix.is_none() {
-              conflict = false;
-            }
-
-            let mut field = b.clone();
-            field.attribute = children_are_attributes;
-            field.flatten = flatten_children;
-
-            if conflict {
-              field.name = format!("{}{}", settings.conflict_prefix.unwrap(), field.name);
-            }
-            fields.push(field);
-          }
-        },
       },
-      XsdElement::Enum(a) => match &other.element {
-        XsdElement::Struct(b) => {
+      XsdImplType::Enum(a) => match &other.element {
+        XsdImplType::Struct(b) => {
           let field_name = to_field_name(
             other
               .fieldname_hint
@@ -492,7 +449,7 @@ impl XsdImpl {
 
           self.merge_inner(vec![other]);
         }
-        XsdElement::Enum(b) => {
+        XsdImplType::Enum(b) => {
           let field_name = to_field_name(
             other
               .fieldname_hint
@@ -514,14 +471,12 @@ impl XsdImpl {
 
           self.merge_inner(vec![other]);
         }
-        XsdElement::Type(b) | XsdElement::TypeAlias(b, _) => {
+        XsdImplType::Type(b) | XsdImplType::TypeAlias(TypeAlias { alias: b, .. }) => {
           let field_name = to_struct_name(other.fieldname_hint.as_ref().unwrap_or(&b.name));
 
           let mut b = b.clone();
           for i in &mut other.inner {
-            if let XsdElement::Field(_) | XsdElement::Type(_) | XsdElement::TypeAlias(_, _) =
-              i.element
-            {
+            if let XsdImplType::Type(_) | XsdImplType::TypeAlias(..) = i.element {
               continue;
             }
 
@@ -542,22 +497,14 @@ impl XsdImpl {
 
           let variant =
             Variant::new(None, &field_name).tuple(b, children_are_attributes, flatten_children);
+
           a.variants.push(variant);
 
           self.merge_inner(other.inner);
         }
-        XsdElement::Field(b) => {
-          let variant = Variant::new(None, &to_struct_name(&b.name)).tuple(
-            b.ty.clone(),
-            children_are_attributes,
-            flatten_children,
-          );
-          a.variants.push(variant);
-        }
       },
-      XsdElement::Type(_) => unimplemented!("Cannot merge into type."),
-      XsdElement::TypeAlias(..) => unimplemented!("Cannot merge into type alias."),
-      XsdElement::Field(_) => unimplemented!("Cannot merge into field."),
+      XsdImplType::Type(_) => unimplemented!("Cannot merge into type."),
+      XsdImplType::TypeAlias(..) => unimplemented!("Cannot merge into type alias."),
     }
   }
 }
@@ -605,7 +552,7 @@ impl XsdContext {
               let imp = XsdImpl {
                 name: xsd_name.clone(),
                 fieldname_hint: None,
-                element: XsdElement::Type(Type::new(None, ty)),
+                element: XsdImplType::Type(Type::new(None, ty)),
                 inner: vec![],
                 implementation: vec![],
                 flatten: false,

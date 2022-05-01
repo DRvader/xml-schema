@@ -10,19 +10,24 @@ use crate::xsd::{
 
 use super::{annotation, XsdError};
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum SchemaOptions {
+  Import(import::Import),
+  Annotation(annotation::Annotation),
+  Element(element::Element),
+  SimpleType(simple_type::SimpleType),
+  ComplexType(complex_type::ComplexType),
+  Attribute(attribute::Attribute),
+  AttributeGroup(attribute_group::AttributeGroup),
+  Group(group::Group),
+}
+
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Schema {
   pub target_namespace: Option<String>,
   pub element_form_default: qualification::Qualification,
   pub attribute_form_default: qualification::Qualification,
-  pub imports: Vec<import::Import>,
-  pub annotations: Vec<annotation::Annotation>,
-  pub elements: Vec<element::Element>,
-  pub simple_type: Vec<simple_type::SimpleType>,
-  pub complex_type: Vec<complex_type::ComplexType>,
-  pub attributes: Vec<attribute::Attribute>,
-  pub attribute_group: Vec<attribute_group::AttributeGroup>,
-  pub groups: Vec<group::Group>,
+  pub children: Vec<SchemaOptions>,
   pub extra: Vec<(String, String)>,
 }
 
@@ -34,34 +39,28 @@ impl Schema {
 
     element.default_namespace = target_namespace.clone();
 
-    let annotations = element.get_children_with("annotation", annotation::Annotation::parse)?;
-    let imports = element.get_children_with("import", import::Import::parse)?;
-    let elements =
-      element.get_children_with("element", |child| element::Element::parse(child, true))?;
-    let simple_type = element.get_children_with("simpleType", |child| {
-      simple_type::SimpleType::parse(child, true)
-    })?;
-    let complex_type = element.get_children_with("complexType", |child| {
-      complex_type::ComplexType::parse(child)
-    })?;
-    let attributes = element.get_children_with("attribute", attribute::Attribute::parse)?;
-    let attribute_group = element.get_children_with("attributeGroup", |child| {
-      attribute_group::AttributeGroup::parse(child)
-    })?;
-    let groups = element.get_children_with("group", group::Group::parse)?;
+    let mut children = vec![];
+    for child in element.get_all_children() {
+      children.push(match child.element.name.as_str() {
+        "annotation" => SchemaOptions::Annotation(annotation::Annotation::parse(child)?),
+        "import" => SchemaOptions::Import(import::Import::parse(child)?),
+        "element" => SchemaOptions::Element(element::Element::parse(child, true)?),
+        "simpleType" => SchemaOptions::SimpleType(simple_type::SimpleType::parse(child, true)?),
+        "complexType" => SchemaOptions::ComplexType(complex_type::ComplexType::parse(child)?),
+        "attribute" => SchemaOptions::Attribute(attribute::Attribute::parse(child)?),
+        "attributeGroup" => {
+          SchemaOptions::AttributeGroup(attribute_group::AttributeGroup::parse(child)?)
+        }
+        "group" => SchemaOptions::Group(group::Group::parse(child)?),
+        name => unreachable!("Unexpected child name {name}"),
+      });
+    }
 
     let output = Self {
       target_namespace,
       element_form_default: element.get_attribute_default("elementFormDefault")?,
       attribute_form_default: element.get_attribute_default("attributeFormDefault")?,
-      annotations,
-      imports,
-      elements,
-      simple_type,
-      complex_type,
-      attributes,
-      attribute_group,
-      groups,
+      children,
       extra: element.get_remaining_attributes(),
     };
 
@@ -83,58 +82,51 @@ impl Schema {
 
     let mut to_run = BTreeMap::new();
 
-    for (index, ty) in self.imports.iter().enumerate() {
-      to_run.insert(
-        XsdName {
-          namespace: None,
-          local_name: ty
-            .schema_location
-            .as_ref()
-            .unwrap_or_else(|| ty.namespace.as_ref().unwrap())
-            .clone(),
-          ty: XsdType::Import,
-        },
-        (Some(index), 0),
-      );
-    }
-
-    for (index, _) in self.annotations.iter().enumerate() {
-      to_run.insert(
-        XsdName {
-          namespace: None,
-          local_name: index.to_string(),
-          ty: XsdType::Annotation,
-        },
-        (Some(index), 0),
-      );
-    }
-
-    for (index, ty) in self.elements.iter().enumerate() {
-      to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
-    }
-
-    for (index, ty) in self.simple_type.iter().enumerate() {
-      to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
-    }
-
-    for (index, ty) in self.complex_type.iter().enumerate() {
-      to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
-    }
-
-    for (index, ty) in self.simple_type.iter().enumerate() {
-      to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
-    }
-
-    for (index, ty) in self.attributes.iter().enumerate() {
-      to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
-    }
-
-    for (index, ty) in self.attribute_group.iter().enumerate() {
-      to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
-    }
-
-    for (index, ty) in self.groups.iter().enumerate() {
-      to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
+    for (index, child) in self.children.iter().enumerate() {
+      match child {
+        SchemaOptions::Import(ty) => {
+          to_run.insert(
+            XsdName {
+              namespace: None,
+              local_name: ty
+                .schema_location
+                .as_ref()
+                .unwrap_or_else(|| ty.namespace.as_ref().unwrap())
+                .clone(),
+              ty: XsdType::Import,
+            },
+            (Some(index), 0),
+          );
+        }
+        SchemaOptions::Annotation(_) => {
+          to_run.insert(
+            XsdName {
+              namespace: None,
+              local_name: index.to_string(),
+              ty: XsdType::Annotation,
+            },
+            (Some(index), 0),
+          );
+        }
+        SchemaOptions::Element(ty) => {
+          to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
+        }
+        SchemaOptions::SimpleType(ty) => {
+          to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
+        }
+        SchemaOptions::ComplexType(ty) => {
+          to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
+        }
+        SchemaOptions::Attribute(ty) => {
+          to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
+        }
+        SchemaOptions::AttributeGroup(ty) => {
+          to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
+        }
+        SchemaOptions::Group(ty) => {
+          to_run.insert(ty.name.as_ref().unwrap().clone(), (Some(index), 0));
+        }
+      }
     }
 
     let mut next_to_run = BTreeMap::new();
@@ -145,27 +137,31 @@ impl Schema {
 
       for (type_to_run, (index, _error)) in &to_run {
         if let Some(index) = index {
-          let result = match &type_to_run.ty {
-            XsdType::Import => {
-              self.imports[*index].get_implementation(context)?;
+          let result = match &self.children[*index] {
+            SchemaOptions::Import(import) => {
+              import.get_implementation(context)?;
               None
             }
-            XsdType::Annotation => {
-              self.annotations[*index].get_doc();
+            SchemaOptions::Annotation(annotation) => {
+              annotation.get_doc();
               None
             }
-            XsdType::Element => Some(self.elements[*index].get_implementation(context)),
-            XsdType::SimpleType => Some(self.simple_type[*index].get_implementation(None, context)),
-            XsdType::ComplexType => {
-              Some(self.complex_type[*index].get_implementation(true, None, context))
+            SchemaOptions::Element(element) => Some(element.get_implementation(context)),
+            SchemaOptions::SimpleType(simple_type) => {
+              Some(simple_type.get_implementation(None, context))
             }
-            XsdType::Attribute => Some(self.attributes[*index].get_implementation(context, true)),
-            XsdType::AttributeGroup => {
-              Some(self.attribute_group[*index].get_implementation(None, context))
+            SchemaOptions::ComplexType(complex_type) => {
+              Some(complex_type.get_implementation(true, None, context))
             }
-            XsdType::Group => Some(self.groups[*index].get_implementation(None, context)),
-            ty => unreachable!("Unexpected top-level type {ty:?}"),
+            SchemaOptions::Attribute(attribute) => {
+              Some(attribute.get_implementation(context, true))
+            }
+            SchemaOptions::AttributeGroup(attribute_group) => {
+              Some(attribute_group.get_implementation(None, context))
+            }
+            SchemaOptions::Group(group) => Some(group.get_implementation(None, context)),
           };
+
           if let Some(result) = result {
             match result {
               Ok(temp) => {

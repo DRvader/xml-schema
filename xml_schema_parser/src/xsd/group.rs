@@ -4,9 +4,10 @@ use xsd_types::{to_field_name, XsdIoError, XsdName, XsdParseError, XsdType};
 use super::{
   annotation::Annotation,
   choice::Choice,
+  general_xsdgen,
   max_occurences::MaxOccurences,
   sequence::Sequence,
-  xsd_context::{XsdContext, XsdElement, XsdImpl},
+  xsd_context::{XsdContext, XsdImpl, XsdImplType},
   XsdError,
 };
 
@@ -80,7 +81,7 @@ impl Group {
     parent_name: Option<XsdName>,
     context: &mut XsdContext,
   ) -> Result<XsdImpl, XsdError> {
-    let mut gen = match (&self.name, &parent_name, &self.refers) {
+    let gen = match (&self.name, &parent_name, &self.refers) {
       (Some(name), _, None) => match (&self.choice, &self.sequence) {
         (None, Some(sequence)) => sequence.get_implementation(Some(name.clone()), context)?,
         (Some(choice), None) => choice.get_implementation(Some(name.clone()), context)?,
@@ -115,23 +116,54 @@ impl Group {
 
         XsdImpl {
           name: name.clone(),
-          element: XsdElement::Field(
-            Field::new(
-              Some(name),
-              &field_name,
-              inner.element.get_type(),
-              false,
-              true,
-            )
-            .vis("pub"),
-          ),
-          fieldname_hint: Some(field_name.to_string()),
+          element: XsdImplType::Type(inner.element.get_type().xml_name(Some(name))),
+          fieldname_hint: Some(field_name),
           inner: vec![],
           implementation: vec![],
           flatten: true,
         }
       }
       _ => unreachable!("The Xsd is invalid!"),
+    };
+
+    let multiple = match &self.max_occurences {
+      MaxOccurences::Unbounded => true,
+      MaxOccurences::Number { value } => *value > 1,
+    } || self.min_occurences > 1;
+
+    let option = match &self.max_occurences {
+      MaxOccurences::Unbounded => false,
+      MaxOccurences::Number { value } => *value == 1 && self.min_occurences == 0,
+    };
+
+    let mut gen = if multiple {
+      let mut gen = general_xsdgen(gen);
+
+      let old_name = gen.name.clone();
+      gen.name.local_name = format!("inner-{}", old_name.local_name);
+      XsdImpl {
+        name: old_name,
+        fieldname_hint: Some(gen.fieldname_hint.clone().unwrap()),
+        element: XsdImplType::Type(gen.element.get_type().wrap("Vec")),
+        inner: vec![gen],
+        implementation: vec![],
+        flatten: false,
+      }
+    } else if option {
+      let mut gen = general_xsdgen(gen);
+
+      let old_name = gen.name.clone();
+      gen.name.local_name = format!("inner-{}", old_name.local_name);
+      XsdImpl {
+        name: old_name,
+        fieldname_hint: Some(gen.fieldname_hint.clone().unwrap()),
+        element: XsdImplType::Type(gen.element.get_type().wrap("Option")),
+        inner: vec![gen],
+        implementation: vec![],
+        flatten: false,
+      }
+    } else {
+      gen
     };
 
     if let Some(annotation) = &self.annotation {

@@ -4,7 +4,7 @@ use xsd_types::{XsdIoError, XsdName, XsdType};
 use super::{
   general_xsdgen,
   simple_type::SimpleType,
-  xsd_context::{MergeSettings, XsdContext, XsdElement, XsdImpl},
+  xsd_context::{MergeSettings, XsdContext, XsdImpl, XsdImplType},
   XsdError,
 };
 
@@ -50,7 +50,7 @@ impl Union {
     let mut generated_impl = XsdImpl {
       fieldname_hint: Some(xml_name.to_field_name()),
       name: xml_name.clone(),
-      element: XsdElement::Enum(
+      element: XsdImplType::Enum(
         Enum::new(Some(xml_name.clone()), &xml_name.to_struct_name())
           .vis("pub")
           .derives(&["Clone", "Debug", "PartialEq"]),
@@ -62,7 +62,7 @@ impl Union {
 
     for member in &self.member_types {
       if let Some(imp) = context.search(member) {
-        generated_impl.merge(imp.to_field(), MergeSettings::default());
+        generated_impl.merge(imp.to_type(), MergeSettings::default());
       } else {
         return Err(XsdError::XsdImplNotFound(parent_name));
       }

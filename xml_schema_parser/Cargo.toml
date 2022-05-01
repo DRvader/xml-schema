@@ -15,6 +15,7 @@ thiserror = "1.0.30"
 chrono = "0.4"
 tracing = "0.1.29"
 xsd-codegen = { path = "../xsd-codegen" }
+dyn-clone = "1.0.5"
 xsd-types = { path = "../xsd-types" }
 
 [dev-dependencies]

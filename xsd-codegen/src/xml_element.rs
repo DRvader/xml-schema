@@ -3,6 +3,7 @@ use xsd_types::{XsdIoError, XsdName, XsdParseError, XsdType};
 
 use crate::FromXmlString;
 
+#[derive(Clone)]
 pub struct XMLElement {
   pub element: Element,
   pub default_namespace: Option<String>,
@@ -139,6 +140,29 @@ impl XMLElement {
     func: impl FnOnce(XMLElement) -> Result<T, XsdIoError>,
   ) -> Result<T, XsdIoError> {
     func(self.get_child(name)?)
+  }
+
+  pub fn get_all_children(&mut self) -> Vec<XMLElement> {
+    let mut output = Vec::new();
+
+    let mut to_remove = Vec::new();
+    for (index, child) in self.element.children.iter().enumerate() {
+      if let XMLNode::Element(_) = child {
+        to_remove.push(index);
+      }
+    }
+    to_remove.reverse();
+
+    for index in to_remove {
+      if let XMLNode::Element(element) = self.element.children.remove(index) {
+        output.push(XMLElement {
+          element,
+          default_namespace: self.default_namespace.clone(),
+        });
+      }
+    }
+
+    output
   }
 
   pub fn try_get_child_with<T>(

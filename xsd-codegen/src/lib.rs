@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 pub use rust_codegen::{
   Block, Enum, Field, Fields, Formatter, Function, Impl, Item, Module, Struct, TupleField, Type,
-  TypeDef, Variant,
+  TypeAlias, TypeDef, Variant,
 };
 pub use xml_element::XMLElement;
 use xsd_types::{XsdGenError, XsdIoError};
@@ -65,9 +65,7 @@ impl<T: XsdGen> XsdGen for Vec<T> {
   ) -> Result<Self, XsdIoError> {
     let output = match gen_state.state {
       GenType::Attribute => {
-        let mut new_state = gen_state;
-        new_state.is_root = false;
-        vec![T::gen(element, new_state, name)?]
+        vec![T::gen(element, gen_state.clone(), name)?]
       }
       GenType::Content => {
         if let Some(name) = name {
@@ -77,21 +75,19 @@ impl<T: XsdGen> XsdGen for Vec<T> {
             T::gen(&mut value, new_state.clone(), None)
           })?
         } else {
-          return Err(
-            XsdGenError {
-              node_name: element.node_name(),
-              ty: xsd_types::XsdType::Unknown,
-              msg: "Expected node name to parse vector got None.".to_string(),
-            }
-            .into(),
-          );
+          let mut output = vec![];
+
+          let mut last_element = element.clone();
+          while let Ok(value) = T::gen(element, gen_state.clone(), None) {
+            output.push(value);
+            last_element = element.clone();
+          }
+          *element = last_element;
+
+          output
         }
       }
     };
-
-    // if gen_state.is_root {
-    //   element.finalize(false, false)?;
-    // }
 
     Ok(output)
   }
@@ -123,20 +119,18 @@ impl<T: XsdGen> XsdGen for Option<T> {
         }
       };
 
-      // if gen_state.is_root {
-      //   element.finalize(false, false)?;
-      // }
-
       Ok(output)
     } else {
-      Err(
-        XsdGenError {
-          node_name: element.node_name(),
-          ty: xsd_types::XsdType::Unknown,
-          msg: "Expected node name to parse option got None.".to_string(),
-        }
-        .into(),
-      )
+      let mut output = None;
+
+      let mut last_element = element.clone();
+      if let Ok(value) = T::gen(element, gen_state.clone(), None) {
+        output = Some(value);
+        last_element = element.clone();
+      }
+      *element = last_element;
+
+      Ok(output)
     }
   }
 }
@@ -165,7 +159,13 @@ impl<T: FromXmlString> XsdGen for T {
           );
         }
       }
-      GenType::Content => element.get_content(),
+      GenType::Content => {
+        if let Some(name) = name {
+          element.get_child_with(name, |mut element| element.get_content())
+        } else {
+          element.get_content()
+        }
+      }
     }
   }
 }

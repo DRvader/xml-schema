@@ -1,10 +1,10 @@
-use xsd_codegen::{Field, FromXmlString, Type, XMLElement};
+use xsd_codegen::{Field, FromXmlString, Type, TypeAlias, XMLElement};
 use xsd_types::{XsdIoError, XsdName, XsdParseError, XsdType};
 
 use super::{
   annotation::Annotation,
   general_xsdgen,
-  xsd_context::{XsdElement, XsdImpl},
+  xsd_context::{XsdImpl, XsdImplType},
   XsdError,
 };
 use crate::xsd::{simple_type::SimpleType, XsdContext};
@@ -128,7 +128,7 @@ impl Attribute {
 
           XsdImpl {
             name: name.clone(),
-            element: XsdElement::Type(inner.element.get_type()),
+            element: XsdImplType::Type(inner.element.get_type()),
             fieldname_hint: Some(name.to_field_name()),
             inner: vec![],
             implementation: vec![],
@@ -151,21 +151,13 @@ impl Attribute {
           };
 
           let element = if parent_is_schema {
-            XsdElement::TypeAlias(
-              Type::new(Some(name.clone()), &name.to_struct_name()),
-              inner.element.get_type(),
-            )
+            XsdImplType::TypeAlias(TypeAlias {
+              doc: None,
+              alias: Type::new(Some(name.clone()), &name.to_struct_name()),
+              value: inner.element.get_type(),
+            })
           } else {
-            XsdElement::Field(
-              Field::new(
-                Some(name.clone()),
-                &name.to_field_name(),
-                inner.element.get_type(),
-                true,
-                false,
-              )
-              .vis("pub"),
-            )
+            XsdImplType::Type(inner.element.get_type().xml_name(Some(name.clone())))
           };
 
           XsdImpl {
@@ -194,20 +186,18 @@ impl Attribute {
         };
 
         let element = if parent_is_schema {
-          XsdElement::TypeAlias(
-            Type::new(None, &name.to_struct_name()),
-            inner.element.get_type().path(&name.to_field_name()),
-          )
+          XsdImplType::TypeAlias(TypeAlias {
+            doc: None,
+            alias: Type::new(Some(name.clone()), &name.to_struct_name()),
+            value: inner.element.get_type().path(&name.to_field_name()),
+          })
         } else {
-          XsdElement::Field(
-            Field::new(
-              Some(name.clone()),
-              &name.to_field_name(),
-              inner.element.get_type().path(&name.to_field_name()),
-              true,
-              false,
-            )
-            .vis("pub"),
+          XsdImplType::Type(
+            inner
+              .element
+              .get_type()
+              .path(&name.to_field_name())
+              .xml_name(Some(name.clone())),
           )
         };
 
@@ -232,19 +222,12 @@ impl Attribute {
     let generated_impl = if !parent_is_schema {
       if let Required::Optional = self.required {
         let old_name = generated_impl.name.clone();
-        let outer_element = match generated_impl.element.clone() {
-          XsdElement::Field(field) => {
-            let mut output_type = field.ty.wrap("Option");
-            output_type.xml_name = field.xml_name;
-            output_type
-          }
-          element => element.get_type().wrap("Option"),
-        };
+        let outer_element = generated_impl.element.get_type().wrap("Option");
         generated_impl.name.local_name = format!("inner-{}", old_name.local_name);
         XsdImpl {
           name: old_name,
           fieldname_hint: Some(generated_impl.fieldname_hint.clone().unwrap()),
-          element: XsdElement::Type(outer_element),
+          element: XsdImplType::Type(outer_element),
           inner: vec![generated_impl],
           implementation: vec![],
           flatten: false,

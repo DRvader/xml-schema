@@ -43,6 +43,29 @@ pub struct Scope {
   pub items: Vec<Item>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeAlias {
+  pub doc: Option<String>,
+  pub alias: Type,
+  pub value: Type,
+}
+
+impl TypeAlias {
+  pub fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+    if let Some(doc) = &self.doc {
+      for line in doc.lines() {
+        writeln!(fmt, "/// {}", line)?;
+      }
+    }
+    write!(fmt, "pub type ")?;
+    self.alias.fmt(fmt)?;
+    write!(fmt, " = ")?;
+    self.value.fmt(fmt)?;
+    writeln!(fmt, ";")?;
+    Ok(())
+  }
+}
+
 #[derive(Debug, Clone)]
 pub enum Item {
   Module(Module),
@@ -51,6 +74,7 @@ pub enum Item {
   Trait(Trait),
   Enum(Enum),
   Impl(Impl),
+  TypeAlias(TypeAlias),
   Raw(String),
 }
 
@@ -102,6 +126,7 @@ pub struct Type {
   pub name: String,
   pub generics: Vec<Type>,
   pub xml_name: Option<XsdName>,
+  pub docs: Option<Docs>,
 }
 
 /// Defines a type definition.
@@ -124,6 +149,7 @@ pub struct Variant {
   pub fields: Fields,
   pub attributes: String,
   pub xml_name: Option<XsdName>,
+  pub doc: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -386,6 +412,10 @@ impl Scope {
     self
   }
 
+  pub fn push_type_alias(&mut self, item: TypeAlias) {
+    self.items.push(Item::TypeAlias(item));
+  }
+
   /// Push a new struct definition, returning a mutable reference to it.
   pub fn new_struct(&mut self, xml_name: Option<XsdName>, name: &str) -> &mut Struct {
     self.push_struct(Struct::new(xml_name, name));
@@ -508,6 +538,7 @@ impl Scope {
         Item::Trait(ref v) => v.fmt(fmt)?,
         Item::Enum(ref v) => v.fmt(fmt)?,
         Item::Impl(ref v) => v.fmt(fmt)?,
+        Item::TypeAlias(ref v) => v.fmt(fmt)?,
         Item::Raw(ref v) => {
           writeln!(fmt, "{}", v)?;
         }
@@ -642,6 +673,40 @@ impl Module {
     self.scope.get_or_new_module(name)
   }
 
+  // pub fn merge_module(&mut self, other: Module) {
+  //   if let Some(module) = self.get_module_mut(&other.name) {
+  //     if let Some(doc) = &mut module.docs {
+  //       if let Some(other_doc) = other.docs {
+  //         if let Some(last_char) = doc.docs.chars().last() {
+  //           if last_char != '\n' {
+  //             doc.docs.push('\n');
+  //           }
+  //         }
+  //         doc.docs.push_str(&other_doc.docs)
+  //       }
+  //     } else {
+  //       module.docs = other.docs;
+  //     }
+
+  //     if let Some(doc) = &mut module.scope.docs {
+  //       if let Some(other_doc) = other.scope.docs {
+  //         if let Some(last_char) = doc.docs.chars().last() {
+  //           if last_char != '\n' {
+  //             doc.docs.push('\n');
+  //           }
+  //         }
+  //         doc.docs.push_str(&other_doc.docs)
+  //       }
+  //     } else {
+  //       module.scope.docs = other.scope.docs;
+  //     }
+
+  //     other.scope.imports
+  //   } else {
+  //     self.push_module(other);
+  //   }
+  // }
+
   /// Push a module definition.
   ///
   /// # Panics
@@ -689,6 +754,11 @@ impl Module {
   /// Push an enum definition
   pub fn push_enum(&mut self, item: Enum) -> &mut Self {
     self.scope.push_enum(item);
+    self
+  }
+
+  pub fn push_type_alias(&mut self, item: TypeAlias) -> &mut Self {
+    self.scope.push_type_alias(item);
     self
   }
 
@@ -1076,6 +1146,7 @@ impl Variant {
       fields: Fields::Empty,
       attributes: String::new(),
       xml_name,
+      doc: None,
     }
   }
 
@@ -1122,10 +1193,20 @@ impl Type {
   /// Return a new type with the given name.
   pub fn new(xml_name: Option<XsdName>, name: &str) -> Self {
     Type {
-      xml_name: xml_name,
+      xml_name,
       name: name.to_string(),
       generics: vec![],
+      docs: None,
     }
+  }
+
+  pub fn doc(&mut self, docs: &str) {
+    self.docs = Some(Docs::new(docs));
+  }
+
+  pub fn xml_name(mut self, xml_name: Option<XsdName>) -> Self {
+    self.xml_name = xml_name;
+    self
   }
 
   pub fn prefix(mut self, prefix: &str) -> Self {
@@ -1168,6 +1249,7 @@ impl Type {
       name,
       generics: self.generics.clone(),
       xml_name: self.xml_name.clone(),
+      docs: self.docs.clone(),
     }
   }
 
@@ -1215,6 +1297,7 @@ impl From<String> for Type {
       name: src,
       generics: vec![],
       xml_name: None,
+      docs: None,
     }
   }
 }

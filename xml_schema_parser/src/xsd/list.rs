@@ -4,7 +4,7 @@ use xsd_types::{XsdIoError, XsdName, XsdType};
 use crate::xsd::XsdContext;
 
 use super::{
-  xsd_context::{XsdElement, XsdImpl},
+  xsd_context::{XsdImpl, XsdImplType},
   XsdError,
 };
 
@@ -61,7 +61,7 @@ impl List {
         ..name.clone()
       },
       fieldname_hint: Some(name.to_field_name()),
-      element: XsdElement::Struct(generated_struct),
+      element: XsdImplType::Struct(generated_struct),
       inner: vec![],
       implementation: vec![from_xml],
       flatten: false,

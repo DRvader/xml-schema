@@ -1,4 +1,4 @@
-use xsd_codegen::{Field, Struct, Type, XMLElement};
+use xsd_codegen::{Struct, XMLElement};
 use xsd_types::{XsdIoError, XsdName, XsdParseError, XsdType};
 
 use crate::xsd::attribute::Attribute;
@@ -90,7 +90,7 @@ impl AttributeGroup {
         Ok(XsdImpl {
           name,
           element: XsdImplType::Type(inner.element.get_type().xml_name(None)),
-          fieldname_hint: Some(field_name.to_string()),
+          fieldname_hint: Some(field_name),
           inner: vec![],
           implementation: vec![],
           flatten: true,

@@ -1,4 +1,4 @@
-use xsd_codegen::{Field, FromXmlString, Type, TypeAlias, XMLElement};
+use xsd_codegen::{FromXmlString, Type, TypeAlias, XMLElement};
 use xsd_types::{XsdIoError, XsdName, XsdParseError, XsdType};
 
 use super::{

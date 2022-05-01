@@ -621,7 +621,7 @@ impl Module {
   }
 
   /// Set the module visibility.
-  pub fn vis(&mut self, vis: &str) -> &mut Self {
+  pub fn vis(mut self, vis: &str) -> Self {
     self.vis = Some(vis.to_string());
     self
   }

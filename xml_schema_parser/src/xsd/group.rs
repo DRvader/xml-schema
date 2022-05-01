@@ -1,4 +1,4 @@
-use xsd_codegen::{Field, XMLElement};
+use xsd_codegen::XMLElement;
 use xsd_types::{to_field_name, XsdIoError, XsdName, XsdParseError, XsdType};
 
 use super::{

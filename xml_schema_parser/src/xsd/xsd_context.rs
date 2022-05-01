@@ -1,11 +1,10 @@
-use dyn_clone::DynClone;
 use xsd_codegen::{
-  Enum, Field, Fields, Formatter, Impl, Item, Module, Struct, TupleField, Type, TypeAlias, Variant,
+  Enum, Field, Fields, Formatter, Impl, Item, Module, Struct, Type, TypeAlias, Variant,
 };
 use xsd_types::{to_field_name, to_struct_name, XsdIoError, XsdName, XsdParseError, XsdType};
 
 use std::collections::BTreeMap;
-use std::fmt::{Debug, Write};
+use std::fmt::Debug;
 use std::io::Cursor;
 use std::iter::FromIterator;
 use xml::namespace::Namespace;
@@ -142,7 +141,7 @@ impl XsdImpl {
     }
 
     let mod_name = to_field_name(&self.element.get_type().name);
-    let mut module = Module::new(&mod_name);
+    let mut module = Module::new(&mod_name).vis("pub");
 
     module.import(
       &(0..level).map(|_| "super").collect::<Vec<_>>().join("::"),

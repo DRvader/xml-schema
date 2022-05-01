@@ -1,4 +1,6 @@
-use xsd_codegen::{xsdgen_impl, Block, Enum, FromXmlString, Struct, Variant, XMLElement};
+use xsd_codegen::{
+  fromxml_impl, xsdgen_impl, Block, Enum, FromXmlString, Struct, Variant, XMLElement,
+};
 use xsd_types::{to_struct_name, XsdIoError, XsdName, XsdParseError, XsdType};
 
 use super::{
@@ -187,10 +189,7 @@ impl Restriction {
         .vis("pub")
         .derives(&["Clone", "Debug", "PartialEq"]);
 
-      let mut value = Block::default();
-
-      let mut parse_match =
-        Block::new("let output = match element.get_content::<String>()?.as_str()");
+      let mut parse_match = Block::new("match string");
       for enumeration in &self.enumerations {
         let enum_name = if enumeration.is_empty() {
           "Empty".to_string()
@@ -199,22 +198,12 @@ impl Restriction {
         };
         generated_enum = generated_enum.push_variant(Variant::new(None, &enum_name));
 
-        parse_match = parse_match.line(format!("\"{}\" => Self::{},", enumeration, enum_name));
+        parse_match = parse_match.line(format!("\"{}\" => Ok(Self::{}),", enumeration, enum_name));
       }
       parse_match = parse_match
-        .push_block(
-          Block::new("value => ").push_block(
-            Block::new("return Err(XsdGenError")
-              .line("node_name: element.name().to_string(),")
-              .line("msg: format!(\"Invalid xml node found unexpected content {value}.\"),")
-              .line("ty: XsdType::Restriction,")
-              .after(")?"),
-          ),
-        )
-        .after(";");
-      value = value.push_block(parse_match).line("Ok(output)");
+        .line("value => Err(format!(\"Invalid xml node found unexpected content {value}.\")),");
 
-      let enum_impl = xsdgen_impl(generated_enum.ty().clone(), value);
+      let enum_impl = fromxml_impl(generated_enum.ty().clone(), parse_match);
 
       generate_xsdgen = false;
 
@@ -226,15 +215,17 @@ impl Restriction {
         implementation: vec![enum_impl],
       }
     } else {
+      let mut ty = base_type.element.get_type();
+      ty.xml_name = None;
       XsdImpl {
         name: parent_name.clone(),
         fieldname_hint: Some(parent_name.to_field_name()),
         element: XsdElement::Struct(
           Struct::new(Some(parent_name.clone()), &parent_name.to_struct_name())
-            .tuple_field(base_type.element.get_type(), false, false)
+            .tuple_field(ty, false, false)
             .derives(&["Clone", "Debug", "PartialEq"]),
         ),
-        inner: Vec::new(),
+        inner: vec![],
         implementation: vec![],
       }
     };

@@ -65,23 +65,26 @@ impl<T: XsdGen> XsdGen for Vec<T> {
   ) -> Result<Self, XsdIoError> {
     let output = match gen_state.state {
       GenType::Attribute => {
-        let mut new_state = gen_state.clone();
+        let mut new_state = gen_state;
         new_state.is_root = false;
         vec![T::gen(element, new_state, name)?]
       }
       GenType::Content => {
         if let Some(name) = name {
-          let mut new_state = gen_state.clone();
+          let mut new_state = gen_state;
           new_state.is_root = false;
           element.get_children_with(name, |mut value| {
             T::gen(&mut value, new_state.clone(), None)
           })?
         } else {
-          return Err(XsdGenError {
-            node_name: element.node_name(),
-            ty: xsd_types::XsdType::Unknown,
-            msg: format!("Expected node name to parse vector got None."),
-          })?;
+          return Err(
+            XsdGenError {
+              node_name: element.node_name(),
+              ty: xsd_types::XsdType::Unknown,
+              msg: "Expected node name to parse vector got None.".to_string(),
+            }
+            .into(),
+          );
         }
       }
     };
@@ -103,7 +106,7 @@ impl<T: XsdGen> XsdGen for Option<T> {
     if let Some(name) = name {
       let output = match gen_state.state {
         GenType::Attribute => {
-          let mut new_state = gen_state.clone();
+          let mut new_state = gen_state;
           new_state.is_root = false;
           if element.element.attributes.contains_key(name) {
             Some(T::gen(element, new_state, Some(name))?)
@@ -112,7 +115,7 @@ impl<T: XsdGen> XsdGen for Option<T> {
           }
         }
         GenType::Content => {
-          let mut new_state = gen_state.clone();
+          let mut new_state = gen_state;
           new_state.is_root = false;
           element.try_get_child_with(name, |mut value| {
             T::gen(&mut value, new_state.clone(), None)
@@ -126,11 +129,14 @@ impl<T: XsdGen> XsdGen for Option<T> {
 
       Ok(output)
     } else {
-      Err(XsdGenError {
-        node_name: element.node_name(),
-        ty: xsd_types::XsdType::Unknown,
-        msg: format!("Expected node name to parse option got None."),
-      })?
+      Err(
+        XsdGenError {
+          node_name: element.node_name(),
+          ty: xsd_types::XsdType::Unknown,
+          msg: "Expected node name to parse option got None.".to_string(),
+        }
+        .into(),
+      )
     }
   }
 }
@@ -146,14 +152,17 @@ impl<T: FromXmlString> XsdGen for T {
         if let Some(name) = name {
           element.get_attribute(name)
         } else {
-          return Err(XsdGenError {
-            node_name: element.node_name(),
-            ty: xsd_types::XsdType::Unknown,
-            msg: format!(
-              "Expected node name to parse {} attribute implementing FromXmlString got None.",
-              std::any::type_name::<T>()
-            ),
-          })?;
+          return Err(
+            XsdGenError {
+              node_name: element.node_name(),
+              ty: xsd_types::XsdType::Unknown,
+              msg: format!(
+                "Expected node name to parse {} attribute implementing FromXmlString got None.",
+                std::any::type_name::<T>()
+              ),
+            }
+            .into(),
+          );
         }
       }
       GenType::Content => element.get_content(),

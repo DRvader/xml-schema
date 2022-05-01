@@ -23,7 +23,11 @@ fn main() -> Result<(), XsdError> {
       output => return Err(output),
     },
     Ok(output) => {
-      std::fs::write("../musicxml-rs/src/musicxml_sys/musicxml.rs", &output).unwrap();
+      std::fs::write(
+        "../musicxml-rs/crates/musicxml-sys/src/musicxml.rs",
+        &output,
+      )
+      .unwrap();
     }
   }
 

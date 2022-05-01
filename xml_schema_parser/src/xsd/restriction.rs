@@ -221,7 +221,7 @@ impl Restriction {
         fieldname_hint: Some(parent_name.to_field_name()),
         element: XsdImplType::Struct(
           Struct::new(Some(parent_name.clone()), &parent_name.to_struct_name())
-            .tuple_field(ty, false, false)
+            .tuple_field(Some("pub"), ty, false, false)
             .derives(&["Clone", "Debug", "PartialEq"]),
         ),
         inner: vec![],

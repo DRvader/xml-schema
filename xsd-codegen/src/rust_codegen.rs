@@ -891,11 +891,11 @@ impl Struct {
   ///
   /// A struct can either set tuple fields with this function or named fields
   /// with `field`, but not both.
-  pub fn tuple_field<T>(mut self, ty: T, attribute: bool, flatten: bool) -> Self
+  pub fn tuple_field<T>(mut self, vis: Option<&str>, ty: T, attribute: bool, flatten: bool) -> Self
   where
     T: Into<Type>,
   {
-    self.fields.tuple(ty, attribute, flatten);
+    self.fields.tuple(vis, ty, attribute, flatten);
     self
   }
 
@@ -1172,8 +1172,14 @@ impl Variant {
   }
 
   /// Add a tuple field to the variant.
-  pub fn tuple(mut self, ty: impl Into<Type>, attribute: bool, flatten: bool) -> Self {
-    self.fields.tuple(ty, attribute, flatten);
+  pub fn tuple(
+    mut self,
+    vis: Option<&str>,
+    ty: impl Into<Type>,
+    attribute: bool,
+    flatten: bool,
+  ) -> Self {
+    self.fields.tuple(vis, ty, attribute, flatten);
     self
   }
 
@@ -1611,14 +1617,14 @@ impl Fields {
     self
   }
 
-  pub fn tuple<T>(&mut self, ty: T, attribute: bool, flatten: bool) -> &mut Self
+  pub fn tuple<T>(&mut self, vis: Option<&str>, ty: T, attribute: bool, flatten: bool) -> &mut Self
   where
     T: Into<Type>,
   {
     match *self {
       Fields::Empty => {
         *self = Fields::Tuple(vec![TupleField {
-          vis: None,
+          vis: vis.map(|v| v.to_string()),
           ty: ty.into(),
           attribute,
           flatten,
@@ -1626,7 +1632,7 @@ impl Fields {
       }
       Fields::Tuple(ref mut fields) => {
         fields.push(TupleField {
-          vis: None,
+          vis: vis.map(|v| v.to_string()),
           ty: ty.into(),
           attribute,
           flatten,

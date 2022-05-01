@@ -440,6 +440,7 @@ impl XsdImpl {
           let ty = ty.path(&to_field_name(&a.ty().name));
 
           let variant = Variant::new(b.ty().xml_name.clone(), &field_name).tuple(
+            None,
             ty,
             children_are_attributes,
             flatten_children,
@@ -462,6 +463,7 @@ impl XsdImpl {
           ty.name = format!("{}::{}", to_field_name(&a.ty().name), ty.name);
 
           let variant = Variant::new(None, &to_struct_name(&field_name)).tuple(
+            None,
             ty,
             children_are_attributes,
             flatten_children,
@@ -494,8 +496,12 @@ impl XsdImpl {
             b.generics = new_generics;
           }
 
-          let variant =
-            Variant::new(None, &field_name).tuple(b, children_are_attributes, flatten_children);
+          let variant = Variant::new(None, &field_name).tuple(
+            None,
+            b,
+            children_are_attributes,
+            flatten_children,
+          );
 
           a.variants.push(variant);
 

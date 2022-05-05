@@ -132,7 +132,7 @@ impl Choice {
         element: XsdImplType::Type(generated_impl.element.get_type().wrap("Vec")),
         inner: vec![generated_impl],
         implementation: vec![],
-        flatten: false,
+        flatten: parent_name.is_none(),
       }
     } else if option {
       let old_name = generated_impl.name.clone();
@@ -143,7 +143,7 @@ impl Choice {
         element: XsdImplType::Type(generated_impl.element.get_type().wrap("Option")),
         inner: vec![generated_impl],
         implementation: vec![],
-        flatten: false,
+        flatten: parent_name.is_none(),
       }
     } else {
       generated_impl

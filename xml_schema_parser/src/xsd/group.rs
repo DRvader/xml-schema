@@ -147,7 +147,7 @@ impl Group {
         element: XsdImplType::Type(gen.element.get_type().wrap("Vec")),
         inner: vec![gen],
         implementation: vec![],
-        flatten: false,
+        flatten: parent_name.is_none() && self.name.is_none(),
       }
     } else if option {
       let mut gen = general_xsdgen(gen);
@@ -160,7 +160,7 @@ impl Group {
         element: XsdImplType::Type(gen.element.get_type().wrap("Option")),
         inner: vec![gen],
         implementation: vec![],
-        flatten: false,
+        flatten: parent_name.is_none() && self.name.is_none(),
       }
     } else {
       gen

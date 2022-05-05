@@ -125,7 +125,7 @@ impl Element {
             XsdImpl {
               name: xml_name.clone(),
               fieldname_hint: Some(xml_name.to_field_name()),
-              element: XsdImplType::Type(ty),
+              element: XsdImplType::Type(ty.xml_name(Some(xml_name.clone()))),
               inner: vec![],
               implementation: vec![],
               flatten: false,

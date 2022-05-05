@@ -34,11 +34,7 @@ impl XMLElement {
   }
 
   pub fn new_name(&self, name: &str, ty: XsdType) -> XsdName {
-    XsdName::new_namespace(
-      name,
-      ty,
-      self.default_namespace.as_ref().map(|s| s.as_str()),
-    )
+    XsdName::new_namespace(name, ty, self.default_namespace.as_deref())
   }
 
   pub fn node_name(&self) -> String {
@@ -77,7 +73,7 @@ impl XMLElement {
     output
   }
 
-  fn get_child(&mut self, name: &str) -> Result<XMLElement, XsdIoError> {
+  pub fn get_child(&mut self, name: &str) -> Result<XMLElement, XsdIoError> {
     let mut output = self.get_children(name, Some(1));
     if output.len() != 1 {
       return Err(XsdIoError::XsdParseError(XsdParseError {
@@ -193,7 +189,7 @@ impl XMLElement {
     if let Some(value) = value {
       Ok(Some(T::from_xml(&value).map_err(|e| XsdParseError {
         node_name: self.node_name(),
-        msg: format!("error converting {} from text: {}", name, e.to_string()),
+        msg: format!("error converting {} from text: {}", name, e),
       })?))
     } else {
       Ok(None)
@@ -229,7 +225,7 @@ impl XMLElement {
     if let Some(value) = value {
       Ok(Some(T::from_xml(&value).map_err(|e| XsdParseError {
         node_name: self.node_name(),
-        msg: format!("could not parse node content from text: {}", e.to_string()),
+        msg: format!("could not parse node content from text: {}", e),
       })?))
     } else {
       Ok(None)
@@ -241,7 +237,7 @@ impl XMLElement {
       Some(output) => Ok(output),
       None => Err(XsdIoError::XsdParseError(XsdParseError {
         node_name: self.node_name(),
-        msg: format!("no text found"),
+        msg: "no text found".to_string(),
       })),
     }
   }

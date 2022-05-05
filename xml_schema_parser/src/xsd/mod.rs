@@ -112,15 +112,16 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
       block = match &ty.fields {
         xsd_codegen::Fields::Empty => block
           .push_block(
-            Block::new("match gen_state.state")
-              .push_block(Block::new("GenType::Attribute =>").line(format!(
-                "assert!(element.element.attributes.remove(\"{}\").is_some());",
-                ty.ty().xml_name.clone().unwrap()
-              )))
-              .push_block(Block::new("GenType::Content =>").line(format!(
-                "assert!(element.try_get_child(\"{}\")?.is_some());",
-                ty.ty().xml_name.clone().unwrap()
-              ))),
+            Block::new("if let Some(name) = name").push_block(
+              Block::new("match gen_state.state")
+                .push_block(
+                  Block::new("GenType::Attribute =>")
+                    .line("element.get_attribute::<String>(name)?;".to_string()),
+                )
+                .push_block(
+                  Block::new("GenType::Content =>").line("element.get_child(name)?;".to_string()),
+                ),
+            ),
           )
           .line("Ok(Self)"),
         xsd_codegen::Fields::Tuple(fields) => {
@@ -256,7 +257,7 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
                 "let {} = <{} as XsdGen>::gen(&mut {variant_res_name}_element, {new_gen_state}, {next_xml_name});",
                 variant_res_name,
                 field.to_string(),
-              ));
+              )).line(format!("if let Ok(attempt) = {variant_res_name} {{ *element = {variant_res_name}_element; return Ok(Self::{}(attempt)); }}", variant.name));
 
               variant_resolution_results.push((variant_res_name, variant.name.clone()));
             }
@@ -322,7 +323,8 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
               .collect::<Vec<_>>()
               .join(", ")))
             .line("Err(XsdGenError { ty: XsdType::Unknown, node_name: element.name().to_string(), msg: format!(\"No valid values could be parsed.\") })?")
-          ).line("_ => { Err(XsdGenError { ty: XsdType::Unknown, node_name: element.name().to_string(), msg: format!(\"Multiple values were able to be parsed.\") })? }")
+          )
+          .line("_ => { Err(XsdGenError { ty: XsdType::Unknown, node_name: element.name().to_string(), msg: format!(\"Multiple values were able to be parsed.\") })? }")
         );
     }
     _ => {

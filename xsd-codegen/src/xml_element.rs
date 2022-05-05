@@ -3,7 +3,7 @@ use xsd_types::{XsdIoError, XsdName, XsdParseError, XsdType};
 
 use crate::FromXmlString;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct XMLElement {
   pub element: Element,
   pub default_namespace: Option<String>,

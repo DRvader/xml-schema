@@ -79,6 +79,9 @@ impl<T: XsdGen> XsdGen for Vec<T> {
 
           let mut last_element = element.clone();
           while let Ok(value) = T::gen(element, gen_state.clone(), None) {
+            if element == &mut last_element {
+              break;
+            }
             output.push(value);
             last_element = element.clone();
           }

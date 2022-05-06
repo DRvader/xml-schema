@@ -144,6 +144,59 @@ impl XMLElement {
     func(self.get_child(name)?)
   }
 
+  pub fn get_next_child_with<T>(
+    &mut self,
+    name: &str,
+    func: impl FnOnce(XMLElement) -> Result<T, XsdIoError>,
+  ) -> Result<T, XsdIoError> {
+    if self.element.children.len() > 0 {
+      let mut selected_index = None;
+      for index in 0..self.element.children.len() {
+        if let XMLNode::Element(_) = self.element.children[index] {
+          selected_index = Some(index);
+          break;
+        }
+      }
+
+      if let Some(index) = selected_index {
+        let child = XMLElement {
+          element: if let XMLNode::Element(element) = self.element.children.remove(index) {
+            element
+          } else {
+            unreachable!()
+          },
+          default_namespace: self.default_namespace.clone(),
+        };
+        if child.name() != name {
+          Err(XsdIoError::XsdParseError(XsdParseError {
+            node_name: self.name().to_string(),
+            msg: format!(
+              "{} was the next child of {} not {}.",
+              child.name(),
+              self.name(),
+              name
+            ),
+          }))
+        } else {
+          func(child)
+        }
+      } else {
+        Err(XsdIoError::XsdParseError(XsdParseError {
+          node_name: self.name().to_string(),
+          msg: format!(
+            "{} doesn't have anymore children that are elements.",
+            self.name()
+          ),
+        }))
+      }
+    } else {
+      Err(XsdIoError::XsdParseError(XsdParseError {
+        node_name: self.name().to_string(),
+        msg: format!("{} doesn't have anymore children.", self.name()),
+      }))
+    }
+  }
+
   pub fn get_all_children(&mut self) -> Vec<XMLElement> {
     let mut output = Vec::new();
 

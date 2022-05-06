@@ -161,8 +161,9 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
           block
             .push_block(self_gen)
             .push_block(
-              Block::new("if let (Some(name), GenType::Content) = (name, gen_state.state)")
-                .line("element.get_child_with(name, |mut element| gen_self(&mut element, None))"),
+              Block::new("if let (Some(name), GenType::Content) = (name, gen_state.state)").line(
+                "element.get_next_child_with(name, |mut element| gen_self(&mut element, None))",
+              ),
             )
             .push_block(Block::new("else").line("gen_self(element, name)"))
         }
@@ -198,8 +199,9 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
           block
             .push_block(self_gen)
             .push_block(
-              Block::new("if let (Some(name), GenType::Content) = (name, gen_state.state)")
-                .line("element.get_child_with(name, |mut element| gen_self(&mut element, None))"),
+              Block::new("if let (Some(name), GenType::Content) = (name, gen_state.state)").line(
+                "element.get_next_child_with(name, |mut element| gen_self(&mut element, None))",
+              ),
             )
             .push_block(Block::new("else").line("gen_self(element, name)"))
         }

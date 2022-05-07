@@ -1,10 +1,10 @@
 use crate::{rust_codegen::Body, Block, Function, Impl, Type};
 
-pub fn xsdgen_impl(r#type: Type, block: Block) -> Impl {
+pub fn xsdgen_impl(r#type: Type, block: Block, mut_gen: bool, name_used: bool) -> Impl {
   let mut function = Function::new("gen")
     .arg("element", Type::new(None, "&mut XMLElement"))
-    .arg("mut gen_state", Type::new(None, "GenState"))
-    .arg("name", Type::new(None, "Option<&str>"))
+    .arg(if mut_gen { "mut gen_state" } else { "gen_state" }, Type::new(None, "GenState"))
+    .arg(if name_used { "name" } else { "_name" }, Type::new(None, "Option<&str>"))
     .ret(Type::new(None, "Result<Self, XsdIoError>"));
   let mut skip_b = false;
   if let Some(b) = &block.before {

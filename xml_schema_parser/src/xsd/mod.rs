@@ -23,7 +23,7 @@ mod xsd_context;
 use std::fs;
 use thiserror::Error;
 use xml::namespace::{NS_XML_PREFIX, NS_XML_URI};
-use xsd_codegen::{xsdgen_impl, Block, TupleField, XMLElement};
+use xsd_codegen::{xsdgen_impl, Block, Field, TupleField, XMLElement};
 use xsd_context::XsdContext;
 use xsd_types::{XsdIoError, XsdName};
 
@@ -107,8 +107,11 @@ impl Xsd {
 fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
   let mut block = Block::new("");
   let mut generated_new_impl = true;
+
+  let mut name_used = false;
   match &generated_impl.element {
     xsd_context::XsdImplType::Struct(ty) => {
+      name_used = true;
       block = match &ty.fields {
         xsd_codegen::Fields::Empty => block
           .push_block(
@@ -125,6 +128,8 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
           )
           .line("Ok(Self)"),
         xsd_codegen::Fields::Tuple(fields) => {
+          name_used = true;
+          let mut inner_name_used = false;
           let mut self_gen =
             Block::new("let gen_self = |element: &mut XMLElement, name: Option<&str>|");
           self_gen = self_gen.line("Ok(Self (");
@@ -144,6 +149,9 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
             let next_xml_name = if *flatten {
               "None".to_string()
             } else {
+              if field.xml_name.is_none() {
+                inner_name_used = true;
+              }
               field
                 .xml_name
                 .as_ref()
@@ -156,7 +164,12 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
               field.to_string(),
             ));
           }
-          let self_gen = self_gen.line("))").after(";");
+          let mut self_gen = self_gen.line("))").after(";");
+
+          if !inner_name_used {
+            self_gen.before =
+              Some("let gen_self = |element: &mut XMLElement, _name: Option<&str>|".to_string())
+          }
 
           block
             .push_block(self_gen)
@@ -168,6 +181,8 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
             .push_block(Block::new("else").line("gen_self(element, name)"))
         }
         xsd_codegen::Fields::Named(fields) => {
+          name_used = true;
+          let mut inner_name_used = false;
           let self_gen =
             Block::new("let gen_self = |element: &mut XMLElement, name: Option<&str>|");
           let mut inner_block = Block::new("Ok(Self");
@@ -181,6 +196,9 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
             let next_xml_name = if field.flatten {
               "None".to_string()
             } else {
+              if field.xml_name.is_none() {
+                inner_name_used = true;
+              }
               field
                 .xml_name
                 .as_ref()
@@ -194,7 +212,12 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
               field.ty.to_string()
             ));
           }
-          let self_gen = self_gen.push_block(inner_block.after(")")).after(";");
+          let mut self_gen = self_gen.push_block(inner_block.after(")")).after(";");
+
+          if !inner_name_used {
+            self_gen.before =
+              Some("let gen_self = |element: &mut XMLElement, _name: Option<&str>|".to_string())
+          }
 
           block
             .push_block(self_gen)
@@ -207,9 +230,8 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
         }
       }
     }
-    xsd_context::XsdImplType::Enum(ty) => {
-      let mut variant_resolution_results = vec![];
-      for (variant_index, variant) in ty.variants.iter().enumerate() {
+    xsd_context::XsdImplType::Enum(r#enum) => {
+      for (variant_index, variant) in r#enum.variants.iter().enumerate() {
         block = match &variant.fields {
           xsd_codegen::Fields::Empty => block
             .push_block(
@@ -225,8 +247,12 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
             )
             .line(format!("Ok(Self::{})", &variant.name)),
           xsd_codegen::Fields::Tuple(fields) => {
+            let mut current_block =
+              Block::new("").line("let mut variant_element = element.clone();");
+
+            let mut field_blocks = vec![];
             for (
-              index,
+              field_index,
               TupleField {
                 ty: field,
                 attribute,
@@ -237,6 +263,10 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
             {
               let new_gen_state = if *attribute {
                 "gen_state.to_attr()"
+              } else if (field_index == (fields.len() - 1))
+                && (variant_index == (r#enum.variants.len() - 1))
+              {
+                "gen_state"
               } else {
                 "gen_state.clone()"
               };
@@ -244,6 +274,9 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
               let next_xml_name = if *flatten {
                 "None".to_string()
               } else {
+                if field.xml_name.is_none() {
+                  name_used = true;
+                }
                 field
                   .xml_name
                   .as_ref()
@@ -251,93 +284,122 @@ fn general_xsdgen(mut generated_impl: XsdImpl) -> XsdImpl {
                   .unwrap_or_else(|| "name".to_string())
               };
 
-              let variant_res_name = format!("attempt_{}_{}", variant_index, index);
-              block = block.line(format!(
-                "let mut {variant_res_name}_element = element.clone();",
-              ));
-              block = block.line(format!(
-                "let {} = <{} as XsdGen>::gen(&mut {variant_res_name}_element, {new_gen_state}, {next_xml_name});",
-                variant_res_name,
+              current_block = current_block.line(format!(
+                "let attempt_{field_index} = <{} as XsdGen>::gen(&mut variant_element, {new_gen_state}, {next_xml_name});",
                 field.to_string(),
-              )).line(format!("if let Ok(attempt) = {variant_res_name} {{ *element = {variant_res_name}_element; return Ok(Self::{}(attempt)); }}", variant.name));
+              ));
 
-              variant_resolution_results.push((variant_res_name, variant.name.clone()));
+              field_blocks.push(current_block);
+
+              current_block = Block::new(&format!(
+                "if let Ok(attempt_{field_index}) = attempt_{field_index}"
+              ));
             }
-            block
+
+            let all_fields = (0..fields.len())
+              .map(|v| format!("attempt_{v}"))
+              .collect::<Vec<_>>()
+              .join(", ");
+            field_blocks.push(
+              current_block
+                .line("*element = variant_element;")
+                .line(&format!("return Ok(Self::{}({all_fields}));", variant.name)),
+            );
+
+            block.push_block(
+              field_blocks
+                .into_iter()
+                .reduce(|current, v| current.push_block(v))
+                .unwrap(),
+            )
           }
           xsd_codegen::Fields::Named(fields) => {
-            let mut inner_block = Block::new(&format!("Ok(Self::{}", variant.name));
-            for field in fields {
-              let new_gen_state = if field.attribute {
+            let mut current_block =
+              Block::new("").line("let mut variant_element = element.clone();");
+
+            let mut field_blocks = vec![];
+            for (
+              field_index,
+              Field {
+                name,
+                ty,
+                xml_name,
+                attribute,
+                flatten,
+                ..
+              },
+            ) in fields.iter().enumerate()
+            {
+              let new_gen_state = if *attribute {
                 "gen_state.to_attr()"
+              } else if (field_index == (fields.len() - 1))
+                && (variant_index == (r#enum.variants.len() - 1))
+              {
+                "gen_state"
               } else {
                 "gen_state.clone()"
               };
 
-              let next_xml_name = if field.flatten {
+              let next_xml_name = if *flatten {
                 "None".to_string()
               } else {
-                field
-                  .xml_name
+                if xml_name.is_none() {
+                  name_used = true;
+                }
+                xml_name
                   .as_ref()
                   .map(|v| format!("Some(\"{}\")", v))
                   .unwrap_or_else(|| "name".to_string())
               };
 
-              block = block.line(format!("let mut {}_element = element.clone();", field.name));
-              inner_block = inner_block.line(format!(
-                "{}: <{} as XsdGen>::gen({0}_element, {new_gen_state}, {next_xml_name})?,",
-                field.name,
-                field.ty.to_string(),
+              current_block = current_block.line(format!(
+                "let attempt_{name} = <{} as XsdGen>::gen(&mut variant_element, {new_gen_state}, {next_xml_name});",
+                ty.to_string(),
               ));
-              variant_resolution_results.push((field.name.clone(), variant.name.clone()));
+
+              field_blocks.push((name, current_block));
+
+              current_block = Block::new(&format!("if let Ok(attempt_{name}) = attempt_{name}"));
             }
-            block.push_block(inner_block.after(")"))
+
+            let all_fields = field_blocks
+              .iter()
+              .map(|v| format!("{0}: attempt_{0}", v.0))
+              .fold(
+                Block::new(&format!("return Ok(Self::{}", variant.name)),
+                |current, v| current.line(format!("{v},")),
+              )
+              .after(");");
+            let mut field_blocks = field_blocks.into_iter().map(|v| v.1).collect::<Vec<_>>();
+            field_blocks.push(
+              current_block
+                .line("*element = variant_element;")
+                .push_block(all_fields),
+            );
+
+            block.push_block(
+              field_blocks
+                .into_iter()
+                .reduce(|current, v| current.push_block(v))
+                .unwrap(),
+            )
           }
         }
       }
-      let mut match_block = Block::new(&format!(
-        "match ({})",
-        variant_resolution_results
-          .iter()
-          .map(|v| v.0.as_str())
-          .collect::<Vec<_>>()
-          .join(", ")
-      ));
-
-      for (index, (attempt_name, variant_name)) in variant_resolution_results.iter().enumerate() {
-        match_block = match_block.push_block(
-          Block::new(&format!(
-            "({}) =>",
-            (0..variant_resolution_results.len())
-              .map(|i| if i == index { "Ok(value)" } else { "Err(_)" })
-              .collect::<Vec<_>>()
-              .join(", ")
-          ))
-          .line(format!("*element = {attempt_name}_element;"))
-          .line(format!("Ok(Self::{variant_name}(value))")),
-        );
-      }
-      block = block.push_block(match_block.push_block(Block::new(&format!(
-            "({}) =>",
-            (0..variant_resolution_results.len())
-              .map(|_| "Err(_)")
-              .collect::<Vec<_>>()
-              .join(", ")))
-            .line("Err(XsdGenError { ty: XsdType::Unknown, node_name: element.name().to_string(), msg: format!(\"No valid values could be parsed.\") })?")
-          )
-          .line("_ => { Err(XsdGenError { ty: XsdType::Unknown, node_name: element.name().to_string(), msg: format!(\"Multiple values were able to be parsed.\") })? }")
-        );
+      block = block.line("Err(XsdGenError { ty: XsdType::Unknown, node_name: element.name().to_string(), msg: \"No valid values could be parsed.\".to_string() }.into())")
     }
     _ => {
       generated_new_impl = false;
     }
-  }
+  };
 
   if generated_new_impl {
-    generated_impl
-      .implementation
-      .push(xsdgen_impl(generated_impl.element.get_type(), block));
+    generated_impl.implementation.push(xsdgen_impl(
+      generated_impl.element.get_type(),
+      block,
+      false,
+      name_used,
+    ));
   }
 
   generated_impl

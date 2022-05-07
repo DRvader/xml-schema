@@ -425,89 +425,87 @@ impl XsdImpl {
           self.merge_inner(other.inner);
         }
       },
-      XsdImplType::Enum(a) => match &other.element {
-        XsdImplType::Struct(b) => {
-          let field_name = to_field_name(
-            other
-              .fieldname_hint
-              .as_ref()
-              .unwrap_or_else(|| &b.ty().name),
-          );
-          let ty = b.ty().clone();
+      XsdImplType::Enum(a) => {
+        match &other.element {
+          XsdImplType::Struct(b) => {
+            let field_name = to_field_name(
+              other
+                .fieldname_hint
+                .as_ref()
+                .unwrap_or_else(|| &b.ty().name),
+            );
+            let ty = b.ty().clone();
 
-          other.fieldname_hint = Some(field_name.clone());
+            other.fieldname_hint = Some(field_name.clone());
 
-          let ty = ty.path(&to_field_name(&a.ty().name));
+            let ty = ty.path(&to_field_name(&a.ty().name));
 
-          let variant = Variant::new(b.ty().xml_name.clone(), &field_name).tuple(
-            None,
-            ty,
-            children_are_attributes,
-            flatten_children,
-          );
-          a.variants.push(variant);
+            let variant = Variant::new(b.ty().xml_name.clone(), &to_struct_name(&field_name))
+              .tuple(None, ty, children_are_attributes, flatten_children);
+            a.variants.push(variant);
 
-          self.merge_inner(vec![other]);
-        }
-        XsdImplType::Enum(b) => {
-          let field_name = to_field_name(
-            other
-              .fieldname_hint
-              .as_ref()
-              .unwrap_or_else(|| &b.ty().name),
-          );
-          let mut ty = b.ty().clone();
-
-          other.fieldname_hint = Some(field_name.clone());
-
-          ty.name = format!("{}::{}", to_field_name(&a.ty().name), ty.name);
-
-          let variant = Variant::new(None, &to_struct_name(&field_name)).tuple(
-            None,
-            ty,
-            children_are_attributes,
-            flatten_children,
-          );
-          a.variants.push(variant);
-
-          self.merge_inner(vec![other]);
-        }
-        XsdImplType::Type(b) | XsdImplType::TypeAlias(TypeAlias { alias: b, .. }) => {
-          let field_name = to_struct_name(other.fieldname_hint.as_ref().unwrap_or(&b.name));
-
-          let mut b = b.clone();
-          for i in &mut other.inner {
-            if let XsdImplType::Type(_) | XsdImplType::TypeAlias(..) = i.element {
-              continue;
-            }
-
-            if i.element.get_type() == b {
-              b = b.path(&to_field_name(&a.ty().to_string()));
-            }
-
-            let mut new_generics = vec![];
-            for generic in b.generics {
-              if i.element.get_type() == generic {
-                new_generics.push(generic.path(&to_field_name(&a.ty().to_string())));
-              } else {
-                new_generics.push(generic);
-              }
-            }
-            b.generics = new_generics;
+            self.merge_inner(vec![other]);
           }
+          XsdImplType::Enum(b) => {
+            let field_name = to_field_name(
+              other
+                .fieldname_hint
+                .as_ref()
+                .unwrap_or_else(|| &b.ty().name),
+            );
+            let mut ty = b.ty().clone();
 
-          let variant = Variant::new(None, &field_name).tuple(
-            None,
-            b,
-            children_are_attributes,
-            flatten_children,
-          );
+            other.fieldname_hint = Some(field_name.clone());
 
-          a.variants.push(variant);
+            ty.name = format!("{}::{}", to_field_name(&a.ty().name), ty.name);
 
-          self.merge_inner(other.inner);
+            let variant = Variant::new(None, &to_struct_name(&field_name)).tuple(
+              None,
+              ty,
+              children_are_attributes,
+              flatten_children,
+            );
+            a.variants.push(variant);
+
+            self.merge_inner(vec![other]);
+          }
+          XsdImplType::Type(b) | XsdImplType::TypeAlias(TypeAlias { alias: b, .. }) => {
+            let field_name = to_struct_name(other.fieldname_hint.as_ref().unwrap_or(&b.name));
+
+            let mut b = b.clone();
+            for i in &mut other.inner {
+              if let XsdImplType::Type(_) | XsdImplType::TypeAlias(..) = i.element {
+                continue;
+              }
+
+              if i.element.get_type() == b {
+                b = b.path(&to_field_name(&a.ty().to_string()));
+              }
+
+              let mut new_generics = vec![];
+              for generic in b.generics {
+                if i.element.get_type() == generic {
+                  new_generics.push(generic.path(&to_field_name(&a.ty().to_string())));
+                } else {
+                  new_generics.push(generic);
+                }
+              }
+              b.generics = new_generics;
+            }
+
+            let variant = Variant::new(None, &field_name).tuple(
+              None,
+              b,
+              children_are_attributes,
+              flatten_children,
+            );
+
+            a.variants.push(variant);
+
+            self.merge_inner(other.inner);
+          }
         }
-      },
+      }
       XsdImplType::Type(_) => unimplemented!("Cannot merge into type."),
       XsdImplType::TypeAlias(..) => unimplemented!("Cannot merge into type alias."),
     }

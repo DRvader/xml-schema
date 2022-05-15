@@ -235,7 +235,7 @@ impl Schema {
 
     let mut dst = String::new();
     dst.push_str(
-      "use xml_schema_parser::{XsdIoError, XsdGenError, XMLElement, XsdType, XsdGen, GenState, GenType, Date, FromXmlString};\n\n",
+      "use xml_schema_parser::{XsdIoError, XsdGenError, XMLElement, XsdType, XsdGen, GenState, GenType, Date, FromXmlString, RestrictedVec};\n\n",
     );
     let mut formatter = Formatter::new(&mut dst);
     // for name in top_level_names {

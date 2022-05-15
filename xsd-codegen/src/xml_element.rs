@@ -149,7 +149,7 @@ impl XMLElement {
     name: &str,
     func: impl FnOnce(XMLElement) -> Result<T, XsdIoError>,
   ) -> Result<T, XsdIoError> {
-    if self.element.children.len() > 0 {
+    if !self.element.children.is_empty() {
       let mut selected_index = None;
       for index in 0..self.element.children.len() {
         if let XMLNode::Element(_) = self.element.children[index] {

@@ -178,7 +178,17 @@ impl Element {
       let field_type = generated_struct.element.get_type();
 
       let field_type = if self.is_multiple() {
-        field_type.wrap("Vec")
+        if self.min_occurences > 0 || self.max_occurences != MaxOccurences::Unbounded {
+          field_type
+            .wrap("RestrictedVec")
+            .generic(self.min_occurences.to_string())
+            .generic(match self.max_occurences {
+              MaxOccurences::Unbounded => "0".to_string(),
+              MaxOccurences::Number { value } => value.to_string(),
+            })
+        } else {
+          field_type.wrap("Vec")
+        }
       } else if self.could_be_none() {
         field_type.wrap("Option")
       } else {

@@ -2,7 +2,10 @@ mod codegen_helper;
 mod rust_codegen;
 mod xml_element;
 
-use std::collections::BTreeMap;
+use std::{
+  collections::BTreeMap,
+  ops::{Deref, DerefMut},
+};
 
 pub use rust_codegen::{
   Block, Enum, Field, Fields, Formatter, Function, Impl, Item, Module, Struct, TupleField, Type,
@@ -165,8 +168,15 @@ impl<T: FromXmlString> XsdGen for T {
       GenType::Content => {
         if let Some(name) = name {
           element.get_child_with(name, |mut element| element.get_content())
+        } else if let Ok(content) = element.get_content() {
+          Ok(content)
+        } else if let Ok(content) = T::from_xml("") {
+          Ok(content)
         } else {
-          element.get_content()
+          Err(XsdIoError::XsdParseError(xsd_types::XsdParseError {
+            node_name: element.node_name(),
+            msg: "failed to convert text to T".to_string(),
+          }))
         }
       }
     }
@@ -194,6 +204,63 @@ macro_rules! gen_simple_parse_from_xml_string {
       }
     }
   };
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct RestrictedVec<T, const MIN: usize, const MAX: usize>(Vec<T>);
+
+impl<T, const MIN: usize, const MAX: usize> Deref for RestrictedVec<T, MIN, MAX> {
+  type Target = Vec<T>;
+
+  fn deref(&self) -> &Self::Target {
+    &self.0
+  }
+}
+
+impl<T, const MIN: usize, const MAX: usize> DerefMut for RestrictedVec<T, MIN, MAX> {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    &mut self.0
+  }
+}
+
+impl<T, const MIN: usize, const MAX: usize> IntoIterator for RestrictedVec<T, MIN, MAX> {
+  type Item = <Vec<T> as IntoIterator>::Item;
+  type IntoIter = <Vec<T> as IntoIterator>::IntoIter;
+
+  fn into_iter(self) -> Self::IntoIter {
+    self.0.into_iter()
+  }
+}
+
+impl<T: XsdGen, const MIN: usize, const MAX: usize> XsdGen for RestrictedVec<T, MIN, MAX> {
+  fn gen(
+    element: &mut XMLElement,
+    gen_state: GenState,
+    name: Option<&str>,
+  ) -> Result<Self, XsdIoError> {
+    let gen = <Vec<T> as XsdGen>::gen(element, gen_state, name)?;
+    if gen.len() < MIN {
+      return Err(XsdIoError::XsdParseError(xsd_types::XsdParseError {
+        node_name: element.node_name(),
+        msg: format!(
+          "Generated vector length is less than the minimum size ({} < {MIN})",
+          gen.len()
+        ),
+      }));
+    }
+
+    if MAX != 0 && gen.len() > MAX {
+      return Err(XsdIoError::XsdParseError(xsd_types::XsdParseError {
+        node_name: element.node_name(),
+        msg: format!(
+          "Generated vector length is greater than the maximuim size ({} > {MAX})",
+          gen.len()
+        ),
+      }));
+    }
+
+    Ok(Self(gen))
+  }
 }
 
 gen_simple_parse_from_xml_string!(isize);

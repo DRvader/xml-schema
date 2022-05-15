@@ -126,10 +126,25 @@ impl Choice {
     let mut generated_impl = if multiple {
       let old_name = generated_impl.name.clone();
       generated_impl.name.local_name = format!("inner-{}", old_name.local_name);
+
       XsdImpl {
         name: old_name,
         fieldname_hint: Some(generated_impl.fieldname_hint.clone().unwrap()),
-        element: XsdImplType::Type(generated_impl.element.get_type().wrap("Vec")),
+        element: XsdImplType::Type(
+          if self.min_occurences > 0 || self.max_occurences != MaxOccurences::Unbounded {
+            generated_impl
+              .element
+              .get_type()
+              .wrap("RestrictedVec")
+              .generic(self.min_occurences.to_string())
+              .generic(match self.max_occurences {
+                MaxOccurences::Unbounded => "0".to_string(),
+                MaxOccurences::Number { value } => value.to_string(),
+              })
+          } else {
+            generated_impl.element.get_type().wrap("Vec")
+          },
+        ),
         inner: vec![generated_impl],
         implementation: vec![],
         flatten: parent_name.is_none(),

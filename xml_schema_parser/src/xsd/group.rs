@@ -144,7 +144,21 @@ impl Group {
       XsdImpl {
         name: old_name,
         fieldname_hint: Some(gen.fieldname_hint.clone().unwrap()),
-        element: XsdImplType::Type(gen.element.get_type().wrap("Vec")),
+        element: XsdImplType::Type(
+          if self.min_occurences > 0 || self.max_occurences != MaxOccurences::Unbounded {
+            gen
+              .element
+              .get_type()
+              .wrap("RestrictedVec")
+              .generic(self.min_occurences.to_string())
+              .generic(match self.max_occurences {
+                MaxOccurences::Unbounded => "0".to_string(),
+                MaxOccurences::Number { value } => value.to_string(),
+              })
+          } else {
+            gen.element.get_type().wrap("Vec")
+          },
+        ),
         inner: vec![gen],
         implementation: vec![],
         flatten: parent_name.is_none() && self.name.is_none(),
